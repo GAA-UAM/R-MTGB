@@ -3,16 +3,17 @@ import pandas as pd
 from sklearn.datasets import make_classification
 
 
-def toy_data(n_samples):
+def toy_data(n_samples, n_classes):
     random_seed = 555
     np.random.seed(random_seed)
     n_features = 2
 
     X, y = make_classification(
+        n_classes=n_classes,
         n_samples=n_samples,
         n_features=n_features,
-        n_informative=int(n_features * 0.8),
-        n_redundant=int(n_features * 0.2),
+        n_informative=2,
+        n_redundant=0,
         n_clusters_per_class=1,
         random_state=random_seed,
     )

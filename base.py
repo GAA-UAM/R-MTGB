@@ -1,32 +1,13 @@
-from abc import ABCMeta, abstractmethod
-import copy
-from sklearn.ensemble import BaseEnsemble
-from sklearn.ensemble._gb import BaseGradientBoosting
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
-from sklearn.utils.stats import _weighted_percentile
-import numpy as np
-from numbers import Integral, Real
-from sklearn.dummy import DummyClassifier, DummyRegressor
-from sklearn.utils.validation import _check_sample_weight, check_is_fitted
-from sklearn.metrics import mean_squared_error
-from scipy.optimize import fmin_l_bfgs_b
-import pandas as pd
-from sklearn.ensemble._gradient_boosting import (
-    _random_sample_mask,
-    predict_stage,
-    predict_stages,
-)
-from sklearn.model_selection import train_test_split
 import math
-from scipy.sparse import csc_matrix, csr_matrix, issparse
 import warnings
-from sklearn.utils import check_array, check_random_state, column_or_1d
-from time import time
-from sklearn.base import ClassifierMixin, RegressorMixin, _fit_context, is_classifier
-from sklearn.tree._tree import DOUBLE, DTYPE, TREE_LEAF
+import numpy as np
+import pandas as pd
+from numbers import Integral
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.utils.stats import _weighted_percentile
+from sklearn.ensemble._gb import BaseGradientBoosting
+from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn._loss.loss import (
-    _LOSSES,
     AbsoluteError,
     ExponentialLoss,
     HalfBinomialLoss,
@@ -35,6 +16,20 @@ from sklearn._loss.loss import (
     HuberLoss,
     PinballLoss,
 )
+
+from abc import abstractmethod
+from scipy.optimize import fmin_l_bfgs_b
+from sklearn.base import _fit_context, is_classifier
+from sklearn.utils.validation import check_is_fitted
+from scipy.sparse import csc_matrix, csr_matrix, issparse
+from sklearn.utils import check_random_state, column_or_1d
+from sklearn.ensemble._gradient_boosting import (
+    _random_sample_mask,
+    predict_stage,
+    predict_stages,
+)
+
+from sklearn.tree._tree import DTYPE, TREE_LEAF
 
 
 def _safe_divide(numerator, denominator):
@@ -59,9 +54,6 @@ def _safe_divide(numerator, denominator):
 
 
 def _init_raw_predictions(X, estimator, loss, use_predict_proba):
-    # TODO: Use loss.fit_intercept_only where appropriate instead of
-    # DummyRegressor which is the default given by the `init` parameter,
-    # see also _init_state.
     if use_predict_proba:
         # Our parameter validation, set via _fit_context and _parameter_constraints
         # already guarantees that estimator has a predict_proba method.
@@ -89,7 +81,6 @@ def _update_terminal_regions(
     sample_weight,
     sample_mask,
     learning_rate=0.1,
-    k=0,
 ):
     # compute leaf for each sample in ``X``.
     terminal_regions = tree.apply(X)
@@ -101,7 +92,7 @@ def _update_terminal_regions(
 
         if isinstance(loss, HalfBinomialLoss):
 
-            def compute_update(y_, indices, neg_gradient, raw_prediction, k):
+            def compute_update(y_, indices, neg_gradient, raw_prediction):
                 # Make a single Newton-Raphson step, see "Additive Logistic Regression:
                 # A Statistical View of Boosting" FHT00 and note that we use a slightly
                 # different version (factor 2) of "F" with proba=expit(raw_prediction).
@@ -118,7 +109,7 @@ def _update_terminal_regions(
 
         elif isinstance(loss, HalfMultinomialLoss):
 
-            def compute_update(y_, indices, neg_gradient, raw_prediction, k):
+            def compute_update(y_, indices, neg_gradient, raw_prediction):
                 # we take advantage that: y - prob = neg_gradient
                 neg_g = neg_gradient.take(indices, axis=0)
                 prob = y_ - neg_g
@@ -137,7 +128,7 @@ def _update_terminal_regions(
 
         elif isinstance(loss, ExponentialLoss):
 
-            def compute_update(y_, indices, neg_gradient, raw_prediction, k):
+            def compute_update(y_, indices, neg_gradient, raw_prediction):
                 neg_g = neg_gradient.take(indices, axis=0)
                 # numerator = negative gradient = y * exp(-raw) - (1-y) * exp(raw)
                 numerator = np.average(neg_g, weights=sw)
@@ -151,9 +142,9 @@ def _update_terminal_regions(
 
         else:
 
-            def compute_update(y_, indices, neg_gradient, raw_prediction, k):
+            def compute_update(y_, indices, neg_gradient, raw_prediction):
                 return loss.fit_intercept_only(
-                    y_true=y_ - raw_prediction[indices, k],
+                    y_true=y_ - raw_prediction[indices, :],
                     sample_weight=sw,
                 )
 
@@ -164,13 +155,13 @@ def _update_terminal_regions(
             ]  # of terminal regions
             y_ = y.take(indices, axis=0)
             sw = None if sample_weight is None else sample_weight[indices]
-            update = compute_update(y_, indices, neg_gradient, raw_prediction, k)
+            update = compute_update(y_, indices, neg_gradient, raw_prediction)
 
             # TODO: Multiply here by learning rate instead of everywhere else.
-            tree.value[leaf, 0, 0] = update
+            tree.value[leaf, :, 0] = update
 
     # update predictions (both in-bag and out-of-bag)
-    raw_prediction[:, k] += learning_rate * tree.value[:, 0, 0].take(
+    raw_prediction[:, :] += learning_rate * tree.value[:, :, 0].take(
         terminal_regions, axis=0
     )
 
@@ -181,38 +172,6 @@ def set_huber_delta(loss, y_true, raw_prediction, sample_weight=None):
     # sample_weight is always a ndarray, never None.
     delta = _weighted_percentile(abserr, sample_weight, 100 * loss.quantile)
     loss.closs.delta = float(delta)
-
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
-def custom_loss(param, stacks, preds):
-    sigmoid = 1 / (1 + np.exp(-param))
-
-    y_true = np.zeros(preds.shape[0])
-    for r, (key, value) in enumerate(stacks.items()):
-        X, y, indices, neg_g_view = (
-            value[0],
-            (value[1]).ravel(),
-            value[2],
-            value[3],
-        )
-        y_true[indices] = y
-
-    preds = preds.ravel()
-    y_pred = (sigmoid * preds) + ((1 - sigmoid) * preds)
-
-    loss = np.mean((y_true - y_pred) ** 2)
-    gradient = -2 * np.dot((y_true - y_pred) * sigmoid * (1 - sigmoid), preds)
-
-    return loss, gradient
-
-
-def optimize_task_param(stacks, preds, initial_guess):
-    result = fmin_l_bfgs_b(custom_loss, x0=initial_guess, args=(stacks, preds))
-    optimized_task_param = result[0][0]
-    return optimized_task_param
 
 
 class BaseGB(BaseGradientBoosting):
@@ -272,7 +231,7 @@ class BaseGB(BaseGradientBoosting):
     def _get_loss(self, sample_weight):
         """Get loss object from sklearn._loss.loss."""
 
-    def _gradient_h(self, y, raw_predictions):
+    def _neg_gradient(self, y, raw_predictions):
         if isinstance(self._loss, HuberLoss):
             set_huber_delta(
                 loss=self._loss,
@@ -294,6 +253,39 @@ class BaseGB(BaseGradientBoosting):
 
         return neg_g_view
 
+    def _sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
+
+    def _w_sum_sigmoid(self, sigmoid, pred):
+        return (sigmoid * pred) + ((1 - sigmoid) * pred)
+
+    def _custom_loss(self, param, y, pred):
+        sigmoid = self._sigmoid(param)
+
+        y_pred = self._w_sum_sigmoid(sigmoid, pred)
+
+        loss = np.mean((y - y_pred) ** 2)
+        gradient = -2 * np.dot((y - y_pred) * sigmoid * (1 - sigmoid), pred)
+
+        return loss, gradient
+
+    def _opt_sigmoid_param(self, stacks, raw_prediction, initial_guess):
+        y_true = np.zeros(raw_prediction.shape[0])
+        for _, value in stacks.items():
+            y, indices = (value[1], value[2])
+            if y.ndim != 1:
+                y = y.ravel()
+            y_true[indices] = y
+
+        if raw_prediction.ndim != 1:
+            raw_prediction = raw_prediction.ravel()
+
+        result = fmin_l_bfgs_b(
+            self._custom_loss, x0=initial_guess, args=(y_true, raw_prediction)
+        )
+        optimized_task_param = result[0][0]
+        return optimized_task_param
+
     def _fit_stage(
         self,
         i,
@@ -309,81 +301,72 @@ class BaseGB(BaseGradientBoosting):
         updated_stacks = {}
         for key, value in stacks.items():
             y = (value[1]).ravel()
-            neg_gradient = self._gradient_h(y, raw_predictions[value[2]])
+            neg_gradient = self._neg_gradient(y, raw_predictions[value[2]])
             updated_value = (*value, neg_gradient)
             updated_stacks[key] = updated_value
 
-        for k in range(self.n_trees_per_iteration_):
-            preds = np.zeros_like(raw_predictions)
-            trees = np.empty(
-                len(
-                    updated_stacks,
-                ),
-                dtype=object,
+        preds = np.zeros_like(raw_predictions)
+
+        for r, (key, value) in enumerate(updated_stacks.items()):
+            X, y, indices, neg_g_view = (
+                (value[0]).astype(np.float32),
+                (value[1]).ravel(),
+                value[2],
+                value[3],
             )
-            for r, (key, value) in enumerate(updated_stacks.items()):
-                X, y, indices, neg_g_view = (
-                    (value[0]).astype(np.float32),
-                    (value[1]).ravel(),
-                    value[2],
-                    value[3],
-                )
-                if self._loss.is_multiclass:
-                    y = np.array(y == k, dtype=np.float64)
+            if self._loss.is_multiclass:
+                y = np.array(y == 1, dtype=np.float64)
 
-                tree = DecisionTreeRegressor(
-                    criterion=self.criterion,
-                    splitter="best",
-                    max_depth=self.max_depth,
-                    min_samples_split=self.min_samples_split,
-                    min_samples_leaf=self.min_samples_leaf,
-                    min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                    min_impurity_decrease=self.min_impurity_decrease,
-                    max_features=self.max_features,
-                    max_leaf_nodes=self.max_leaf_nodes,
-                    random_state=random_state,
-                    ccp_alpha=self.ccp_alpha,
-                )
-
-                if self.subsample < 1.0:
-                    sample_weight = sample_mask.astype(np.float64)[indices]
-
-                X = X_csc if X_csc is not None else X
-                tree.fit(
-                    X,
-                    neg_g_view[:, k],
-                    sample_weight=sample_weight,
-                    check_input=False,
-                )
-
-                X_for_tree_update = X_csr if X_csr is not None else X
-                _update_terminal_regions(
-                    self._loss,
-                    tree.tree_,
-                    X_for_tree_update,
-                    y,
-                    neg_g_view[:, k],
-                    raw_predictions[indices],
-                    sample_weight,
-                    sample_mask[indices],
-                    learning_rate=self.learning_rate,
-                    k=k,
-                )
-                preds[indices] = raw_predictions[indices]
-
-                trees[r] = copy.deepcopy(tree)
-            raw_predictions = preds
-            optimized_task_param = optimize_task_param(
-                updated_stacks,
-                raw_predictions,
-                np.ones_like(raw_predictions.ravel())
-                * np.random.normal(np.mean(y), np.std(y)),
+            tree = DecisionTreeRegressor(
+                criterion=self.criterion,
+                splitter="best",
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                min_samples_leaf=self.min_samples_leaf,
+                min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                min_impurity_decrease=self.min_impurity_decrease,
+                max_features=self.max_features,
+                max_leaf_nodes=self.max_leaf_nodes,
+                random_state=random_state,
+                ccp_alpha=self.ccp_alpha,
             )
 
-            for r, tree_r in enumerate(trees):
-                self.estimators_[i, r, k] = tree_r
+            if self.subsample < 1.0:
+                sample_weight = sample_mask.astype(np.float64)[indices]
 
-        return raw_predictions
+            X = X_csc if X_csc is not None else X
+            tree.fit(
+                X,
+                neg_g_view,
+                sample_weight=sample_weight,
+                check_input=False,
+            )
+
+            X_for_tree_update = X_csr if X_csr is not None else X
+            _update_terminal_regions(
+                self._loss,
+                tree.tree_,
+                X_for_tree_update,
+                y,
+                neg_g_view,
+                raw_predictions[indices],
+                sample_weight,
+                sample_mask[indices],
+                learning_rate=self.learning_rate,
+            )
+            preds[indices] = raw_predictions[indices]
+
+            self.estimators_[i, r] = tree
+
+        raw_predictions = preds
+        opt_param = self._opt_sigmoid_param(
+            updated_stacks,
+            raw_predictions,
+            np.random.normal(np.mean(y), np.std(y)),
+        )
+
+        # return raw_predictions
+        return self._w_sum_sigmoid(self._sigmoid(opt_param), raw_predictions)
 
     def _set_max_features(self):
         """Set self.max_features_."""
@@ -425,7 +408,7 @@ class BaseGB(BaseGradientBoosting):
         # )
 
         self.estimators_ = np.empty(
-            (self.n_estimators, self.T, self.n_trees_per_iteration_), dtype=object
+            (self.n_estimators, self.T), dtype=object
         )
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
@@ -467,16 +450,16 @@ class BaseGB(BaseGradientBoosting):
         if not self.warm_start:
             self._clear_state()
 
-        unique = np.unique(task)
-        self.T = len(unique)
-        self.tasks_dic = dict(zip(unique, range(self.T)))
+
+        self.T = len(np.unique(task))
+
 
         X, y = self._validate_data(
             X, y, accept_sparse=["csr", "csc", "coo"], dtype=DTYPE, multi_output=True
         )
 
         y = self._encode_y(y=y, sample_weight=None)
-        y = column_or_1d(y, warn=True)  # TODO: Is this still required?
+
 
         self._set_max_features()
 

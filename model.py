@@ -72,7 +72,7 @@ class clf(BaseGB):
         n_classes = self.classes_.shape[0]
         # only 1 tree for binary classification. For multiclass classification,
         # we build 1 tree per class.
-        self.n_trees_per_iteration_ = 1 if n_classes <= 2 else n_classes
+        self.n_trees_per_iteration_ = 1 
         encoded_y = encoded_y_int.astype(float, copy=False)
 
         # From here on, it is additional to the HGBT case.
