@@ -64,7 +64,8 @@ def _init_raw_predictions(X, estimator, loss, use_predict_proba):
         predictions = np.clip(predictions, eps, 1 - eps, dtype=np.float64)
     else:
         predictions = estimator.predict(X).astype(np.float64)
-
+    if loss.is_multiclass:
+        predictions = predictions[np.newaxis]
     if predictions.ndim == 1:
         return loss.link.link(predictions).reshape(-1, 1)
     else:
@@ -407,9 +408,7 @@ class BaseGB(BaseGradientBoosting):
         #     (self.n_estimators, self.n_trees_per_iteration_), dtype=object
         # )
 
-        self.estimators_ = np.empty(
-            (self.n_estimators, self.T), dtype=object
-        )
+        self.estimators_ = np.empty((self.n_estimators, self.T), dtype=object)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         # do oob?
@@ -450,16 +449,13 @@ class BaseGB(BaseGradientBoosting):
         if not self.warm_start:
             self._clear_state()
 
-
         self.T = len(np.unique(task))
-
 
         X, y = self._validate_data(
             X, y, accept_sparse=["csr", "csc", "coo"], dtype=DTYPE, multi_output=True
         )
 
         y = self._encode_y(y=y, sample_weight=None)
-
 
         self._set_max_features()
 
