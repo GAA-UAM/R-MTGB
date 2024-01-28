@@ -187,13 +187,10 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def custom_loss(param, stacks, trees):
-    param = param[0]
+def custom_loss(param, stacks, preds):
     sigmoid = 1 / (1 + np.exp(-param))
 
-    trees_iter = iter(trees)
-    preds = []
-    y_true = np.zeros(stacks[0.0][1].ravel().shape[0] * 2)
+    y_true = np.zeros(preds.shape[0])
     for r, (key, value) in enumerate(stacks.items()):
         X, y, indices, neg_g_view = (
             value[0],
@@ -202,18 +199,18 @@ def custom_loss(param, stacks, trees):
             value[3],
         )
         y_true[indices] = y
-        tree = next(trees_iter)
-        preds.append(tree.predict(X))
 
-    y_pred = (sigmoid * preds[0]) + ((1 - sigmoid) * preds[1])
+    preds = preds.ravel()
+    y_pred = (sigmoid * preds) + ((1 - sigmoid) * preds)
 
     loss = np.mean((y_true - y_pred) ** 2)
+    gradient = -2 * np.dot((y_true - y_pred) * sigmoid * (1 - sigmoid), preds)
 
-    return loss
+    return loss, gradient
 
 
-def optimize_task_param(stacks, trees, initial_guess):
-    result = fmin_l_bfgs_b(custom_loss, x0=initial_guess, args=(stacks, trees))
+def optimize_task_param(stacks, preds, initial_guess):
+    result = fmin_l_bfgs_b(custom_loss, x0=initial_guess, args=(stacks, preds))
     optimized_task_param = result[0][0]
     return optimized_task_param
 
@@ -312,20 +309,21 @@ class BaseGB(BaseGradientBoosting):
         updated_stacks = {}
         for key, value in stacks.items():
             y = (value[1]).ravel()
-            neg_gradient = self._gradient_h(y, raw_predictions)
+            neg_gradient = self._gradient_h(y, raw_predictions[value[2]])
             updated_value = (*value, neg_gradient)
             updated_stacks[key] = updated_value
 
         for k in range(self.n_trees_per_iteration_):
+            preds = np.zeros_like(raw_predictions)
             trees = np.empty(
                 len(
-                    stacks,
+                    updated_stacks,
                 ),
                 dtype=object,
             )
-            for r, (key, value) in enumerate(stacks.items()):
+            for r, (key, value) in enumerate(updated_stacks.items()):
                 X, y, indices, neg_g_view = (
-                    value[0],
+                    (value[0]).astype(np.float32),
                     (value[1]).ravel(),
                     value[2],
                     value[3],
@@ -348,7 +346,7 @@ class BaseGB(BaseGradientBoosting):
                 )
 
                 if self.subsample < 1.0:
-                    sample_weight = sample_mask.astype(np.float64)
+                    sample_weight = sample_mask.astype(np.float64)[indices]
 
                 X = X_csc if X_csc is not None else X
                 tree.fit(
@@ -358,8 +356,6 @@ class BaseGB(BaseGradientBoosting):
                     check_input=False,
                 )
 
-                trees[r] = copy.deepcopy(tree)
-
                 X_for_tree_update = X_csr if X_csr is not None else X
                 _update_terminal_regions(
                     self._loss,
@@ -367,17 +363,21 @@ class BaseGB(BaseGradientBoosting):
                     X_for_tree_update,
                     y,
                     neg_g_view[:, k],
-                    raw_predictions,
+                    raw_predictions[indices],
                     sample_weight,
-                    sample_mask,
+                    sample_mask[indices],
                     learning_rate=self.learning_rate,
                     k=k,
                 )
+                preds[indices] = raw_predictions[indices]
 
+                trees[r] = copy.deepcopy(tree)
+            raw_predictions = preds
             optimized_task_param = optimize_task_param(
-                stacks,
-                trees,
-                np.random.normal(np.mean(y), np.std(y)),
+                updated_stacks,
+                raw_predictions,
+                np.ones_like(raw_predictions.ravel())
+                * np.random.normal(np.mean(y), np.std(y)),
             )
 
             for r, tree_r in enumerate(trees):
@@ -485,7 +485,19 @@ class BaseGB(BaseGradientBoosting):
 
         self._init_state()
 
-        # fit initial model and initialize raw predictions
+        stack = pd.DataFrame(np.column_stack((X, y, task)))
+        num_features = len(stack.columns) - 2
+
+        def extract_data(group):
+            X = group.iloc[:, :num_features].values
+            y = group.iloc[:, num_features:-1].values
+            indices = group.index.tolist()
+            return X, y, indices
+
+        stacks = {}
+        for r, group in stack.groupby(stack.columns[-1]):
+            stacks[r] = extract_data(group)
+
         if self.init_ == "zero":
             raw_predictions = np.zeros(
                 shape=(X.shape[0], self.n_trees_per_iteration_),
@@ -508,7 +520,7 @@ class BaseGB(BaseGradientBoosting):
         n_stages = self._fit_stages(
             X,
             y,
-            task,
+            stacks,
             raw_predictions,
             self._rng,
             begin_at_stage,
@@ -521,7 +533,7 @@ class BaseGB(BaseGradientBoosting):
         self,
         X,
         y,
-        task,
+        stacks,
         raw_predictions,
         random_state,
         begin_at_stage=0,
@@ -544,24 +556,6 @@ class BaseGB(BaseGradientBoosting):
             factor = 2
         else:
             factor = 1
-
-        stack = pd.DataFrame(np.column_stack((X, y, task)))
-        num_features = len(stack.columns) - 2
-
-        def extract_data(group):
-            X = group.iloc[:, :num_features].values
-            y = group.iloc[:, num_features:-1].values
-            indices = group.index.tolist()
-            return X, y, indices
-
-        stacks = {}
-        for r, group in stack.groupby(stack.columns[-1]):
-            stacks[r] = extract_data(group)
-
-        for r in stacks.keys():
-            current_list = list(stacks[r])
-            current_list.append(raw_predictions[stacks[r][2]])
-            stacks[r] = tuple(current_list)
 
         i = begin_at_stage
         for i in range(begin_at_stage, self.n_estimators):
