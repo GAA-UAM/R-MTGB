@@ -19,10 +19,11 @@ from sklearn._loss.loss import (
 
 from abc import abstractmethod
 from scipy.optimize import fmin_l_bfgs_b
+from sklearn.utils import check_random_state
+from sklearn.utils.multiclass import type_of_target
 from sklearn.base import _fit_context, is_classifier
 from sklearn.utils.validation import check_is_fitted
 from scipy.sparse import csc_matrix, csr_matrix, issparse
-from sklearn.utils import check_random_state, column_or_1d
 from sklearn.ensemble._gradient_boosting import (
     _random_sample_mask,
     predict_stage,
@@ -30,6 +31,8 @@ from sklearn.ensemble._gradient_boosting import (
 )
 
 from sklearn.tree._tree import DTYPE, TREE_LEAF
+from sklearn.preprocessing import LabelBinarizer
+from scipy.special import logsumexp
 
 
 def _safe_divide(numerator, denominator):
@@ -53,8 +56,14 @@ def _safe_divide(numerator, denominator):
         return result
 
 
-def _init_raw_predictions(X, estimator, loss, use_predict_proba):
-    if use_predict_proba:
+def _init_raw_predictions(X, estimator, loss, is_classifier):
+    # probas = estimator.predict_proba(X)
+    # eps = np.finfo(np.float32).eps
+    # probas = np.clip(probas, eps, 1 - eps, dtype=np.float64)
+    # raw_predictions = np.log(probas).astype(np.float64)
+    # return raw_predictions
+
+    if is_classifier:
         # Our parameter validation, set via _fit_context and _parameter_constraints
         # already guarantees that estimator has a predict_proba method.
         predictions = estimator.predict_proba(X)
@@ -64,8 +73,7 @@ def _init_raw_predictions(X, estimator, loss, use_predict_proba):
         predictions = np.clip(predictions, eps, 1 - eps, dtype=np.float64)
     else:
         predictions = estimator.predict(X).astype(np.float64)
-    if loss.is_multiclass:
-        predictions = predictions[np.newaxis]
+
     if predictions.ndim == 1:
         return loss.link.link(predictions).reshape(-1, 1)
     else:
@@ -241,10 +249,14 @@ class BaseGB(BaseGradientBoosting):
                 sample_weight=None,
             )
 
-        neg_gradient = -self._loss.gradient(
-            y_true=y,
-            raw_prediction=raw_predictions,
-            sample_weight=None,
+        # neg_gradient = -self._loss.gradient(
+        #     y_true=y,
+        #     raw_prediction=raw_predictions,
+        #     sample_weight=None,
+        # )
+
+        neg_gradient = y - np.nan_to_num(
+            np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
         if neg_gradient.ndim == 1:
@@ -274,12 +286,6 @@ class BaseGB(BaseGradientBoosting):
         y_true = np.zeros(raw_prediction.shape[0])
         for _, value in stacks.items():
             y, indices = (value[1], value[2])
-            if y.ndim != 1:
-                y = y.ravel()
-            y_true[indices] = y
-
-        if raw_prediction.ndim != 1:
-            raw_prediction = raw_prediction.ravel()
 
         result = fmin_l_bfgs_b(
             self._custom_loss, x0=initial_guess, args=(y_true, raw_prediction)
@@ -299,22 +305,21 @@ class BaseGB(BaseGradientBoosting):
     ):
         sample_weight = None
 
-        updated_stacks = {}
-        for key, value in stacks.items():
-            y = (value[1]).ravel()
+        for _, value in stacks.items():
+            y = value[1]
             neg_gradient = self._neg_gradient(y, raw_predictions[value[2]])
-            updated_value = (*value, neg_gradient)
-            updated_stacks[key] = updated_value
+            updated_value = value.append(neg_gradient)
 
         preds = np.zeros_like(raw_predictions)
 
-        for r, (key, value) in enumerate(updated_stacks.items()):
+        for r, (key, value) in enumerate(stacks.items()):
             X, y, indices, neg_g_view = (
-                (value[0]).astype(np.float32),
-                (value[1]).ravel(),
+                value[0],
+                value[1],
                 value[2],
                 value[3],
             )
+
             if self._loss.is_multiclass:
                 y = np.array(y == 1, dtype=np.float64)
 
@@ -355,25 +360,24 @@ class BaseGB(BaseGradientBoosting):
                 sample_mask[indices],
                 learning_rate=self.learning_rate,
             )
-            preds[indices] = raw_predictions[indices]
+            preds[indices, :] = raw_predictions[indices, :]
 
             self.estimators_[i, r] = tree
 
         raw_predictions = preds
         opt_param = self._opt_sigmoid_param(
-            updated_stacks,
+            stacks,
             raw_predictions,
             np.random.normal(np.mean(y), np.std(y)),
         )
 
-        # return raw_predictions
         return self._w_sum_sigmoid(self._sigmoid(opt_param), raw_predictions)
 
     def _set_max_features(self):
         """Set self.max_features_."""
         if isinstance(self.max_features, str):
             if self.max_features == "auto":
-                if is_classifier(self):
+                if self.is_classifier:
                     max_features = max(1, int(np.sqrt(self.n_features_in_)))
                 else:
                     max_features = self.n_features_in_
@@ -390,28 +394,19 @@ class BaseGB(BaseGradientBoosting):
 
         self.max_features_ = max_features
 
-    def _init_state(self):
-        """Initialize model state and allocate model state data structures."""
-
+    def _init_state(self, y):
         self.init_ = self.init
+        self.is_classifier = False
         if self.init_ is None:
-            if is_classifier(self):
+            if type_of_target(y) == "multiclass" or type_of_target(y) == "binary":
                 self.init_ = DummyClassifier(strategy="prior")
-            elif isinstance(self._loss, (AbsoluteError, HuberLoss)):
-                self.init_ = DummyRegressor(strategy="quantile", quantile=0.5)
-            elif isinstance(self._loss, PinballLoss):
-                self.init_ = DummyRegressor(strategy="quantile", quantile=self.alpha)
+                self.is_classifier = True
             else:
                 self.init_ = DummyRegressor(strategy="mean")
-
-        # self.estimators_ = np.empty(
-        #     (self.n_estimators, self.n_trees_per_iteration_), dtype=object
-        # )
 
         self.estimators_ = np.empty((self.n_estimators, self.T), dtype=object)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
-        # do oob?
         if self.subsample < 1.0:
             self.oob_improvement_ = np.zeros((self.n_estimators), dtype=np.float64)
             self.oob_scores_ = np.zeros((self.n_estimators), dtype=np.float64)
@@ -449,6 +444,8 @@ class BaseGB(BaseGradientBoosting):
         if not self.warm_start:
             self._clear_state()
 
+        lb = LabelBinarizer()
+
         self.T = len(np.unique(task))
 
         X, y = self._validate_data(
@@ -457,12 +454,11 @@ class BaseGB(BaseGradientBoosting):
 
         y = self._encode_y(y=y, sample_weight=None)
 
+        self._init_state(y)
         self._set_max_features()
 
         # self.loss is guaranteed to be a string
         self._loss = self._get_loss(sample_weight=None)
-
-        self._init_state()
 
         stack = pd.DataFrame(np.column_stack((X, y, task)))
         num_features = len(stack.columns) - 2
@@ -471,11 +467,20 @@ class BaseGB(BaseGradientBoosting):
             X = group.iloc[:, :num_features].values
             y = group.iloc[:, num_features:-1].values
             indices = group.index.tolist()
-            return X, y, indices
+            return [X.astype(np.float32), y, indices]
 
         stacks = {}
         for r, group in stack.groupby(stack.columns[-1]):
             stacks[r] = extract_data(group)
+
+        if self.is_classifier:
+            for _, value in stacks.items():
+                y = value[1]
+                if y.ndim != 1:
+                    y = y.ravel()
+
+                y = lb.fit_transform(y)
+                value[1] = y
 
         if self.init_ == "zero":
             raw_predictions = np.zeros(
@@ -487,15 +492,13 @@ class BaseGB(BaseGradientBoosting):
             self.init_.fit(X, y)
 
             raw_predictions = _init_raw_predictions(
-                X, self.init_, self._loss, is_classifier(self)
+                X, self.init_, self._loss, self.is_classifier
             )
 
         begin_at_stage = 0
 
-        # The rng state must be preserved if warm_start is True
         self._rng = check_random_state(self.random_state)
 
-        # fit the boosting stages
         n_stages = self._fit_stages(
             X,
             y,
@@ -662,25 +665,6 @@ class BaseGB(BaseGradientBoosting):
         return averaged_predictions
 
     def apply(self, X):
-        """Apply trees in the ensemble to X, return leaf indices.
-
-        .. versionadded:: 0.17
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            The input samples. Internally, its dtype will be converted to
-            ``dtype=np.float32``. If a sparse matrix is provided, it will
-            be converted to a sparse ``csr_matrix``.
-
-        Returns
-        -------
-        X_leaves : array-like of shape (n_samples, n_estimators, n_classes)
-            For each datapoint x in X and for each tree in the ensemble,
-            return the index of the leaf x ends up in each estimator.
-            In the case of binary classification n_classes is 1.
-        """
-
         self._check_initialized()
         X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
 

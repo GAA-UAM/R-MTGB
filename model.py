@@ -13,7 +13,7 @@ from sklearn._loss.loss import (
 from sklearn.ensemble._gb import GradientBoostingClassifier
 
 
-class clf(BaseGB):
+class GradientBoostingClassifier(BaseGB):
     def __init__(
         self,
         *,
