@@ -269,26 +269,30 @@ class BaseGB(BaseGradientBoosting):
     def _sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
-    def _w_sum_sigmoid(self, sigmoid, pred):
-        return (sigmoid * pred) + ((1 - sigmoid) * pred)
+    def _w_sum_sigmoid(self, sigmoid, raw_prediction):
+        return np.concatenate(
+            ((sigmoid * raw_prediction[0]), ((1 - sigmoid) * raw_prediction[1]))
+        )
 
-    def _custom_loss(self, param, y, pred):
+    def _noise_loss(self, param, y, raw_prediction):
         sigmoid = self._sigmoid(param)
 
-        y_pred = self._w_sum_sigmoid(sigmoid, pred)
+        y_pred = self._w_sum_sigmoid(sigmoid, raw_prediction)
 
         loss = np.mean((y - y_pred) ** 2)
-        gradient = -2 * np.dot((y - y_pred) * sigmoid * (1 - sigmoid), pred)
+        gradient = np.mean(-2 * np.mean(y - y_pred, axis=0))
 
         return loss, gradient
 
     def _opt_sigmoid_param(self, stacks, raw_prediction, initial_guess):
-        y_true = np.zeros(raw_prediction.shape[0])
+        y_true = []
         for _, value in stacks.items():
-            y, indices = (value[1], value[2])
+            y = value[1]
+            y_true.append(y)
+        y = np.concatenate((y_true[0], y_true[1]))
 
         result = fmin_l_bfgs_b(
-            self._custom_loss, x0=initial_guess, args=(y_true, raw_prediction)
+            self._noise_loss, x0=initial_guess, args=(y, raw_prediction)
         )
         optimized_task_param = result[0][0]
         return optimized_task_param
@@ -306,11 +310,12 @@ class BaseGB(BaseGradientBoosting):
         sample_weight = None
 
         for _, value in stacks.items():
-            y = value[1]
-            neg_gradient = self._neg_gradient(y, raw_predictions[value[2]])
-            updated_value = value.append(neg_gradient)
+            y_ = value[1]
+            neg_gradient = self._neg_gradient(y_, raw_predictions[value[2]])
+            value.append(neg_gradient)
+            del y_
 
-        preds = np.zeros_like(raw_predictions)
+        preds = []
 
         for r, (key, value) in enumerate(stacks.items()):
             X, y, indices, neg_g_view = (
@@ -360,18 +365,19 @@ class BaseGB(BaseGradientBoosting):
                 sample_mask[indices],
                 learning_rate=self.learning_rate,
             )
-            preds[indices, :] = raw_predictions[indices, :]
+            preds.append(raw_predictions[indices, :])
 
             self.estimators_[i, r] = tree
+            y_ = y
+            del X, y, indices, neg_g_view
 
-        raw_predictions = preds
         opt_param = self._opt_sigmoid_param(
             stacks,
-            raw_predictions,
-            np.random.normal(np.mean(y), np.std(y)),
+            preds,
+            np.random.normal(np.mean(y_), np.std(y_)),
         )
 
-        return self._w_sum_sigmoid(self._sigmoid(opt_param), raw_predictions)
+        return self._w_sum_sigmoid(self._sigmoid(opt_param), preds)
 
     def _set_max_features(self):
         """Set self.max_features_."""
@@ -440,6 +446,16 @@ class BaseGB(BaseGradientBoosting):
         # GradientBoosting*.init is not validated yet
         prefer_skip_nested_validation=False
     )
+    def _extract_data(self, group, num_features, fit):
+        X = group.iloc[:, :num_features].values
+        if fit:
+            y = group.iloc[:, num_features:-1].values
+        indices = group.index.tolist()
+        if fit:
+            return [X.astype(np.float32), y, indices]
+        else:
+            return [X.astype(np.float32), indices]
+
     def fit(self, X, y, task):
         if not self.warm_start:
             self._clear_state()
@@ -463,24 +479,19 @@ class BaseGB(BaseGradientBoosting):
         stack = pd.DataFrame(np.column_stack((X, y, task)))
         num_features = len(stack.columns) - 2
 
-        def extract_data(group):
-            X = group.iloc[:, :num_features].values
-            y = group.iloc[:, num_features:-1].values
-            indices = group.index.tolist()
-            return [X.astype(np.float32), y, indices]
-
         stacks = {}
         for r, group in stack.groupby(stack.columns[-1]):
-            stacks[r] = extract_data(group)
+            stacks[r] = self._extract_data(group, num_features, True)
 
         if self.is_classifier:
             for _, value in stacks.items():
-                y = value[1]
-                if y.ndim != 1:
-                    y = y.ravel()
+                y_ = value[1]
+                if y_.ndim != 1:
+                    y_ = y_.ravel()
 
-                y = lb.fit_transform(y)
-                value[1] = y
+                y_ = lb.fit_transform(y_)
+                value[1] = y_
+                del y_
 
         if self.init_ == "zero":
             raw_predictions = np.zeros(
@@ -597,15 +608,32 @@ class BaseGB(BaseGradientBoosting):
             )
         else:
             raw_predictions = _init_raw_predictions(
-                X, self.init_, self._loss, is_classifier(self)
+                X, self.init_, self._loss, self.is_classifier
             )
         return raw_predictions
 
-    def _raw_predict(self, X):
+    def _raw_predict(self, X, task):
         """Return the sum of the trees raw predictions (+ init estimator)."""
         check_is_fitted(self)
         raw_predictions = self._raw_predict_init(X)
-        predict_stages(self.estimators_, X, self.learning_rate, raw_predictions)
+        raw_predictions = self._predict_stages(
+            self.estimators_, X, self.learning_rate, raw_predictions, task
+        )
+        return raw_predictions
+
+    def _predict_stages(self, estimators_, X, learning_rate, raw_predictions, task):
+        stack = pd.DataFrame(np.column_stack((X, task)))
+        num_features = len(stack.columns) - 1
+
+        stacks = {}
+        for r, group in stack.groupby(stack.columns[-1]):
+            stacks[r] = self._extract_data(group, num_features, False)
+
+        for i in range(len(estimators_)):
+            for key, value in stacks.items():
+                tree = estimators_[i][int(key)]
+                X_ = value[0]
+                raw_predictions[value[1]] += learning_rate * tree.predict(X_)
         return raw_predictions
 
     def _staged_raw_predict(self, X, check_input=True):

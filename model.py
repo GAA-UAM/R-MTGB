@@ -109,11 +109,11 @@ class GradientBoostingClassifier(BaseGB):
             else:
                 return ExponentialLoss(sample_weight=sample_weight)
 
-    def decision_function(self, X):
+    def decision_function(self, X, task):
         X = self._validate_data(
             X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
         )
-        raw_predictions = self._raw_predict(X)
+        raw_predictions = self._raw_predict(X, task)
         if raw_predictions.shape[1] == 1:
             return raw_predictions.ravel()
         return raw_predictions
@@ -121,8 +121,8 @@ class GradientBoostingClassifier(BaseGB):
     def staged_decision_function(self, X):
         yield from self._staged_raw_predict(X)
 
-    def predict(self, X):
-        raw_predictions = self.decision_function(X)
+    def predict(self, X, task):
+        raw_predictions = self.decision_function(X, task)
         if raw_predictions.ndim == 1:  # decision_function already squeezed it
             encoded_classes = (raw_predictions >= 0).astype(int)
         else:
