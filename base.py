@@ -269,30 +269,36 @@ class BaseGB(BaseGradientBoosting):
     def _sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
-    def _w_sum_sigmoid(self, sigmoid, raw_prediction):
-        return np.concatenate(
-            ((sigmoid * raw_prediction[0]), ((1 - sigmoid) * raw_prediction[1]))
-        )
+    def _w_sum_sigmoid(self, sigmoid, raw_prediction, indices):
+        pred = []
+        for index in indices:
+            pred.append(raw_prediction[index])
+        return np.concatenate(((sigmoid * pred[0]), ((1 - sigmoid) * pred[1])))
 
-    def _noise_loss(self, param, y, raw_prediction):
+    def _noise_loss(self, param, y, raw_prediction, indices):
         sigmoid = self._sigmoid(param)
 
-        y_pred = self._w_sum_sigmoid(sigmoid, raw_prediction)
+        w_pred = self._w_sum_sigmoid(sigmoid, raw_prediction, indices)
 
-        loss = np.mean((y - y_pred) ** 2)
-        gradient = np.mean(-2 * np.mean(y - y_pred, axis=0))
+        loss = np.mean((y - w_pred) ** 2)
+        gradient = np.mean(-2 * np.mean(y - w_pred, axis=0))
 
         return loss, gradient
 
-    def _opt_sigmoid_param(self, stacks, raw_prediction, initial_guess):
-        y_true = []
+    def _opt_sigmoid_param(self, stacks, raw_prediction):
+        y_true = np.zeros_like(raw_prediction)
+        indices = []
         for _, value in stacks.items():
             y = value[1]
-            y_true.append(y)
-        y = np.concatenate((y_true[0], y_true[1]))
+            index = value[2]
+            indices.append(index)
+            y_true[index, :] = y
+            del y, index
+
+        initial_guess = np.random.normal(np.mean(y_true), np.std(y_true))
 
         result = fmin_l_bfgs_b(
-            self._noise_loss, x0=initial_guess, args=(y, raw_prediction)
+            self._noise_loss, x0=initial_guess, args=(y_true, raw_prediction, indices)
         )
         optimized_task_param = result[0][0]
         return optimized_task_param
@@ -309,21 +315,13 @@ class BaseGB(BaseGradientBoosting):
     ):
         sample_weight = None
 
-        for _, value in stacks.items():
-            y_ = value[1]
-            neg_gradient = self._neg_gradient(y_, raw_predictions[value[2]])
-            value.append(neg_gradient)
-            del y_
+        preds = np.zeros_like(raw_predictions, dtype=raw_predictions.dtype)
 
-        preds = []
+        indices = []
+        for r, (_, value) in enumerate(stacks.items()):
+            X, y, index = (value[0], value[1], value[2])
 
-        for r, (key, value) in enumerate(stacks.items()):
-            X, y, indices, neg_g_view = (
-                value[0],
-                value[1],
-                value[2],
-                value[3],
-            )
+            neg_g_view = self._neg_gradient(y, raw_predictions[value[2]])
 
             if self._loss.is_multiclass:
                 y = np.array(y == 1, dtype=np.float64)
@@ -343,7 +341,7 @@ class BaseGB(BaseGradientBoosting):
             )
 
             if self.subsample < 1.0:
-                sample_weight = sample_mask.astype(np.float64)[indices]
+                sample_weight = sample_mask.astype(np.float64)[index]
 
             X = X_csc if X_csc is not None else X
             tree.fit(
@@ -360,24 +358,21 @@ class BaseGB(BaseGradientBoosting):
                 X_for_tree_update,
                 y,
                 neg_g_view,
-                raw_predictions[indices],
+                raw_predictions[index],
                 sample_weight,
-                sample_mask[indices],
+                sample_mask[index],
                 learning_rate=self.learning_rate,
             )
-            preds.append(raw_predictions[indices, :])
+            preds[index, :] = raw_predictions[index, :]
 
             self.estimators_[i, r] = tree
-            y_ = y
-            del X, y, indices, neg_g_view
+            indices.append(index)
 
-        opt_param = self._opt_sigmoid_param(
-            stacks,
-            preds,
-            np.random.normal(np.mean(y_), np.std(y_)),
-        )
+            del X, y, index, neg_g_view
 
-        return self._w_sum_sigmoid(self._sigmoid(opt_param), preds)
+        opt_param = self._opt_sigmoid_param(stacks, preds)
+
+        return self._w_sum_sigmoid(self._sigmoid(opt_param), preds, indices)
 
     def _set_max_features(self):
         """Set self.max_features_."""
