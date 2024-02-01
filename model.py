@@ -1,16 +1,14 @@
 import numpy as np
-from sklearn.base import ClassifierMixin
 from base import BaseGB
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn.preprocessing import LabelEncoder
-from sklearn.tree._tree import DOUBLE, DTYPE, TREE_LEAF
+from sklearn.preprocessing import LabelEncoder, LabelBinarizer
+from sklearn.tree._tree import DTYPE
 from sklearn.exceptions import NotFittedError
 from sklearn._loss.loss import (
     ExponentialLoss,
     HalfBinomialLoss,
     HalfMultinomialLoss,
 )
-from sklearn.ensemble._gb import GradientBoostingClassifier
 
 
 class GradientBoostingClassifier(BaseGB):
@@ -61,27 +59,28 @@ class GradientBoostingClassifier(BaseGB):
             ccp_alpha=ccp_alpha,
         )
 
-    def _encode_y(self, y, sample_weight):
+    def _encode_y(self, y):
         # encode classes into 0 ... n_classes - 1 and sets attributes classes_
         # and n_trees_per_iteration_
         check_classification_targets(y)
 
         label_encoder = LabelEncoder()
+
         encoded_y_int = label_encoder.fit_transform(y)
         self.classes_ = label_encoder.classes_
         n_classes = self.classes_.shape[0]
-        # only 1 tree for binary classification. For multiclass classification,
-        # we build 1 tree per class.
-        self.n_trees_per_iteration_ = 1 
+        encoded_y = encoded_y_int.astype(float, copy=False)
+        if n_classes > 2:
+            lb = LabelBinarizer()
+            encoded_y_int = lb.fit_transform(y)
+        self.n_trees_per_iteration_ = 1
         encoded_y = encoded_y_int.astype(float, copy=False)
 
         # From here on, it is additional to the HGBT case.
         # expose n_classes_ attribute
         self.n_classes_ = n_classes
-        if sample_weight is None:
-            n_trim_classes = n_classes
-        else:
-            n_trim_classes = np.count_nonzero(np.bincount(encoded_y_int, sample_weight))
+        
+        n_trim_classes = n_classes
 
         if n_trim_classes < 2:
             raise ValueError(
@@ -91,13 +90,14 @@ class GradientBoostingClassifier(BaseGB):
             )
         return encoded_y
 
-    def _get_loss(self, sample_weight):
+    def _get_loss(self):
+        self.is_classifier = True
         if self.loss == "log_loss":
             if self.n_classes_ == 2:
-                return HalfBinomialLoss(sample_weight=sample_weight)
+                return HalfBinomialLoss(sample_weight=None)
             else:
                 return HalfMultinomialLoss(
-                    sample_weight=sample_weight, n_classes=self.n_classes_
+                    sample_weight=None, n_classes=self.n_classes_
                 )
         elif self.loss == "exponential":
             if self.n_classes_ > 2:
@@ -107,7 +107,7 @@ class GradientBoostingClassifier(BaseGB):
                     "Please use loss='log_loss' instead."
                 )
             else:
-                return ExponentialLoss(sample_weight=sample_weight)
+                return ExponentialLoss(sample_weight=None)
 
     def decision_function(self, X, task):
         X = self._validate_data(

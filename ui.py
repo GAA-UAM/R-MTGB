@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
 import seaborn as sns
 
-df = toy_data(n_samples=200, n_classes=3)
+df = toy_data(n_samples=2000, n_classes=3)
 
 X, y, task = (
     df.drop(columns=["target", "task"]).values,
@@ -64,7 +64,8 @@ x_test, y_test, task_test = test
 
 
 model = GradientBoostingClassifier()
-model.fit(x_train, y_train, task_train)
-pred = model.predict(x_test, task_test)
-print(accuracy_score(y_test, pred))
-sns.heatmap(confusion_matrix(y_test, pred), annot=True)
+model.fit(x_train, y_train)  # , task_train
+# pred = model.predict(x_test, task_test)
+
+# print(accuracy_score(y_test, pred))
+# sns.heatmap(confusion_matrix(y_test, pred), annot=True)

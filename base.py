@@ -8,26 +8,23 @@ from sklearn.utils.stats import _weighted_percentile
 from sklearn.ensemble._gb import BaseGradientBoosting
 from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn._loss.loss import (
-    AbsoluteError,
     ExponentialLoss,
     HalfBinomialLoss,
     HalfMultinomialLoss,
     HalfSquaredError,
     HuberLoss,
-    PinballLoss,
 )
 
 from abc import abstractmethod
 from scipy.optimize import fmin_l_bfgs_b
 from sklearn.utils import check_random_state
 from sklearn.utils.multiclass import type_of_target
-from sklearn.base import _fit_context, is_classifier
+from sklearn.base import _fit_context
 from sklearn.utils.validation import check_is_fitted
 from scipy.sparse import csc_matrix, csr_matrix, issparse
 from sklearn.ensemble._gradient_boosting import (
     _random_sample_mask,
     predict_stage,
-    predict_stages,
 )
 
 from sklearn.tree._tree import DTYPE, TREE_LEAF
@@ -233,11 +230,11 @@ class BaseGB(BaseGradientBoosting):
         self.tol = tol
 
     @abstractmethod
-    def _encode_y(self, y=None, sample_weight=None):
+    def _encode_y(self, y=None):
         """Called by fit to validate and encode y."""
 
     @abstractmethod
-    def _get_loss(self, sample_weight):
+    def _get_loss(self):
         """Get loss object from sklearn._loss.loss."""
 
     def _neg_gradient(self, y, raw_predictions):
@@ -248,12 +245,6 @@ class BaseGB(BaseGradientBoosting):
                 raw_prediction=raw_predictions,
                 sample_weight=None,
             )
-
-        # neg_gradient = -self._loss.gradient(
-        #     y_true=y,
-        #     raw_prediction=raw_predictions,
-        #     sample_weight=None,
-        # )
 
         neg_gradient = y - np.nan_to_num(
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
@@ -306,6 +297,8 @@ class BaseGB(BaseGradientBoosting):
     def _fit_stage(
         self,
         i,
+        X,
+        y,
         stacks,
         raw_predictions,
         sample_mask,
@@ -314,6 +307,8 @@ class BaseGB(BaseGradientBoosting):
         X_csr=None,
     ):
         sample_weight = None
+
+        stacks = stacks or {0: (X, y, list(range(len(X))))}
 
         preds = np.zeros_like(raw_predictions, dtype=raw_predictions.dtype)
 
@@ -370,9 +365,13 @@ class BaseGB(BaseGradientBoosting):
 
             del X, y, index, neg_g_view
 
-        opt_param = self._opt_sigmoid_param(stacks, preds)
+        if len(stacks) >= 2:
+            opt_param = self._opt_sigmoid_param(stacks, preds)
+            raw_predictions = self._w_sum_sigmoid(
+                self._sigmoid(opt_param), preds, indices
+            )
 
-        return self._w_sum_sigmoid(self._sigmoid(opt_param), preds, indices)
+        return raw_predictions
 
     def _set_max_features(self):
         """Set self.max_features_."""
@@ -397,14 +396,12 @@ class BaseGB(BaseGradientBoosting):
 
     def _init_state(self, y):
         self.init_ = self.init
-        self.is_classifier = False
         if self.init_ is None:
-            if type_of_target(y) == "multiclass" or type_of_target(y) == "binary":
+            if self.is_classifier:
                 self.init_ = DummyClassifier(strategy="prior")
-                self.is_classifier = True
+
             else:
                 self.init_ = DummyRegressor(strategy="mean")
-
         self.estimators_ = np.empty((self.n_estimators, self.T), dtype=object)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
@@ -451,51 +448,41 @@ class BaseGB(BaseGradientBoosting):
         else:
             return [X.astype(np.float32), indices]
 
-    def fit(self, X, y, task):
+    def fit(self, X, y, task=None):
         if not self.warm_start:
             self._clear_state()
-
-        lb = LabelBinarizer()
-
-        self.T = len(np.unique(task))
 
         X, y = self._validate_data(
             X, y, accept_sparse=["csr", "csc", "coo"], dtype=DTYPE, multi_output=True
         )
 
-        y = self._encode_y(y=y, sample_weight=None)
+        y_ = y.copy()
+        y = self._encode_y(y=y)
+
+        self.T = 1
+        self._loss = self._get_loss()
+
+        stacks = None
+        if task is not None and task.any():
+            stacks = {}
+            self.T = len(np.unique(task))
+            stack = pd.DataFrame(np.column_stack((X, y, task)))
+            stack.sort_values(by=[3], ascending=True, inplace=True)
+            num_features = len(stack.columns) - 2
+
+            for r, group in stack.groupby(stack.columns[-1]):
+                stacks[r] = self._extract_data(group, num_features, True)
 
         self._init_state(y)
         self._set_max_features()
-
-        # self.loss is guaranteed to be a string
-        self._loss = self._get_loss(sample_weight=None)
-
-        stack = pd.DataFrame(np.column_stack((X, y, task)))
-        num_features = len(stack.columns) - 2
-
-        stacks = {}
-        for r, group in stack.groupby(stack.columns[-1]):
-            stacks[r] = self._extract_data(group, num_features, True)
-
-        if self.is_classifier:
-            for _, value in stacks.items():
-                y_ = value[1]
-                if y_.ndim != 1:
-                    y_ = y_.ravel()
-
-                y_ = lb.fit_transform(y_)
-                value[1] = y_
-                del y_
 
         if self.init_ == "zero":
             raw_predictions = np.zeros(
                 shape=(X.shape[0], self.n_trees_per_iteration_),
                 dtype=np.float64,
             )
-
         else:
-            self.init_.fit(X, y)
+            self.init_.fit(X, y_)
 
             raw_predictions = _init_raw_predictions(
                 X, self.init_, self._loss, self.is_classifier
@@ -560,6 +547,8 @@ class BaseGB(BaseGradientBoosting):
 
             raw_predictions = self._fit_stage(
                 i,
+                X,
+                y,
                 stacks,
                 raw_predictions,
                 sample_mask,
@@ -619,6 +608,7 @@ class BaseGB(BaseGradientBoosting):
     def _predict_stages(self, estimators_, X, learning_rate, raw_predictions, task):
         stack = pd.DataFrame(np.column_stack((X, task)))
         num_features = len(stack.columns) - 1
+        stack.sort_values(by=[stack.columns[-1]], ascending=True, inplace=True)
 
         stacks = {}
         for r, group in stack.groupby(stack.columns[-1]):
