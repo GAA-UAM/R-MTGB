@@ -79,7 +79,8 @@ class GradientBoostingClassifier(BaseGB):
         # From here on, it is additional to the HGBT case.
         # expose n_classes_ attribute
         self.n_classes_ = n_classes
-        
+        self.is_classifier = True
+
         n_trim_classes = n_classes
 
         if n_trim_classes < 2:
@@ -90,14 +91,13 @@ class GradientBoostingClassifier(BaseGB):
             )
         return encoded_y
 
-    def _get_loss(self):
-        self.is_classifier = True
+    def _get_loss(self, sample_weight):
         if self.loss == "log_loss":
             if self.n_classes_ == 2:
-                return HalfBinomialLoss(sample_weight=None)
+                return HalfBinomialLoss(sample_weight=sample_weight)
             else:
                 return HalfMultinomialLoss(
-                    sample_weight=None, n_classes=self.n_classes_
+                    sample_weight=sample_weight, n_classes=self.n_classes_
                 )
         elif self.loss == "exponential":
             if self.n_classes_ > 2:
@@ -107,7 +107,7 @@ class GradientBoostingClassifier(BaseGB):
                     "Please use loss='log_loss' instead."
                 )
             else:
-                return ExponentialLoss(sample_weight=None)
+                return ExponentialLoss(sample_weight=sample_weight)
 
     def decision_function(self, X, task):
         X = self._validate_data(

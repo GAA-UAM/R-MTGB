@@ -228,13 +228,14 @@ class BaseGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.n_iter_no_change = n_iter_no_change
         self.tol = tol
+        self.is_classifier = False
 
     @abstractmethod
     def _encode_y(self, y=None):
         """Called by fit to validate and encode y."""
 
     @abstractmethod
-    def _get_loss(self):
+    def _get_loss(self, sample_weight):
         """Get loss object from sklearn._loss.loss."""
 
     def _neg_gradient(self, y, raw_predictions):
@@ -298,6 +299,7 @@ class BaseGB(BaseGradientBoosting):
         self,
         i,
         X,
+        y_encoded,
         y,
         stacks,
         raw_predictions,
@@ -308,7 +310,7 @@ class BaseGB(BaseGradientBoosting):
     ):
         sample_weight = None
 
-        stacks = stacks or {0: (X, y, list(range(len(X))))}
+        stacks = stacks or {0: (X, y_encoded, list(range(len(X))))}
 
         preds = np.zeros_like(raw_predictions, dtype=raw_predictions.dtype)
 
@@ -453,27 +455,31 @@ class BaseGB(BaseGradientBoosting):
             self._clear_state()
 
         X, y = self._validate_data(
-            X, y, accept_sparse=["csr", "csc", "coo"], dtype=DTYPE, multi_output=True
+            X,
+            y,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype=DTYPE,
+            multi_output=True,
         )
 
-        y_ = y.copy()
-        y = self._encode_y(y=y)
+        y = y.copy()
+        y_encoded = self._encode_y(y=y)
 
         self.T = 1
-        self._loss = self._get_loss()
+        self._loss = self._get_loss(sample_weight=None)
 
         stacks = None
         if task is not None and task.any():
             stacks = {}
             self.T = len(np.unique(task))
-            stack = pd.DataFrame(np.column_stack((X, y, task)))
+            stack = pd.DataFrame(np.column_stack((X, y_encoded, task)))
             stack.sort_values(by=[3], ascending=True, inplace=True)
-            num_features = len(stack.columns) - 2
+            num_features = X.shape[1]
 
             for r, group in stack.groupby(stack.columns[-1]):
                 stacks[r] = self._extract_data(group, num_features, True)
 
-        self._init_state(y)
+        self._init_state(y_encoded)
         self._set_max_features()
 
         if self.init_ == "zero":
@@ -482,7 +488,7 @@ class BaseGB(BaseGradientBoosting):
                 dtype=np.float64,
             )
         else:
-            self.init_.fit(X, y_)
+            self.init_.fit(X, y)
 
             raw_predictions = _init_raw_predictions(
                 X, self.init_, self._loss, self.is_classifier
@@ -494,6 +500,7 @@ class BaseGB(BaseGradientBoosting):
 
         n_stages = self._fit_stages(
             X,
+            y_encoded,
             y,
             stacks,
             raw_predictions,
@@ -507,6 +514,7 @@ class BaseGB(BaseGradientBoosting):
     def _fit_stages(
         self,
         X,
+        y_encoded,
         y,
         stacks,
         raw_predictions,
@@ -548,6 +556,7 @@ class BaseGB(BaseGradientBoosting):
             raw_predictions = self._fit_stage(
                 i,
                 X,
+                y_encoded,
                 y,
                 stacks,
                 raw_predictions,
