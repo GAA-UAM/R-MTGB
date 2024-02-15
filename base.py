@@ -428,7 +428,6 @@ class BaseGB(BaseGradientBoosting):
         y = y.copy()
         y_encoded = self._encode_y(y=y)
 
-        self.T = 1
         self._loss = self._get_loss(sample_weight=None)
 
         stacks = None
@@ -504,6 +503,7 @@ class BaseGB(BaseGradientBoosting):
             factor = 1
 
         i = begin_at_stage
+        self.thetas = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         for i in range(begin_at_stage, self.n_estimators):
             # subsampling
             if do_oob:
@@ -530,13 +530,13 @@ class BaseGB(BaseGradientBoosting):
             )
 
             # Task Specific
-            thetas = []
+
             predictions = np.zeros_like(raw_predictions)
-            raw_predictions_task = np.copy(raw_predictions)
+            raw_predictions_r = np.copy(raw_predictions)
             for r, (_, value) in enumerate(stacks.items()):
                 X_, y_, task_index = value[0], value[1], value[2]
 
-                raw_predictions_task[task_index] = self._fit_stage(
+                raw_predictions_r[task_index] = self._fit_stage(
                     i,
                     r + 1,
                     X_,
@@ -550,15 +550,18 @@ class BaseGB(BaseGradientBoosting):
 
                 theta = self._opt_theta(
                     raw_predictions_c[task_index],
-                    raw_predictions_task[task_index],
+                    raw_predictions_r[task_index],
                     y_,
                 )
 
+                self.thetas[i, r] = theta
+
                 sigma = self._sigma(theta)
                 predictions[task_index] = (sigma * raw_predictions_c[task_index]) + (
-                    (1 - sigma) * raw_predictions_task[task_index]
+                    (1 - sigma) * raw_predictions_r[task_index]
                 )
             raw_predictions = predictions
+
             # track loss
             if do_oob:
                 self.train_score_[i] = factor * self._loss(
@@ -619,11 +622,19 @@ class BaseGB(BaseGradientBoosting):
             for r, group in stack.groupby(stack.columns[-1]):
                 stacks[r] = self._extract_data(group, num_features, False)
 
+        raw_predictions_r = np.copy(raw_predictions)
+        predictions = np.zeros_like(raw_predictions)
         for i in range(len(estimators_)):
-            for key, value in stacks.items():
-                tree = estimators_[i][int(key)]
-                X_ = value[0]
-                raw_predictions[value[1]] += learning_rate * tree.predict(X_)
+            tree = estimators_[i][0]
+            raw_predictions_c = learning_rate * tree.predict(X)
+            for r, (_, value) in enumerate(stacks.items()):
+                tree = estimators_[i][int(r) + 1]
+                X_, task_index = value[0], value[1]
+                sigma = self._sigma(self.thetas[i, r])
+                raw_predictions_r[task_index] = learning_rate * tree.predict(X_)
+                predictions[task_index] = (sigma * raw_predictions_c[task_index]) + (
+                    (1 - sigma) * raw_predictions_r[task_index]
+                )
         return raw_predictions
 
     def _staged_raw_predict(self, X, check_input=True):
