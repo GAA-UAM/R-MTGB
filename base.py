@@ -1,4 +1,5 @@
 import math
+import copy
 import warnings
 import numpy as np
 import pandas as pd
@@ -16,9 +17,9 @@ from sklearn._loss.loss import (
 )
 
 from abc import abstractmethod
+from scipy.special import expit
 from scipy.optimize import fmin_l_bfgs_b
 from sklearn.utils import check_random_state
-from sklearn.utils.multiclass import type_of_target
 from sklearn.base import _fit_context
 from sklearn.utils.validation import check_is_fitted
 from scipy.sparse import csc_matrix, csr_matrix, issparse
@@ -28,7 +29,6 @@ from sklearn.ensemble._gradient_boosting import (
 )
 
 from sklearn.tree._tree import DTYPE, TREE_LEAF
-from sklearn.preprocessing import LabelBinarizer
 from scipy.special import logsumexp
 
 
@@ -258,50 +258,31 @@ class BaseGB(BaseGradientBoosting):
 
         return neg_g_view
 
-    def _sigmoid(self, x):
-        return 1 / (1 + np.exp(-x))
+    def _sigma(self, theta):
+        return expit(theta)
 
-    def _w_sum_sigmoid(self, sigmoid, raw_prediction, indices):
-        pred = []
-        for index in indices:
-            pred.append(raw_prediction[index])
-        return np.concatenate(((sigmoid * pred[0]), ((1 - sigmoid) * pred[1])))
-
-    def _noise_loss(self, param, y, raw_prediction, indices):
-        sigmoid = self._sigmoid(param)
-
-        w_pred = self._w_sum_sigmoid(sigmoid, raw_prediction, indices)
-
+    def _obj_fun(self, theta, c_h, r_h, y):
+        sigma_theta = self._sigma(theta)
+        w_pred = (sigma_theta * c_h) + ((1 - sigma_theta) * r_h)
         loss = np.mean((y - w_pred) ** 2)
         gradient = np.mean(-2 * np.mean(y - w_pred, axis=0))
-
         return loss, gradient
 
-    def _opt_sigmoid_param(self, stacks, raw_prediction):
-        y_true = np.zeros_like(raw_prediction)
-        indices = []
-        for _, value in stacks.items():
-            y = value[1]
-            index = value[2]
-            indices.append(index)
-            y_true[index, :] = y
-            del y, index
+    def _opt_theta(self, c_h, r_h, y):
 
-        initial_guess = np.random.normal(np.mean(y_true), np.std(y_true))
+        initial_guess = np.random.normal(np.mean(y), np.std(y))
 
-        result = fmin_l_bfgs_b(
-            self._noise_loss, x0=initial_guess, args=(y_true, raw_prediction, indices)
-        )
-        optimized_task_param = result[0][0]
-        return optimized_task_param
+        args = (c_h, r_h, y)
+        result = fmin_l_bfgs_b(self._obj_fun, initial_guess, args=args)
+        optimized_theta = result[0][0]
+        return optimized_theta
 
     def _fit_stage(
         self,
         i,
+        r,
         X,
         y_encoded,
-        y,
-        stacks,
         raw_predictions,
         sample_mask,
         random_state,
@@ -310,68 +291,50 @@ class BaseGB(BaseGradientBoosting):
     ):
         sample_weight = None
 
-        stacks = stacks or {0: (X, y_encoded, list(range(len(X))))}
+        neg_g_view = self._neg_gradient(y_encoded, raw_predictions)
 
-        preds = np.zeros_like(raw_predictions, dtype=raw_predictions.dtype)
+        if self._loss.is_multiclass:
+            y_encoded = np.array(y_encoded == 1, dtype=np.float64)
 
-        indices = []
-        for r, (_, value) in enumerate(stacks.items()):
-            X, y, index = (value[0], value[1], value[2])
+        tree = DecisionTreeRegressor(
+            criterion=self.criterion,
+            splitter="best",
+            max_depth=self.max_depth,
+            min_samples_split=self.min_samples_split,
+            min_samples_leaf=self.min_samples_leaf,
+            min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+            min_impurity_decrease=self.min_impurity_decrease,
+            max_features=self.max_features,
+            max_leaf_nodes=self.max_leaf_nodes,
+            random_state=random_state,
+            ccp_alpha=self.ccp_alpha,
+        )
 
-            neg_g_view = self._neg_gradient(y, raw_predictions[value[2]])
+        if self.subsample < 1.0:
+            sample_weight = sample_mask.astype(np.float64)
 
-            if self._loss.is_multiclass:
-                y = np.array(y == 1, dtype=np.float64)
+        X = X_csc if X_csc is not None else X
+        tree.fit(
+            X,
+            neg_g_view,
+            sample_weight=sample_weight,
+            check_input=False,
+        )
 
-            tree = DecisionTreeRegressor(
-                criterion=self.criterion,
-                splitter="best",
-                max_depth=self.max_depth,
-                min_samples_split=self.min_samples_split,
-                min_samples_leaf=self.min_samples_leaf,
-                min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                min_impurity_decrease=self.min_impurity_decrease,
-                max_features=self.max_features,
-                max_leaf_nodes=self.max_leaf_nodes,
-                random_state=random_state,
-                ccp_alpha=self.ccp_alpha,
-            )
+        X_for_tree_update = X_csr if X_csr is not None else X
+        _update_terminal_regions(
+            self._loss,
+            tree.tree_,
+            X_for_tree_update,
+            y_encoded,
+            neg_g_view,
+            raw_predictions,
+            sample_weight,
+            sample_mask,
+            learning_rate=self.learning_rate,
+        )
 
-            if self.subsample < 1.0:
-                sample_weight = sample_mask.astype(np.float64)[index]
-
-            X = X_csc if X_csc is not None else X
-            tree.fit(
-                X,
-                neg_g_view,
-                sample_weight=sample_weight,
-                check_input=False,
-            )
-
-            X_for_tree_update = X_csr if X_csr is not None else X
-            _update_terminal_regions(
-                self._loss,
-                tree.tree_,
-                X_for_tree_update,
-                y,
-                neg_g_view,
-                raw_predictions[index],
-                sample_weight,
-                sample_mask[index],
-                learning_rate=self.learning_rate,
-            )
-            preds[index, :] = raw_predictions[index, :]
-
-            self.estimators_[i, r] = tree
-            indices.append(index)
-
-            del X, y, index, neg_g_view
-
-        if len(stacks) >= 2:
-            opt_param = self._opt_sigmoid_param(stacks, preds)
-            raw_predictions = self._w_sum_sigmoid(
-                self._sigmoid(opt_param), preds, indices
-            )
+        self.estimators_[i, r] = tree
 
         return raw_predictions
 
@@ -404,7 +367,7 @@ class BaseGB(BaseGradientBoosting):
 
             else:
                 self.init_ = DummyRegressor(strategy="mean")
-        self.estimators_ = np.empty((self.n_estimators, self.T), dtype=object)
+        self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         if self.subsample < 1.0:
@@ -553,12 +516,12 @@ class BaseGB(BaseGradientBoosting):
                         sample_weight=None,
                     )
 
-            raw_predictions = self._fit_stage(
+            # Common task
+            raw_predictions_c = self._fit_stage(
                 i,
+                0,
                 X,
                 y_encoded,
-                y,
-                stacks,
                 raw_predictions,
                 sample_mask,
                 random_state,
@@ -566,6 +529,36 @@ class BaseGB(BaseGradientBoosting):
                 X_csr=X_csr,
             )
 
+            # Task Specific
+            thetas = []
+            predictions = np.zeros_like(raw_predictions)
+            raw_predictions_task = np.copy(raw_predictions)
+            for r, (_, value) in enumerate(stacks.items()):
+                X_, y_, task_index = value[0], value[1], value[2]
+
+                raw_predictions_task[task_index] = self._fit_stage(
+                    i,
+                    r + 1,
+                    X_,
+                    y_,
+                    raw_predictions[task_index],
+                    sample_mask[task_index],
+                    random_state,
+                    X_csc=X_csc,
+                    X_csr=X_csr,
+                )
+
+                theta = self._opt_theta(
+                    raw_predictions_c[task_index],
+                    raw_predictions_task[task_index],
+                    y_,
+                )
+
+                sigma = self._sigma(theta)
+                predictions[task_index] = (sigma * raw_predictions_c[task_index]) + (
+                    (1 - sigma) * raw_predictions_task[task_index]
+                )
+            raw_predictions = predictions
             # track loss
             if do_oob:
                 self.train_score_[i] = factor * self._loss(
@@ -615,13 +608,16 @@ class BaseGB(BaseGradientBoosting):
         return raw_predictions
 
     def _predict_stages(self, estimators_, X, learning_rate, raw_predictions, task):
-        stack = pd.DataFrame(np.column_stack((X, task)))
-        num_features = len(stack.columns) - 1
-        stack.sort_values(by=[stack.columns[-1]], ascending=True, inplace=True)
 
-        stacks = {}
-        for r, group in stack.groupby(stack.columns[-1]):
-            stacks[r] = self._extract_data(group, num_features, False)
+        stacks = None
+        if task is not None and task.any():
+            stacks = {}
+            stack = pd.DataFrame(np.column_stack((X, task)))
+            stack.sort_values(by=[2], ascending=True, inplace=True)
+            num_features = X.shape[1]
+
+            for r, group in stack.groupby(stack.columns[-1]):
+                stacks[r] = self._extract_data(group, num_features, False)
 
         for i in range(len(estimators_)):
             for key, value in stacks.items():
