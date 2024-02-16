@@ -69,12 +69,12 @@ class GradientBoostingClassifier(BaseGB):
         encoded_y_int = label_encoder.fit_transform(y)
         self.classes_ = label_encoder.classes_
         n_classes = self.classes_.shape[0]
-        encoded_y = encoded_y_int.astype(float, copy=False)
-        if n_classes > 2:
-            lb = LabelBinarizer()
-            encoded_y_int = lb.fit_transform(y)
+
+        # if n_classes > 2:
+        #     lb = LabelBinarizer()
+        #     encoded_y_int = lb.fit_transform(y)
         self.n_trees_per_iteration_ = 1
-        encoded_y = encoded_y_int.astype(float, copy=False)
+        encoded_y = encoded_y_int.astype(np.int64, copy=False)
 
         # From here on, it is additional to the HGBT case.
         # expose n_classes_ attribute
@@ -121,7 +121,7 @@ class GradientBoostingClassifier(BaseGB):
     def staged_decision_function(self, X):
         yield from self._staged_raw_predict(X)
 
-    def predict(self, X, task):
+    def predict(self, X, task=None):
         raw_predictions = self.decision_function(X, task)
         if raw_predictions.ndim == 1:  # decision_function already squeezed it
             encoded_classes = (raw_predictions >= 0).astype(int)

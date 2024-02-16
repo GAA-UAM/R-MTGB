@@ -62,8 +62,10 @@ train, test = split(df, 0.8, 111)
 x_train, y_train, task_train = train
 x_test, y_test, task_test = test
 
-model = GradientBoostingClassifier()
-model.fit(x_train, y_train, task_train)  # , task_train
-pred = model.predict(x_test, task_test)
-# print(accuracy_score(y_test, pred))
-# sns.heatmap(confusion_matrix(y_test, pred), annot=True)
+model = GradientBoostingClassifier(n_estimators=200)
+model.fit(x_train, y_train, task_train)#, task_train)
+pred = model.predict(x_test, task_test) #, task_test
+
+print(accuracy_score(y_test, pred))
+sns.heatmap(confusion_matrix(y_test, pred), annot=True)
+#%%
