@@ -66,14 +66,22 @@ x_train, y_train, task_train = train
 x_test, y_test, task_test = test
 
 
-# X, y = dts.load_iris(return_X_y=True)
-# x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+X, y = dts.make_classification(n_classes=2)
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
 
 
-model = GradientBoostingClassifier(n_estimators=100, subsample=0.5)
-model.fit(x_train, y_train, task_train)#, task_train)
-pred = model.predict(x_test, task_test) #, task_test
+model = GradientBoostingClassifier(
+    max_depth=5,
+    n_estimators=100,
+    subsample=0.5,
+    max_features="sqrt",
+    learning_rate=0.05,
+    random_state=1,
+    criterion="squared_error",
+)
+model.fit(x_train, y_train)  # , task_train)
+pred = model.predict(x_test)  # , task_test
 
 print(accuracy_score(y_test, pred))
 sns.heatmap(confusion_matrix(y_test, pred), annot=True)
-#%%
+# %%

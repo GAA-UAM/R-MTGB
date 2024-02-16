@@ -1,5 +1,3 @@
-import math
-import copy
 import warnings
 import numpy as np
 import pandas as pd
@@ -9,9 +7,7 @@ from sklearn.utils.stats import _weighted_percentile
 from sklearn.ensemble._gb import BaseGradientBoosting
 from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn._loss.loss import (
-    ExponentialLoss,
     HalfBinomialLoss,
-    HalfMultinomialLoss,
     HalfSquaredError,
     HuberLoss,
 )
@@ -30,52 +26,19 @@ from sklearn.ensemble._gradient_boosting import (
     predict_stage,
 )
 
-from sklearn.tree._tree import DTYPE, TREE_LEAF
+from sklearn.tree._tree import DTYPE
 from scipy.special import logsumexp
 from _utils import CondensedDeviance
 from sklearn.utils.validation import (
-    check_array,
     check_random_state,
-    column_or_1d,
     _check_sample_weight,
 )
 
 
-def _safe_divide(numerator, denominator):
-    """Prevents overflow and division by zero."""
-    # This is used for classifiers where the denominator might become zero exatly.
-    # For instance for log loss, HalfBinomialLoss, if proba=0 or proba=1 exactly, then
-    # denominator = hessian = 0, and we should set the node value in the line search to
-    # zero as there is no improvement of the loss possible.
-    # For numerical safety, we do this already for extremely tiny values.
-    if abs(denominator) < 1e-150:
-        return 0.0
-    else:
-        # Cast to Python float to trigger Python errors, e.g. ZeroDivisionError,
-        # without relying on `np.errstate` that is not supported by Pyodide.
-        result = float(numerator) / float(denominator)
-        # Cast to Python float to trigger a ZeroDivisionError without relying
-        # on `np.errstate` that is not supported by Pyodide.
-        result = float(numerator) / float(denominator)
-        if math.isinf(result):
-            warnings.warn("overflow encountered in _safe_divide", RuntimeWarning)
-        return result
-
-
 def _init_raw_predictions(X, estimator, loss, is_classifier):
-    # probas = estimator.predict_proba(X)
-    # eps = np.finfo(np.float32).eps
-    # probas = np.clip(probas, eps, 1 - eps, dtype=np.float64)
-    # raw_predictions = np.log(probas).astype(np.float64)
-    # return raw_predictions
-
     if is_classifier:
-        # Our parameter validation, set via _fit_context and _parameter_constraints
-        # already guarantees that estimator has a predict_proba method.
         predictions = estimator.predict_proba(X)
-        if not loss.is_multiclass:
-            predictions = predictions[:, 1]  # probability of positive class
-        eps = np.finfo(np.float32).eps  # FIXME: This is quite large!
+        eps = np.finfo(np.float32).eps
         predictions = np.clip(predictions, eps, 1 - eps, dtype=np.float64)
     else:
         predictions = estimator.predict(X).astype(np.float64)
@@ -234,9 +197,7 @@ class BaseGB(BaseGradientBoosting):
             X = X_csc if X_csc is not None else X
             tree.fit(X, residual, sample_weight=sample_weight, check_input=False)
 
-            # update tree leaves
             X_for_tree_update = X_csr if X_csr is not None else X
-
             rawpredictions = self._aux_loss.update_terminal_regions(
                 tree.tree_,
                 X_for_tree_update,
