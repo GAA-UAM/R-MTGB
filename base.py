@@ -357,6 +357,8 @@ class BaseGB(BaseGradientBoosting):
             y = LabelBinarizer().fit_transform(y)
         elif type_of_target(y) == "binary":
             Y = np.zeros((y.shape[0], 2), dtype=np.float64)
+            if y.ndim == 2:
+                y = y.squeeze()
             for k in range(2):
                 Y[:, k] = y == k
             y = Y

@@ -1,20 +1,10 @@
 # %%
 from model import GradientBoostingClassifier
-from dataset import toy_data
+from dataset import *
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
 import seaborn as sns
-from sklearn import datasets as dts
-from sklearn.model_selection import train_test_split
 
-
-df = toy_data(n_samples=2000, n_classes=3)
-
-X, y, task = (
-    df.drop(columns=["target", "task"]).values,
-    df.target.values,
-    df.task.values,
-)
 
 colors = ["r", "g", "b", "k", "y"]
 
@@ -39,7 +29,7 @@ def split(df, train_ratio, random_state):
     return _split(train_df), _split(test_df)
 
 
-def plot(df):
+def plot(df, title):
     fig, ax1 = plt.subplots(1, 2, figsize=(7, 3))
     for class_label in range(len(set(y))):
         ax1[0].scatter(
@@ -58,30 +48,55 @@ def plot(df):
         )
     ax1[1].set_title("noised_data")
     ax1[0].set_title("original_data")
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.suptitle(f"Dataset: {title}")
 
 
-# plot(df)
-train, test = split(df, 0.8, 111)
-x_train, y_train, task_train = train
-x_test, y_test, task_test = test
+if __name__ == "__main__":
 
+    # List of available datasets
 
-X, y = dts.make_classification(n_classes=2)
-x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+    # ["binary",
+    # "multi_class",
+    # "overlapping",
+    # "correlated_noise",
+    # "imbalanced_data",
+    # "circle"]
 
+    data_type = "circle"
+    dataset_generator = toy_dataset(n_samples=200, seed=111, noise_factor=0.0)
 
-model = GradientBoostingClassifier(
-    max_depth=5,
-    n_estimators=100,
-    subsample=0.5,
-    max_features="sqrt",
-    learning_rate=0.05,
-    random_state=1,
-    criterion="squared_error",
-)
-model.fit(x_train, y_train)  # , task_train)
-pred = model.predict(x_test)  # , task_test
+    df = dataset_generator(data_type)
+    X, y, task = (
+        df.drop(columns=["target", "task"]).values,
+        df.target.values,
+        df.task.values,
+    )
+    plot(df, data_type)
+    train, test = split(df, 0.8, 111)
+    x_train, y_train, task_train = train
+    x_test, y_test, task_test = test
 
-print(accuracy_score(y_test, pred))
-sns.heatmap(confusion_matrix(y_test, pred), annot=True)
-# %%
+    model = GradientBoostingClassifier(
+        max_depth=5,
+        n_estimators=100,
+        subsample=0.5,
+        max_features="sqrt",
+        learning_rate=0.05,
+        random_state=1,
+        criterion="squared_error",
+    )
+
+    fig, axs = plt.subplots(1, 2, figsize=(7, 3))
+    model.fit(x_train, y_train)
+    pred_st = model.predict(x_test)
+
+    model.fit(x_train, y_train, task_train)
+    pred_mt = model.predict(x_test, task_test)
+
+    sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0])
+    sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[1])
+    axs[0].set_title(f"accuracy: {accuracy_score(y_test, pred_st)} - ST")
+    axs[1].set_title(f"accuracy: {accuracy_score(y_test, pred_mt)} - MT")
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.suptitle(f"Dataset: {data_type}")
