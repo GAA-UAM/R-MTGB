@@ -4,6 +4,9 @@ from dataset import toy_data
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
 import seaborn as sns
+from sklearn import datasets as dts
+from sklearn.model_selection import train_test_split
+
 
 df = toy_data(n_samples=2000, n_classes=3)
 
@@ -62,7 +65,12 @@ train, test = split(df, 0.8, 111)
 x_train, y_train, task_train = train
 x_test, y_test, task_test = test
 
-model = GradientBoostingClassifier(n_estimators=200)
+
+# X, y = dts.load_iris(return_X_y=True)
+# x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
+
+
+model = GradientBoostingClassifier(n_estimators=100, subsample=0.5)
 model.fit(x_train, y_train, task_train)#, task_train)
 pred = model.predict(x_test, task_test) #, task_test
 

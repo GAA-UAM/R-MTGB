@@ -70,14 +70,9 @@ class GradientBoostingClassifier(BaseGB):
         self.classes_ = label_encoder.classes_
         n_classes = self.classes_.shape[0]
 
-        # if n_classes > 2:
-        #     lb = LabelBinarizer()
-        #     encoded_y_int = lb.fit_transform(y)
         self.n_trees_per_iteration_ = 1
         encoded_y = encoded_y_int.astype(np.int64, copy=False)
 
-        # From here on, it is additional to the HGBT case.
-        # expose n_classes_ attribute
         self.n_classes_ = n_classes
         self.is_classifier = True
 

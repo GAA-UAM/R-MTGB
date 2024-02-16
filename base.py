@@ -206,9 +206,9 @@ class BaseGB(BaseGradientBoosting):
     ):
         original_y = y
         raw_predictions_copy = raw_predictions.copy()
-        for k in range(1):
-            if self._loss.is_multiclass:
-                y = np.array(original_y == k, dtype=np.float64)
+        for k in range(self._aux_loss.K):
+            # if self._loss.is_multiclass:
+            #     y = np.array(original_y == k, dtype=np.float64)
 
             residual = self._aux_loss.negative_gradient(
                 y, raw_predictions_copy, k=k, sample_weight=sample_weight
@@ -237,7 +237,7 @@ class BaseGB(BaseGradientBoosting):
             # update tree leaves
             X_for_tree_update = X_csr if X_csr is not None else X
 
-            raw_predictions = self._aux_loss.update_terminal_regions(
+            rawpredictions = self._aux_loss.update_terminal_regions(
                 tree.tree_,
                 X_for_tree_update,
                 y,
@@ -251,7 +251,7 @@ class BaseGB(BaseGradientBoosting):
 
             self.estimators_[i, r] = tree
 
-        return raw_predictions
+        return rawpredictions
 
     def _set_max_features(self):
         """Set self.max_features_."""
@@ -440,11 +440,11 @@ class BaseGB(BaseGradientBoosting):
             if do_oob:
                 sample_mask = _random_sample_mask(n_samples, n_inbag, random_state)
                 y_oob_masked = y[~sample_mask]
-                sample_weight_oob_masked = sample_weight[~sample_mask]
+                sample_weight_oob_masked = sample_weight_c[~sample_mask]
                 if i == 0:  # store the initial loss to compute the OOB score
-                    initial_loss = factor * self._loss(
-                        y_true=y_oob_masked,
-                        raw_prediction=raw_predictions[~sample_mask],
+                    initial_loss = factor * self._aux_loss(
+                        y=y_oob_masked,
+                        raw_predictions=raw_predictions[~sample_mask],
                         sample_weight=sample_weight_oob_masked,
                     )
 
@@ -454,7 +454,7 @@ class BaseGB(BaseGradientBoosting):
                 0,
                 X,
                 y,
-                raw_predictions,
+                raw_predictions.copy(),
                 sample_mask,
                 random_state,
                 sample_weight_c,
@@ -464,8 +464,8 @@ class BaseGB(BaseGradientBoosting):
 
             if stacks != None:
                 # Task Specific
-                predictions = np.zeros_like(raw_predictions)
-                raw_predictions_r = np.zeros_like(raw_predictions)
+                predictions = np.zeros_like(raw_predictions.copy())
+                raw_predictions_r = np.zeros_like(raw_predictions.copy())
                 for r, (_, value) in enumerate(stacks.items()):
                     X_, y_, task_index = value[0], value[1], value[2]
                     sample_weight = _check_sample_weight(None, X_)
@@ -476,7 +476,7 @@ class BaseGB(BaseGradientBoosting):
                         r + 1,
                         X_,
                         y_,
-                        raw_predictions[task_index],
+                        raw_predictions.copy()[task_index],
                         sample_mask[task_index],
                         random_state,
                         sample_weight,
@@ -505,12 +505,12 @@ class BaseGB(BaseGradientBoosting):
                 self.train_score_[i] = factor * self._aux_loss(
                     y=y[sample_mask],
                     raw_predictions=raw_predictions[sample_mask],
-                    sample_weight=sample_weight_c,
+                    sample_weight=sample_weight_c[sample_mask],
                 )
                 self.oob_scores_[i] = factor * self._aux_loss(
                     y=y_oob_masked,
                     raw_predictions=raw_predictions[~sample_mask],
-                    sample_weight=sample_weight_c,
+                    sample_weight=sample_weight_c[~sample_mask],
                 )
                 previous_loss = initial_loss if i == 0 else self.oob_scores_[i - 1]
                 self.oob_improvement_[i] = previous_loss - self.oob_scores_[i]
