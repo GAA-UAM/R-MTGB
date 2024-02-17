@@ -64,7 +64,11 @@ if __name__ == "__main__":
     # "circle"]
 
     data_type = "circle"
-    dataset_generator = toy_dataset(n_samples=200, seed=111, noise_factor=0.0)
+    n_samples = 2000
+    noise_sample = int(n_samples * 1e-2)
+    dataset_generator = toy_dataset(
+        n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
+    )
 
     df = dataset_generator(data_type)
     X, y, task = (
@@ -96,7 +100,7 @@ if __name__ == "__main__":
 
     sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0])
     sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[1])
-    axs[0].set_title(f"accuracy: {accuracy_score(y_test, pred_st)} - ST")
-    axs[1].set_title(f"accuracy: {accuracy_score(y_test, pred_mt)} - MT")
+    axs[0].set_title(f"Accuracy: {accuracy_score(y_test, pred_st)* 100:.3f}% - ST")
+    axs[1].set_title(f"Accuracy: {accuracy_score(y_test, pred_mt)* 100:.3f}% - MT")
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.suptitle(f"Dataset: {data_type}")

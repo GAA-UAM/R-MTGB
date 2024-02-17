@@ -4,35 +4,37 @@ from sklearn.datasets import make_classification, make_circles
 
 
 class toy_dataset:
-    def __init__(self, n_samples, seed, noise_factor):
+    def __init__(self, n_samples, noise_sample, seed, noise_factor):
         self.n_samples = n_samples
+        self.noise_sample = noise_sample
         self.seed = seed
         self.noise_factor = noise_factor
 
         np.random.seed(seed)
 
     def _gen_df(self, X, y, X_with_noise):
-        data = np.column_stack((X[:, 0], X[:, 1], y, np.zeros_like(y)))
+        data = np.column_stack((X, y, np.zeros_like(y)))
 
         data_with_noise = np.column_stack(
-            (X_with_noise[:, 0], X_with_noise[:, 1], y, np.ones_like(y))
+            (X_with_noise, y[: self.noise_sample], np.ones_like(y[: self.noise_sample]))
         )
 
         tabular_dataset = np.vstack((data, data_with_noise))
-        column_names = [f"feature_{i}" for i in range(2)] + ["target", "task"]
+        column_names = [f"feature_{i}" for i in range(X.shape[1])] + ["target", "task"]
 
         df = pd.DataFrame(tabular_dataset, columns=column_names)
 
         return df
 
-    def _add_noise(self):
-        noise = np.random.normal(0, self.noise_factor, size=self.n_samples)
-        return noise
+    def _add_noise(self, X):
+        noise = np.random.normal(0, self.noise_factor, size=self.noise_sample)
+        X = X[: self.noise_sample, :] + noise[:, np.newaxis]
+        return X
 
     def _binary(self):
         X = np.random.rand(self.n_samples, 2)
         y = (X[:, 0] + X[:, 1] > 1).astype(int)
-        X_with_noise = X + self._add_noise()[:, np.newaxis]
+        X_with_noise = self._add_noise(X)
         return X, y, X_with_noise
 
     def _multi_class(self):
@@ -46,7 +48,7 @@ class toy_dataset:
             random_state=self.seed,
         )
 
-        X_with_noise = X + self._add_noise()[:, np.newaxis]
+        X_with_noise = self._add_noise(X)
         return X, y, X_with_noise
 
     def _overlapping_data(self, overlap_factor=0.3, noise_factor=0.1):
@@ -59,7 +61,7 @@ class toy_dataset:
             0, noise_factor, overlap_samples
         )
 
-        X_with_noise = X + self._add_noise()[:, np.newaxis]
+        X_with_noise = self._add_noise(X)
 
         return X, y, X_with_noise
 
@@ -70,7 +72,7 @@ class toy_dataset:
         correlated_noise = np.random.normal(0, self.noise_factor, size=self.n_samples)
         X[:, 1] += correlation_factor * correlated_noise
 
-        X_with_noise = X + self._add_noise()[:, np.newaxis]
+        X_with_noise = self._add_noise(X)
 
         return X, y, X_with_noise
 
@@ -89,14 +91,14 @@ class toy_dataset:
         )
         X[:num_minority_samples, :] += noise_minority
 
-        X_with_noise = X + self._add_noise()[:, np.newaxis]
+        X_with_noise = self._add_noise(X)
 
         return X, y, X_with_noise
 
     def _circle(self):
         X, y = make_circles(n_samples=self.n_samples, noise=0.1, factor=0.5)
 
-        X_with_noise = X + self._add_noise()[:, np.newaxis]
+        X_with_noise = self._add_noise(X)
         return X, y, X_with_noise
 
     def __call__(self, data_type):

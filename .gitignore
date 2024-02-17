@@ -161,3 +161,4 @@ cython_debug/
 *original*
 run_.py
 /draft/
+*.xlsx
