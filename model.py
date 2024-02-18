@@ -1,17 +1,19 @@
 import numpy as np
+from sklearn.metrics import mean_squared_error
 from base import BaseGB
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.preprocessing import LabelEncoder, LabelBinarizer
-from sklearn.tree._tree import DTYPE
+from sklearn.tree._tree import DTYPE, DOUBLE
 from sklearn.exceptions import NotFittedError
 from sklearn._loss.loss import (
+    _LOSSES,
     ExponentialLoss,
     HalfBinomialLoss,
     HalfMultinomialLoss,
 )
 
 
-class GradientBoostingClassifier(BaseGB):
+class Classifier(BaseGB):
     def __init__(
         self,
         *,
@@ -60,8 +62,7 @@ class GradientBoostingClassifier(BaseGB):
         )
 
     def _encode_y(self, y):
-        # encode classes into 0 ... n_classes - 1 and sets attributes classes_
-        # and n_trees_per_iteration_
+
         check_classification_targets(y)
 
         label_encoder = LabelEncoder()
@@ -152,3 +153,71 @@ class GradientBoostingClassifier(BaseGB):
             raise AttributeError(
                 "loss=%r does not support predict_proba" % self.loss
             ) from e
+
+
+class Regressor(BaseGB):
+    def __init__(
+        self,
+        *,
+        loss="squared_error",
+        learning_rate=0.1,
+        n_estimators=100,
+        subsample=1.0,
+        criterion="friedman_mse",
+        min_samples_split=2,
+        min_samples_leaf=1,
+        min_weight_fraction_leaf=0.0,
+        max_depth=3,
+        min_impurity_decrease=0.0,
+        init=None,
+        random_state=None,
+        max_features=None,
+        verbose=0,
+        max_leaf_nodes=None,
+        warm_start=False,
+        validation_fraction=0.1,
+        n_iter_no_change=None,
+        tol=1e-4,
+        ccp_alpha=0.0,
+    ):
+        super().__init__(
+            loss=loss,
+            learning_rate=learning_rate,
+            n_estimators=n_estimators,
+            criterion=criterion,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            min_weight_fraction_leaf=min_weight_fraction_leaf,
+            max_depth=max_depth,
+            init=init,
+            subsample=subsample,
+            max_features=max_features,
+            random_state=random_state,
+            verbose=verbose,
+            max_leaf_nodes=max_leaf_nodes,
+            min_impurity_decrease=min_impurity_decrease,
+            warm_start=warm_start,
+            validation_fraction=validation_fraction,
+            n_iter_no_change=n_iter_no_change,
+            tol=tol,
+            ccp_alpha=ccp_alpha,
+        )
+
+    def _encode_y(self, y=None, sample_weight=None):
+        self.is_classifier = False
+        self.n_trees_per_iteration_ = 1
+        y = y.astype(DOUBLE, copy=False)
+        return y
+
+    def _get_loss(self, sample_weight):
+        if self.loss in ("quantile", "huber"):
+            return _LOSSES[self.loss](sample_weight=sample_weight, quantile=self.alpha)
+        else:
+            return _LOSSES[self.loss](sample_weight=sample_weight)
+
+    def predict(self, X):
+        X = self._validate_data(
+            X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
+        )
+        # In regression we can directly return the raw value from the trees.
+        return self._raw_predict(X)

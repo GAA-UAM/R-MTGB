@@ -1,5 +1,5 @@
 # %%
-from model import GradientBoostingClassifier
+from model import *
 from dataset import *
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -29,78 +29,144 @@ def split(df, train_ratio, random_state):
     return _split(train_df), _split(test_df)
 
 
-def plot(df, title):
+def plot(df, title, clf):
     fig, ax1 = plt.subplots(1, 2, figsize=(7, 3))
-    for class_label in range(len(set(y))):
+    if clf:
+        for class_label in range(len(set(y))):
+            ax1[0].scatter(
+                df[(df["target"] == class_label) & (df["task"] == 0)].feature_0,
+                df[(df["target"] == class_label) & (df["task"] == 0)].feature_1,
+                color=colors[class_label],
+            )
+
+        for class_label in range(len(set(y))):
+            ax1[1].scatter(
+                df[(df["target"] == class_label) & (df["task"] == 1)].feature_0,
+                df[(df["target"] == class_label) & (df["task"] == 1)].feature_1,
+                color=colors[class_label],
+                label=f"class label: {class_label}",
+            )
+    else:
         ax1[0].scatter(
-            df[(df["target"] == class_label) & (df["task"] == 0)].feature_0,
-            df[(df["target"] == class_label) & (df["task"] == 0)].feature_1,
-            color=colors[class_label],
-            label=f"original_data_class_{class_label}",
+            df[(df["task"] == 0)].feature_0,
+            df[(df["task"] == 0)].feature_1,
+            color=colors[0],
         )
 
-    for class_label in range(len(set(y))):
         ax1[1].scatter(
-            df[(df["target"] == class_label) & (df["task"] == 1)].feature_0,
-            df[(df["target"] == class_label) & (df["task"] == 1)].feature_1,
-            color=colors[class_label],
-            label=f"noised_data_class_{class_label}",
+            df[(df["task"] == 1)].feature_0,
+            df[(df["task"] == 1)].feature_1,
+            color=colors[0],
         )
     ax1[1].set_title("noised_data")
     ax1[0].set_title("original_data")
+    if clf:
+        fig.legend(loc="upper right", bbox_to_anchor=(1.1, 1))
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.suptitle(f"Dataset: {title}")
 
 
 if __name__ == "__main__":
 
-    # List of available datasets
+    clf = True
 
-    # ["binary",
-    # "multi_class",
-    # "overlapping",
-    # "correlated_noise",
-    # "imbalanced_data",
-    # "circle"]
+    if clf:
 
-    data_type = "circle"
-    n_samples = 2000
-    noise_sample = int(n_samples * 1e-2)
-    dataset_generator = toy_dataset(
-        n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
-    )
+        # List of available datasets
+        # ["binary",
+        # "multi_class",
+        # "overlapping",
+        # "correlated_noise",
+        # "imbalanced_data",
+        # "circle"]
 
-    df = dataset_generator(data_type)
-    X, y, task = (
-        df.drop(columns=["target", "task"]).values,
-        df.target.values,
-        df.task.values,
-    )
-    plot(df, data_type)
-    train, test = split(df, 0.8, 111)
-    x_train, y_train, task_train = train
-    x_test, y_test, task_test = test
+        data_type = "circle"
+        n_samples = 2000
+        noise_sample = int(n_samples * 1e-2)
+        clf_data_gen = toy_clf_dataset(
+            n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
+        )
 
-    model = GradientBoostingClassifier(
-        max_depth=5,
-        n_estimators=100,
-        subsample=0.5,
-        max_features="sqrt",
-        learning_rate=0.05,
-        random_state=1,
-        criterion="squared_error",
-    )
+        df = clf_data_gen(data_type)
+        X, y, task = (
+            df.drop(columns=["target", "task"]).values,
+            df.target.values,
+            df.task.values,
+        )
+        plot(df, data_type, clf)
+        train, test = split(df, 0.8, 111)
+        x_train, y_train, task_train = train
+        x_test, y_test, task_test = test
 
-    fig, axs = plt.subplots(1, 2, figsize=(7, 3))
-    model.fit(x_train, y_train)
-    pred_st = model.predict(x_test)
+        model = Classifier(
+            max_depth=5,
+            n_estimators=100,
+            subsample=0.5,
+            max_features="sqrt",
+            learning_rate=0.05,
+            random_state=1,
+            criterion="squared_error",
+        )
 
-    model.fit(x_train, y_train, task_train)
-    pred_mt = model.predict(x_test, task_test)
+        fig, axs = plt.subplots(1, 2, figsize=(7, 3))
+        model.fit(x_train, y_train)
+        pred_st = model.predict(x_test)
 
-    sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0])
-    sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[1])
-    axs[0].set_title(f"Accuracy: {accuracy_score(y_test, pred_st)* 100:.3f}% - ST")
-    axs[1].set_title(f"Accuracy: {accuracy_score(y_test, pred_mt)* 100:.3f}% - MT")
-    plt.tight_layout(rect=[0, 0, 1, 0.92])
-    fig.suptitle(f"Dataset: {data_type}")
+        model.fit(x_train, y_train, task_train)
+        pred_mt = model.predict(x_test, task_test)
+
+        sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0])
+        sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[1])
+        axs[0].set_title(f"Accuracy: {accuracy_score(y_test, pred_st)* 100:.3f}% - ST")
+        axs[1].set_title(f"Accuracy: {accuracy_score(y_test, pred_mt)* 100:.3f}% - MT")
+        plt.tight_layout(rect=[0, 0, 1, 0.92])
+        fig.suptitle(f"Dataset: {data_type}")
+
+    else:
+
+        data_type = "linear"
+        n_samples = 2000
+        noise_sample = int(n_samples * 1e-2)
+        reg_data_gen = toy_reg_dataset(
+            n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
+        )
+
+        df = reg_data_gen(data_type)
+        X, y, task = (
+            df.drop(columns=["target", "task"]).values,
+            df.target.values,
+            df.task.values,
+        )
+        plot(df, data_type, clf)
+# %%
+
+data_type = "linear"
+n_samples = 2000
+noise_sample = int(n_samples * 1e-2)
+reg_data_gen = toy_reg_dataset(
+    n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
+)
+
+df = reg_data_gen(data_type)
+X, y, task = (
+    df.drop(columns=["target", "task"]).values,
+    df.target.values,
+    df.task.values,
+)
+
+train, test = split(df, 0.8, 111)
+x_train, y_train, task_train = train
+x_test, y_test, task_test = test
+model = Regressor(
+    max_depth=5,
+    n_estimators=100,
+    subsample=0.5,
+    max_features="sqrt",
+    learning_rate=0.05,
+    random_state=1,
+    criterion="squared_error",
+)
+
+fig, axs = plt.subplots(1, 2, figsize=(7, 3))
+model.fit(x_train, y_train)
+# pred_st = model.predict(x_test)

@@ -1,9 +1,30 @@
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_classification, make_circles
+from sklearn.datasets import make_classification, make_circles, make_regression
 
 
-class toy_dataset:
+def _gen_df(X, y, X_with_noise, noise_sample):
+    data = np.column_stack((X, y, np.zeros_like(y)))
+
+    data_with_noise = np.column_stack(
+        (X_with_noise, y[:noise_sample], np.ones_like(y[:noise_sample]))
+    )
+
+    tabular_dataset = np.vstack((data, data_with_noise))
+    column_names = [f"feature_{i}" for i in range(X.shape[1])] + ["target", "task"]
+
+    df = pd.DataFrame(tabular_dataset, columns=column_names)
+
+    return df
+
+
+def _add_noise(X, noise_sample, noise_factor):
+    noise = np.random.normal(0, noise_factor, size=noise_sample)
+    X = X[:noise_sample, :] + noise[:, np.newaxis]
+    return X
+
+
+class toy_clf_dataset:
     def __init__(self, n_samples, noise_sample, seed, noise_factor):
         self.n_samples = n_samples
         self.noise_sample = noise_sample
@@ -12,29 +33,10 @@ class toy_dataset:
 
         np.random.seed(seed)
 
-    def _gen_df(self, X, y, X_with_noise):
-        data = np.column_stack((X, y, np.zeros_like(y)))
-
-        data_with_noise = np.column_stack(
-            (X_with_noise, y[: self.noise_sample], np.ones_like(y[: self.noise_sample]))
-        )
-
-        tabular_dataset = np.vstack((data, data_with_noise))
-        column_names = [f"feature_{i}" for i in range(X.shape[1])] + ["target", "task"]
-
-        df = pd.DataFrame(tabular_dataset, columns=column_names)
-
-        return df
-
-    def _add_noise(self, X):
-        noise = np.random.normal(0, self.noise_factor, size=self.noise_sample)
-        X = X[: self.noise_sample, :] + noise[:, np.newaxis]
-        return X
-
     def _binary(self):
         X = np.random.rand(self.n_samples, 2)
         y = (X[:, 0] + X[:, 1] > 1).astype(int)
-        X_with_noise = self._add_noise(X)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
         return X, y, X_with_noise
 
     def _multi_class(self):
@@ -48,7 +50,7 @@ class toy_dataset:
             random_state=self.seed,
         )
 
-        X_with_noise = self._add_noise(X)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
         return X, y, X_with_noise
 
     def _overlapping_data(self, overlap_factor=0.3, noise_factor=0.1):
@@ -61,7 +63,7 @@ class toy_dataset:
             0, noise_factor, overlap_samples
         )
 
-        X_with_noise = self._add_noise(X)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
 
         return X, y, X_with_noise
 
@@ -72,7 +74,7 @@ class toy_dataset:
         correlated_noise = np.random.normal(0, self.noise_factor, size=self.n_samples)
         X[:, 1] += correlation_factor * correlated_noise
 
-        X_with_noise = self._add_noise(X)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
 
         return X, y, X_with_noise
 
@@ -91,14 +93,14 @@ class toy_dataset:
         )
         X[:num_minority_samples, :] += noise_minority
 
-        X_with_noise = self._add_noise(X)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
 
         return X, y, X_with_noise
 
     def _circle(self):
         X, y = make_circles(n_samples=self.n_samples, noise=0.1, factor=0.5)
 
-        X_with_noise = self._add_noise(X)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
         return X, y, X_with_noise
 
     def __call__(self, data_type):
@@ -117,5 +119,34 @@ class toy_dataset:
             )
 
         X, y, X_with_noise = dataset_types[data_type]()
+        return _gen_df(X, y, X_with_noise, self.noise_sample)
 
-        return self._gen_df(X, y, X_with_noise)
+
+class toy_reg_dataset:
+    def __init__(self, n_samples, noise_sample, seed, noise_factor):
+        self.n_samples = n_samples
+        self.noise_sample = noise_sample
+        self.seed = seed
+        self.noise_factor = noise_factor
+
+        np.random.seed(seed)
+
+    def _linear(self, targets=1):
+        X, y = make_regression(
+            n_samples=self.n_samples, n_features=2, n_targets=targets
+        )
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        return X, y, X_with_noise
+
+    def __call__(self, data_type):
+        dataset_types = {
+            "linear": self._linear,
+        }
+
+        if data_type not in dataset_types:
+            raise ValueError(
+                f"Invalid data_type. Supported types: {list(dataset_types.keys())}"
+            )
+
+        X, y, X_with_noise = dataset_types[data_type]()
+        return _gen_df(X, y, X_with_noise, self.noise_sample)

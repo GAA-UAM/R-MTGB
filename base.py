@@ -28,7 +28,7 @@ from sklearn.ensemble._gradient_boosting import (
 
 from sklearn.tree._tree import DTYPE
 from scipy.special import logsumexp
-from _utils import CondensedDeviance
+from _loss_utils import *
 from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
@@ -306,8 +306,12 @@ class BaseGB(BaseGradientBoosting):
 
         y_copy = y.copy()
         y = self._encode_y(y=y_copy)
-        self._aux_loss = CondensedDeviance(len(set(y_copy)))
         self._loss = self._get_loss(sample_weight=sample_weight)
+
+        if self.is_classifier:
+            self._aux_loss = CondensedDeviance(len(set(y_copy)))
+        else:
+            self._aux_loss = MultiOutputLeastSquaresError()
 
         stacks = None
         if task is not None and task.any():
@@ -362,6 +366,8 @@ class BaseGB(BaseGradientBoosting):
             for k in range(2):
                 Y[:, k] = y == k
             y = Y
+        elif not self.is_classifier:
+            return y
         return y
 
     def _fit_stages(
