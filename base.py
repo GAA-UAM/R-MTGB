@@ -519,6 +519,8 @@ class BaseGB(BaseGradientBoosting):
 
     def _predict_stages(self, estimators_, X, learning_rate, raw_predictions, task):
 
+        if not self.is_classifier:
+            raw_predictions = raw_predictions.squeeze()
         stacks = None
         if task is not None and task.any():
             stacks = {}

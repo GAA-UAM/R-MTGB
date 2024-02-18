@@ -4,7 +4,7 @@ from dataset import *
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
 import seaborn as sns
-
+from sklearn.metrics import mean_squared_error
 
 colors = ["r", "g", "b", "k", "y"]
 
@@ -49,13 +49,13 @@ def plot(df, title, clf):
     else:
         ax1[0].scatter(
             df[(df["task"] == 0)].feature_0,
-            df[(df["task"] == 0)].feature_1,
+            df[(df["task"] == 0)].target,
             color=colors[0],
         )
 
         ax1[1].scatter(
             df[(df["task"] == 1)].feature_0,
-            df[(df["task"] == 1)].feature_1,
+            df[(df["task"] == 1)].target,
             color=colors[0],
         )
     ax1[1].set_title("noised_data")
@@ -68,23 +68,31 @@ def plot(df, title, clf):
 
 if __name__ == "__main__":
 
-    clf = True
+    # List of regression datasets
+    # "linear",
+    # "sinusoidal",
+    # "full_circle"]
 
+    # List of classification datasets
+    # ["binary",
+    # "multi_class",
+    # "overlapping",
+    # "correlated_noise",
+    # "imbalanced_data",
+    # "circle"]
+
+    clf = False
+    data_type = "circle"
+    n_samples = 2000
+    noise_sample = int(n_samples * 1e-2)
+    noise_factor = 2
+    
     if clf:
-
-        # List of available datasets
-        # ["binary",
-        # "multi_class",
-        # "overlapping",
-        # "correlated_noise",
-        # "imbalanced_data",
-        # "circle"]
-
-        data_type = "circle"
-        n_samples = 2000
-        noise_sample = int(n_samples * 1e-2)
         clf_data_gen = toy_clf_dataset(
-            n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
+            n_samples=n_samples,
+            noise_sample=noise_sample,
+            seed=111,
+            noise_factor=noise_factor,
         )
 
         df = clf_data_gen(data_type)
@@ -124,11 +132,15 @@ if __name__ == "__main__":
 
     else:
 
-        data_type = "linear"
+        data_type = "sinusoidal"
         n_samples = 2000
-        noise_sample = int(n_samples * 1e-2)
+
+        noise_sample = int(n_samples * 1e-1)
         reg_data_gen = toy_reg_dataset(
-            n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
+            n_samples=n_samples,
+            noise_sample=noise_sample,
+            seed=111,
+            noise_factor=noise_factor,
         )
 
         df = reg_data_gen(data_type)
@@ -138,35 +150,32 @@ if __name__ == "__main__":
             df.task.values,
         )
         plot(df, data_type, clf)
-# %%
+        train, test = split(df, 0.8, 111)
+        x_train, y_train, task_train = train
+        x_test, y_test, task_test = test
+        model = Regressor(
+            max_depth=5,
+            n_estimators=100,
+            subsample=0.5,
+            max_features="sqrt",
+            learning_rate=0.05,
+            random_state=1,
+            criterion="squared_error",
+        )
 
-data_type = "linear"
-n_samples = 2000
-noise_sample = int(n_samples * 1e-2)
-reg_data_gen = toy_reg_dataset(
-    n_samples=n_samples, noise_sample=noise_sample, seed=111, noise_factor=10
-)
+        fig, axs = plt.subplots(1, 2, figsize=(7, 3))
+        model.fit(x_train, y_train)
+        pred_st = model.predict(x_test)
 
-df = reg_data_gen(data_type)
-X, y, task = (
-    df.drop(columns=["target", "task"]).values,
-    df.target.values,
-    df.task.values,
-)
+        model.fit(x_train, y_train, task_train)
+        pred_mt = model.predict(x_test, task_test)
+        mean_squared_error(pred_mt, y_test)
 
-train, test = split(df, 0.8, 111)
-x_train, y_train, task_train = train
-x_test, y_test, task_test = test
-model = Regressor(
-    max_depth=5,
-    n_estimators=100,
-    subsample=0.5,
-    max_features="sqrt",
-    learning_rate=0.05,
-    random_state=1,
-    criterion="squared_error",
-)
-
-fig, axs = plt.subplots(1, 2, figsize=(7, 3))
-model.fit(x_train, y_train)
-# pred_st = model.predict(x_test)
+        threshold = 0.0
+        colors = np.where(y_test >= threshold, "blue", "red")
+        axs[0].scatter(y_test, pred_st)
+        axs[1].scatter(y_test, pred_mt)
+        axs[0].set_title(f"RMSE: {mean_squared_error(pred_st, y_test):.2f} - ST")
+        axs[1].set_title(f"RMSE: {mean_squared_error(pred_mt, y_test):.2f} - MT")
+        plt.tight_layout(rect=[0, 0, 1, 0.92])
+        fig.suptitle(f"Dataset: {data_type}")

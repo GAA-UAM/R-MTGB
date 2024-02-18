@@ -138,9 +138,58 @@ class toy_reg_dataset:
         X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
         return X, y, X_with_noise
 
+    def _sinusoidal(self):
+        def inverse_sinusoidal_regression(x1, x2, amplitude, frequency, phase, offset):
+            return (
+                amplitude * np.sin(frequency * x1 + phase)
+                + amplitude * np.sin(frequency * x2 + phase)
+                + offset
+            )
+
+        np.random.seed(42)
+        num_points = self.n_samples
+        x1_values = np.linspace(0, 2 * np.pi, num_points)
+        x2_values = np.linspace(0, 2 * np.pi, num_points)
+        amplitude_true = 2.0
+        frequency_true = 1.5
+        phase_true = np.pi / 3
+        offset_true = 1.0
+        y_values_true = inverse_sinusoidal_regression(
+            x1_values,
+            x2_values,
+            amplitude_true,
+            frequency_true,
+            phase_true,
+            offset_true,
+        )
+
+        noise = np.random.normal(0, 0.5, num_points)
+        y_values_noisy = y_values_true + noise
+        X = np.column_stack((x1_values, x2_values))
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+
+        return X, y_values_noisy, X_with_noise
+
+    def _full_circle(self):
+        angles = np.linspace(0, 2 * np.pi, self.n_samples)
+
+        radius = np.random.uniform(0.5, 1.5, size=self.n_samples)
+        x1 = radius * np.cos(angles)
+        x2 = radius * np.sin(angles)
+
+        noise = np.random.normal(0, 0.1, size=self.n_samples)
+        y = np.sin(angles) + noise
+
+        X = np.column_stack((x1, x2))
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+
+        return X, y, X_with_noise
+
     def __call__(self, data_type):
         dataset_types = {
             "linear": self._linear,
+            "sinusoidal": self._sinusoidal,
+            "full_circle": self._full_circle,
         }
 
         if data_type not in dataset_types:

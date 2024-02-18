@@ -147,11 +147,10 @@ class MultiOutputLeastSquaresError:
         return init
 
     def negative_gradient(self, y, raw_predictions, **kargs):
-        if type_of_target(y) == "continuous-multioutput":
+        target_type = type_of_target(y)
+        if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
             negative_gradient = np.squeeze(y) - raw_predictions
-        elif type_of_target(y) == "multiclass-multioutput":
-            negative_gradient = np.squeeze(y) - raw_predictions
-        elif type_of_target(y) == "continuous":
+        elif target_type == "continuous":
             negative_gradient = np.squeeze(y) - raw_predictions.ravel()
         return negative_gradient
 
@@ -167,21 +166,11 @@ class MultiOutputLeastSquaresError:
         learning_rate=0.1,
         k=0,
     ):
-        if type_of_target(y) == "continuous-multioutput" or "multiclass-multioutput":
+
+        target_type = type_of_target(y)
+        if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
             for i in range(y.shape[1]):
                 raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]
-        else:
+        elif target_type == "continuous":
             raw_predictions[:, k] += learning_rate * tree.predict(X).ravel()
-
-    def _update_terminal_region(
-        self,
-        tree,
-        terminal_regions,
-        leaf,
-        X,
-        y,
-        residual,
-        raw_predictions,
-        sample_weight,
-    ):
-        pass
+        return raw_predictions

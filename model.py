@@ -215,9 +215,9 @@ class Regressor(BaseGB):
         else:
             return _LOSSES[self.loss](sample_weight=sample_weight)
 
-    def predict(self, X):
+    def predict(self, X, task=None):
         X = self._validate_data(
             X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
         )
         # In regression we can directly return the raw value from the trees.
-        return self._raw_predict(X)
+        return self._raw_predict(X, task)
