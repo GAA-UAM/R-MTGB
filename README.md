@@ -8,7 +8,6 @@ Welcome to the repository for the Noise-Aware Gradient Boosting model, a dual-ta
 
 - [Introduction](#Introduction)
 - [Features](#Features)
-- [Installation](#Installation)
 - [Usage](#Usage)
 - [Dependencies](#Dependencies)
 - [License](#License)
@@ -52,7 +51,8 @@ pred = model_mt.predict(x_test, task_test)
 
 ## Dependencies
 
-Make sure you have the dependencies (requirements[requirements.txt]) installed before using the Noise-Aware Gradient Boosting model.
+Make sure you have the dependencies ([requirements](requirements.txt)) installed before using the Noise-Aware Gradient Boosting model.
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -61,7 +61,7 @@ For more advanced usage and customization options, refer to the wiki page.
 
 ## License
 
-The package is licensed under the GNU Lesser General Public License v2.1.
+The package is licensed under the [GNU Lesser General Public License v2.1](LICENSE).
 
 ## Key_members
 
