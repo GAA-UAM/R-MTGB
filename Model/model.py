@@ -1,10 +1,9 @@
 import numpy as np
-from sklearn.metrics import mean_squared_error
-from base import BaseGB
-from sklearn.utils.multiclass import check_classification_targets
-from sklearn.preprocessing import LabelEncoder, LabelBinarizer
+from Base._base import BaseGB
 from sklearn.tree._tree import DTYPE, DOUBLE
 from sklearn.exceptions import NotFittedError
+from sklearn.preprocessing import LabelEncoder
+from sklearn.utils.multiclass import check_classification_targets
 from sklearn._loss.loss import (
     _LOSSES,
     ExponentialLoss,

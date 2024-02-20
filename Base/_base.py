@@ -28,7 +28,7 @@ from sklearn.ensemble._gradient_boosting import (
 
 from sklearn.tree._tree import DTYPE
 from scipy.special import logsumexp
-from _loss_utils import *
+from ._loss_utils import *
 from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
