@@ -49,6 +49,8 @@ pred = model_mt.predict(x_test, task_test)
 
 ```
 
+For more advanced usage and customization options, refer to the wiki page.
+
 ## Dependencies
 
 Make sure you have the dependencies ([requirements](requirements.txt)) installed before using the Noise-Aware Gradient Boosting model.
@@ -57,7 +59,7 @@ Make sure you have the dependencies ([requirements](requirements.txt)) installed
 pip install -r requirements.txt
 ```
 
-For more advanced usage and customization options, refer to the wiki page.
+
 
 ## License
 
