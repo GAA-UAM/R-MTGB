@@ -1,5 +1,5 @@
 # %%
-from Model.model import *
+from NoiseAwareGB.model import *
 from Plots.plots import *
 from Dataset.dataset import *
 from Dataset.split import split
