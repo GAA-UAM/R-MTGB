@@ -72,8 +72,17 @@ def run(clf, data_type, n_samples, noise_prec, noise_factor, td):
 
         sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0])
         sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[1])
-        axs[0].set_title(f"Accuracy: {accuracy_score(y_test, pred_st)* 100:.3f}% - ST")
-        axs[1].set_title(f"Accuracy: {accuracy_score(y_test, pred_mt)* 100:.3f}% - MT")
+        score_mt = accuracy_score(y_test, pred_mt)
+        score_st = accuracy_score(y_test, pred_st)
+        score_mt_task0 = accuracy_score(y_test[task_test == 0], pred_mt[task_test == 0])
+        score_mt_task1 = accuracy_score(y_test[task_test == 1], pred_mt[task_test == 1])
+
+        score_st_task0 = accuracy_score(y_test[task_test == 0], pred_st[task_test == 0])
+        score_st_task1 = accuracy_score(y_test[task_test == 1], pred_st[task_test == 1])
+
+        axs[0].set_title(f"Accuracy: {score_st* 100:.3f}% - ST")
+        axs[1].set_title(f"Accuracy: {score_mt* 100:.3f}% - MT")
+
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         fig.suptitle(f"Dataset: {data_type}")
 
@@ -130,7 +139,6 @@ def run(clf, data_type, n_samples, noise_prec, noise_factor, td):
         pred_mt = model_mt.predict(x_test, task_test)
         mean_squared_error(pred_mt, y_test)
 
-        threshold = 0.0
         axs[0].scatter(y_test, pred_st)
         axs[1].scatter(y_test, pred_mt)
 
@@ -138,25 +146,50 @@ def run(clf, data_type, n_samples, noise_prec, noise_factor, td):
         axs[0].set_ylabel("pred Values")
         axs[1].set_xlabel("True Values")
 
-        axs[0].set_title(f"RMSE: {mean_squared_error(pred_st, y_test):.2f} - ST")
-        axs[1].set_title(f"RMSE: {mean_squared_error(pred_mt, y_test):.2f} - MT")
+        score_mt = mean_squared_error(pred_mt, y_test)
+        score_st = mean_squared_error(pred_st, y_test)
+
+        score_mt_task0 = mean_squared_error(
+            y_test[task_test == 0], pred_mt[task_test == 0]
+        )
+        score_mt_task1 = mean_squared_error(
+            y_test[task_test == 1], pred_mt[task_test == 1]
+        )
+
+        score_st_task0 = mean_squared_error(
+            y_test[task_test == 0], pred_st[task_test == 0]
+        )
+        score_st_task1 = mean_squared_error(
+            y_test[task_test == 1], pred_st[task_test == 1]
+        )
+
+        axs[0].set_title(f"RMSE: {score_st:.2f} - ST")
+        axs[1].set_title(f"RMSE: {score_mt:.2f} - MT")
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         fig.suptitle(f"Dataset: {data_type}")
 
-        if td:
-            threeD_surface(model_mt, x_train, x_test, y_test, "MT")
-            threeD_surface(model_st, x_train, x_test, y_test, "ST")
-        else:
-            surface(model_mt, x_train, x_test, y_test, "MT")
-            surface(model_st, x_train, x_test, y_test, "ST")
+        # if td:
+        #     threeD_surface(model_mt, x_train, x_test, y_test, "MT")
+        #     threeD_surface(model_st, x_train, x_test, y_test, "ST")
+        # else:
+        #     surface(model_mt, x_train, x_test, y_test, "MT")
+        #     surface(model_st, x_train, x_test, y_test, "ST")
+
+    print(f"Single task score: {score_st} \t Multi task score: {score_mt}")
+    print(
+        f"Multi task (task0) score: {score_mt_task0} \t Multi task (task1) score: {score_mt_task1}"
+    )
+    print(
+        f"Single task (task0) score: {score_st_task0} \t Sulti task (task1) score: {score_st_task1}"
+    )
 
 
 if __name__ == "__main__":
     run(
-        clf=False,
-        data_type="linear",
-        n_samples=500,
-        noise_prec=1e-1,
-        noise_factor=5,
+        clf=True,
+        data_type="multi_class",
+        n_samples=2000,
+        noise_prec=0.1,
+        noise_factor=1,
         td=False,
     )

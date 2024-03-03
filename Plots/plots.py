@@ -6,7 +6,7 @@ colors = ["r", "g", "b", "k", "y"]
 
 
 def scatter(df, title, clf):
-    fig, ax1 = plt.subplots(1, 2, figsize=(7, 3))
+    fig, ax1 = plt.subplots(1, 3, figsize=(12, 5))
     if clf:
         for class_label in range(len(set(df["target"]))):
             ax1[0].scatter(
@@ -22,6 +22,14 @@ def scatter(df, title, clf):
                 color=colors[class_label],
                 label=f"class label: {class_label}",
             )
+
+        for class_label in range(len(set(df["target"]))):
+            ax1[2].scatter(
+                df[(df["target"] == class_label)].feature_0,
+                df[(df["target"] == class_label)].feature_1,
+                color=colors[class_label],
+                label=f"class label: {class_label}",
+            )
     else:
         ax1[0].scatter(
             df[(df["task"] == 0)].feature_0,
@@ -34,8 +42,15 @@ def scatter(df, title, clf):
             df[(df["task"] == 1)].target,
             color=colors[0],
         )
+
+        ax1[2].scatter(
+            df.feature_0,
+            df.target,
+            color=colors[0],
+        )
     ax1[1].set_title("noised_data")
     ax1[0].set_title("original_data")
+    ax1[2].set_title("all data")
     if clf:
         fig.legend(loc="upper center", bbox_to_anchor=(0.5, -0.05), ncols=3)
     plt.tight_layout(rect=[0, 0, 1, 0.92])
