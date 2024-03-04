@@ -18,25 +18,36 @@ def _gen_df(X, y, X_with_noise, noise_sample):
     return df
 
 
-def _add_noise(X, noise_sample, noise_factor):
-    noise = np.random.normal(0, noise_factor, size=noise_sample)
-    X = X[:noise_sample, :] + noise[:, np.newaxis]
-    return X
+def _add_noise(X, noise_sample, noise_factor, mean):
+    if noise_sample:
+        constant_factor = 10
+        noise = np.random.normal(mean, noise_factor, size=noise_sample)
+        constant_noise = np.full_like(noise, constant_factor)
+        scattered_noise = noise + constant_noise
+        X = X[:noise_sample, :] + scattered_noise[:, np.newaxis]
+        # X = X[:noise_sample, :] + noise[:, np.newaxis]
+        return X
+    else:
+        return X
+    
 
 
 class toy_clf_dataset:
-    def __init__(self, n_samples, noise_sample, seed, noise_factor):
+    def __init__(self, n_samples, noise_sample, seed, noise_factor, mean):
         self.n_samples = n_samples
         self.noise_sample = noise_sample
         self.seed = seed
         self.noise_factor = noise_factor
+        self.mean = mean
 
         np.random.seed(seed)
 
     def _binary(self):
         X = np.random.rand(self.n_samples, 2)
         y = (X[:, 0] + X[:, 1] > 1).astype(int)
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(
+            X, self.noise_sample, self.noise_factor, self.mean, self.mean
+        )
         return X, y, X_with_noise
 
     def _multi_class(self):
@@ -50,7 +61,7 @@ class toy_clf_dataset:
             random_state=self.seed,
         )
 
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
         return X, y, X_with_noise
 
     def _overlapping_data(self, overlap_factor=0.3, noise_factor=0.1):
@@ -63,7 +74,7 @@ class toy_clf_dataset:
             0, noise_factor, overlap_samples
         )
 
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
 
         return X, y, X_with_noise
 
@@ -71,10 +82,12 @@ class toy_clf_dataset:
         X = np.random.rand(self.n_samples, 2)
         y = (X[:, 0] + X[:, 1] > 1).astype(int)
 
-        correlated_noise = np.random.normal(0, self.noise_factor, size=self.n_samples)
+        correlated_noise = np.random.normal(
+            0, self.noise_factor, self.mean, size=self.n_samples
+        )
         X[:, 1] += correlation_factor * correlated_noise
 
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
 
         return X, y, X_with_noise
 
@@ -89,18 +102,18 @@ class toy_clf_dataset:
 
         # Add noise to minority class
         noise_minority = np.random.normal(
-            0, self.noise_factor, size=(num_minority_samples, 2)
+            0, self.noise_factor, self.mean, size=(num_minority_samples, 2)
         )
         X[:num_minority_samples, :] += noise_minority
 
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
 
         return X, y, X_with_noise
 
     def _circle(self):
         X, y = make_circles(n_samples=self.n_samples, noise=0.1, factor=0.5)
 
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
         return X, y, X_with_noise
 
     def __call__(self, data_type):
@@ -119,15 +132,17 @@ class toy_clf_dataset:
             )
 
         X, y, X_with_noise = dataset_types[data_type]()
+        self.noise_sample = X.shape[0] if not self.noise_sample else self.noise_sample
         return _gen_df(X, y, X_with_noise, self.noise_sample)
 
 
 class toy_reg_dataset:
-    def __init__(self, n_samples, noise_sample, seed, noise_factor):
+    def __init__(self, n_samples, noise_sample, seed, noise_factor, mean):
         self.n_samples = n_samples
         self.noise_sample = noise_sample
         self.seed = seed
         self.noise_factor = noise_factor
+        self.mean = mean
 
         np.random.seed(seed)
 
@@ -135,7 +150,7 @@ class toy_reg_dataset:
         X, y = make_regression(
             n_samples=self.n_samples, n_features=2, n_targets=targets
         )
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
         return X, y, X_with_noise
 
     def _sinusoidal(self):
@@ -166,7 +181,7 @@ class toy_reg_dataset:
         noise = np.random.normal(0, 0.5, num_points)
         y_values_noisy = y_values_true + noise
         X = np.column_stack((x1_values, x2_values))
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
 
         return X, y_values_noisy, X_with_noise
 
@@ -181,7 +196,7 @@ class toy_reg_dataset:
         y = np.sin(angles) + noise
 
         X = np.column_stack((x1, x2))
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor)
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
 
         return X, y, X_with_noise
 

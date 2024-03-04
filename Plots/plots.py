@@ -28,7 +28,6 @@ def scatter(df, title, clf):
                 df[(df["target"] == class_label)].feature_0,
                 df[(df["target"] == class_label)].feature_1,
                 color=colors[class_label],
-                label=f"class label: {class_label}",
             )
     else:
         ax1[0].scatter(
@@ -40,13 +39,13 @@ def scatter(df, title, clf):
         ax1[1].scatter(
             df[(df["task"] == 1)].feature_0,
             df[(df["task"] == 1)].target,
-            color=colors[0],
+            color=colors[1],
         )
 
         ax1[2].scatter(
             df.feature_0,
             df.target,
-            color=colors[0],
+            color=colors[2],
         )
     ax1[1].set_title("noised_data")
     ax1[0].set_title("original_data")
