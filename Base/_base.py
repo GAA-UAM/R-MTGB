@@ -318,7 +318,7 @@ class BaseGB(BaseGradientBoosting):
             stacks = {}
             self.T = len(np.unique(task))
             stack = pd.DataFrame(np.column_stack((X, y, task)))
-            stack.sort_values(by=[3], ascending=True, inplace=True)
+            # stack.sort_values(by=[3], ascending=True, inplace=True)
             num_features = X.shape[1]
 
             for r, group in stack.groupby(stack.columns[-1]):
@@ -525,7 +525,7 @@ class BaseGB(BaseGradientBoosting):
         if task is not None and task.any():
             stacks = {}
             stack = pd.DataFrame(np.column_stack((X, task)))
-            stack.sort_values(by=[2], ascending=True, inplace=True)
+            # stack.sort_values(by=[2], ascending=True, inplace=True)
             num_features = X.shape[1]
 
             for r, group in stack.groupby(stack.columns[-1]):

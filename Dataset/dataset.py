@@ -29,7 +29,6 @@ def _add_noise(X, noise_sample, noise_factor, mean):
         return X
     else:
         return X
-    
 
 
 class toy_clf_dataset:
@@ -45,9 +44,7 @@ class toy_clf_dataset:
     def _binary(self):
         X = np.random.rand(self.n_samples, 2)
         y = (X[:, 0] + X[:, 1] > 1).astype(int)
-        X_with_noise = _add_noise(
-            X, self.noise_sample, self.noise_factor, self.mean, self.mean
-        )
+        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
         return X, y, X_with_noise
 
     def _multi_class(self):
@@ -213,4 +210,5 @@ class toy_reg_dataset:
             )
 
         X, y, X_with_noise = dataset_types[data_type]()
+        self.noise_sample = X.shape[0] if not self.noise_sample else self.noise_sample
         return _gen_df(X, y, X_with_noise, self.noise_sample)

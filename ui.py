@@ -74,7 +74,9 @@ class run:
     ):
         data = {
             "Conventional MT" if not noise_mt else "proposed MT": [score_mt],
-            "Score ST": [score_st],
+            "ST (Data Pooling)": [score_st],
+            "ST (Average score)": [np.mean((score_st_task0, score_st_task1))],
+            "MT (Average score)": [np.mean((score_mt_task0, score_mt_task1))],
             "Conventional MT (0)" if not noise_mt else "proposed MT (0)": [
                 score_mt_task0
             ],
@@ -157,6 +159,12 @@ class run:
         model_st.fit(x_train, y_train)
         pred_st = model_st.predict(x_test)
 
+        preds_st = []
+        for r in set(task):
+            model_st.fit(x_train[task_train == r], y_train[task_train == r])
+            pred = model_st.predict(x_test[task_test == r])
+            preds_st.append(pred)
+
         sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0][0])
         sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[0][1])
         sns.heatmap(
@@ -170,35 +178,43 @@ class run:
             ax=axs[1][1],
         )
         sns.heatmap(
-            confusion_matrix(y_test[task_test == 0], pred_st[task_test == 0]),
+            confusion_matrix(y_test[task_test == 0], preds_st[0]),
             annot=True,
             ax=axs[2][0],
         )
         sns.heatmap(
-            confusion_matrix(y_test[task_test == 1], pred_st[task_test == 1]),
+            confusion_matrix(y_test[task_test == 1], preds_st[1]),
             annot=True,
             ax=axs[2][1],
         )
+
+        title = "Conventional MT" if not noise_mt else "Proposed MT"
         score_mt = accuracy_score(y_test, pred_mt)
         score_st = accuracy_score(y_test, pred_st)
 
         score_mt_task0 = accuracy_score(y_test[task_test == 0], pred_mt[task_test == 0])
         score_mt_task1 = accuracy_score(y_test[task_test == 1], pred_mt[task_test == 1])
 
-        score_st_task0 = accuracy_score(y_test[task_test == 0], pred_st[task_test == 0])
-        score_st_task1 = accuracy_score(y_test[task_test == 1], pred_st[task_test == 1])
+        score_st_task0 = accuracy_score(y_test[task_test == 0], preds_st[0])
+        score_st_task1 = accuracy_score(y_test[task_test == 1], preds_st[1])
 
-        axs[0][0].set_title(f"Accuracy: {score_st* 100:.3f}% - ST")
-        axs[0][1].set_title(f"Accuracy: {score_mt* 100:.3f}% - MT")
+        axs[0][0].set_title(f"Accuracy: {score_st* 100:.3f}% - GB (Data Pooling)")
+        axs[0][1].set_title(f"Accuracy: {score_mt* 100:.3f}% - {title}")
 
-        axs[1][0].set_title(f"Accuracy: {score_mt_task0* 100:.3f}% - MT - task 0")
-        axs[1][1].set_title(f"Accuracy: {score_mt_task1* 100:.3f}% - MT - task 1")
+        axs[1][0].set_title(f"Accuracy: {score_mt_task0* 100:.3f}% - {title} - task 0")
+        axs[1][1].set_title(f"Accuracy: {score_mt_task1* 100:.3f}% - {title} - task 1")
 
-        axs[2][0].set_title(f"Accuracy: {score_st_task0* 100:.3f}% - ST - task 0")
-        axs[2][1].set_title(f"Accuracy: {score_st_task1* 100:.3f}% - ST - task 1")
+        axs[2][0].set_title(
+            f"Accuracy: {score_st_task0* 100:.3f}% - Single Task - GB - task 0"
+        )
+        axs[2][1].set_title(
+            f"Accuracy: {score_st_task1* 100:.3f}% - Single Task - GB - task 1"
+        )
 
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         fig.suptitle(f"Dataset: {data_type}")
+
+        fig.savefig(f"{data_type}_{title}.png", dpi=400)
 
         fig, axs = plt.subplots(1, 2, figsize=(15, 6), facecolor="w", edgecolor="k")
         axs = axs.ravel()
@@ -229,11 +245,13 @@ class run:
 
         df = reg_data_gen(data_type)
         scatter(df, data_type, False)
+        X, y, task = self.data_pre_split(df)
         train, test = split(df, 0.8, 111)
         x_train, y_train, task_train = train
         x_test, y_test, task_test = test
 
         fig, axs = plt.subplots(3, 2, figsize=(7, 10), sharex=False, sharey=True)
+        title = "Conventional MT" if not noise_mt else "Proposed MT"
 
         model_st = GradientBoostingRegressor(
             max_depth=5,
@@ -247,6 +265,12 @@ class run:
 
         model_st.fit(x_train, y_train)
         pred_st = model_st.predict(x_test)
+
+        preds_st = []
+        for r in set(task):
+            model_st.fit(x_train[task_train == r], y_train[task_train == r])
+            pred = model_st.predict(x_test[task_test == r])
+            preds_st.append(pred)
 
         if noise_mt:
             from NoiseAwareGB.model import Regressor
@@ -291,13 +315,13 @@ class run:
         axs[0][1].set_xlabel("True Values")
 
         axs[1][0].scatter(y_test[task_test == 0], pred_mt[task_test == 0])
-        axs[1][1].scatter(y_test[task_test == 0], pred_mt[task_test == 0])
+        axs[1][1].scatter(y_test[task_test == 1], pred_mt[task_test == 1])
         axs[1][0].set_xlabel("True Values")
         axs[1][0].set_ylabel("pred Values")
         axs[1][1].set_xlabel("True Values")
 
-        axs[2][0].scatter(y_test[task_test == 1], pred_st[task_test == 1])
-        axs[2][1].scatter(y_test[task_test == 1], pred_st[task_test == 1])
+        axs[2][0].scatter(y_test[task_test == 0], preds_st[0])
+        axs[2][1].scatter(y_test[task_test == 1], preds_st[1])
         axs[2][0].set_xlabel("True Values")
         axs[2][0].set_ylabel("pred Values")
         axs[2][1].set_xlabel("True Values")
@@ -313,24 +337,23 @@ class run:
         )
 
         score_st_task0 = mean_squared_error(
-            y_test[task_test == 0], pred_st[task_test == 0]
+            y_test[task_test == 0], preds_st[0]
         )
         score_st_task1 = mean_squared_error(
-            y_test[task_test == 1], pred_st[task_test == 1]
+            y_test[task_test == 1], preds_st[1]
         )
 
-        axs[0][0].set_title(f"RMSE: {score_st:.2f} - ST")
-        axs[0][1].set_title(f"RMSE: {score_mt:.2f} - MT")
+        axs[0][0].set_title(f"RMSE: {score_st:.2f} - GB (Data Pooling)")
+        axs[0][1].set_title(f"RMSE: {score_mt:.2f} - {title}")
 
-        axs[1][0].set_title(f"RMSE: {score_mt_task0:.2f} - MT - task0")
-        axs[1][1].set_title(f"RMSE: {score_mt_task1:.2f} - MT - task1")
+        axs[1][0].set_title(f"RMSE: {score_mt_task0:.2f} - {title} - task0")
+        axs[1][1].set_title(f"RMSE: {score_mt_task1:.2f} - {title} - task1")
 
-        axs[2][0].set_title(f"RMSE: {score_st_task0:.2f} - ST - task0")
-        axs[2][1].set_title(f"RMSE: {score_st_task1:.2f} - ST - task1")
+        axs[2][0].set_title(f"RMSE: {score_st_task0:.2f} - GB - task0")
+        axs[2][1].set_title(f"RMSE: {score_st_task1:.2f} - GB - task1")
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         fig.suptitle(f"Dataset: {data_type}")
 
-        title = "Conventional MT" if not noise_mt else "Proposed MT"
         self._extract_records(
             score_mt,
             score_st,
@@ -346,16 +369,16 @@ class run:
 if __name__ == "__main__":
     run_exp = run(
         n_samples=5000,
-        mean = 0,
-        noise_prec=False,
+        mean=5,
+        noise_prec=1e-1,
         noise_factor=5,
         max_depth=5,
         n_estimators=100,
         subsample=0.5,
         max_features="sqrt",
-        learning_rate=1e-1,
+        learning_rate=5e-1,
         random_state=111,
     )
 
-    run_exp.fit_clf(noise_mt=True, data_type="multi_class")
+    run_exp.fit_clf(noise_mt=True, data_type="binary")
     # run_exp.fit_reg(noise_mt=True, data_type="linear")
