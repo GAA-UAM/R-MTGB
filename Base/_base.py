@@ -83,6 +83,7 @@ class BaseGB(BaseGradientBoosting):
         validation_fraction=0.1,
         n_iter_no_change=None,
         tol=1e-4,
+        early_stopping=None,
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -106,6 +107,7 @@ class BaseGB(BaseGradientBoosting):
         self.n_iter_no_change = n_iter_no_change
         self.tol = tol
         self.is_classifier = False
+        self.early_stopping = early_stopping
 
     @abstractmethod
     def _encode_y(self, y=None):
@@ -138,7 +140,7 @@ class BaseGB(BaseGradientBoosting):
     def _sigma(self, theta):
         return expit(theta)
 
-    def _obj_fun(self, theta, c_h, r_h, y):
+    def _task_obj_fun(self, theta, c_h, r_h, y):
         sigma_theta = self._sigma(theta)
         w_pred = (sigma_theta * c_h) + ((1 - sigma_theta) * r_h)
         loss = np.mean((y - w_pred) ** 2)
@@ -150,9 +152,13 @@ class BaseGB(BaseGradientBoosting):
         initial_guess = np.random.normal(np.mean(y), np.std(y))
 
         args = (c_h, r_h, y)
-        result = fmin_l_bfgs_b(self._obj_fun, initial_guess, args=args)
+        result = fmin_l_bfgs_b(self._task_obj_fun, initial_guess, args=args)
         optimized_theta = result[0][0]
         return optimized_theta
+
+    def _update_learning_rate(self, learning_rate, current_stage):
+        new_learning_rate = learning_rate * np.exp(-self.alpha * current_stage)
+        return new_learning_rate
 
     def _fit_stage(
         self,
@@ -164,14 +170,12 @@ class BaseGB(BaseGradientBoosting):
         sample_mask,
         random_state,
         sample_weight,
+        learning_rate,
         X_csc=None,
         X_csr=None,
     ):
-        original_y = y
         raw_predictions_copy = raw_predictions.copy()
         for k in range(self._aux_loss.K):
-            # if self._loss.is_multiclass:
-            #     y = np.array(original_y == k, dtype=np.float64)
 
             residual = self._aux_loss.negative_gradient(
                 y, raw_predictions_copy, k=k, sample_weight=sample_weight
@@ -206,7 +210,7 @@ class BaseGB(BaseGradientBoosting):
                 raw_predictions,
                 sample_weight,
                 sample_mask,
-                learning_rate=self.learning_rate,
+                learning_rate=learning_rate,
                 k=k,
             )
 
@@ -353,6 +357,15 @@ class BaseGB(BaseGradientBoosting):
             begin_at_stage,
         )
 
+        if n_stages != self.estimators_.shape[0]:
+            self.estimators_ = self.estimators_[:n_stages]
+            self.train_score_ = self.train_score_[:n_stages]
+            if hasattr(self, "oob_improvement_"):
+                # OOB scores were computed
+                self.oob_improvement_ = self.oob_improvement_[:n_stages]
+                self.oob_scores_ = self.oob_scores_[:n_stages]
+                self.oob_score_ = self.oob_scores_[-1]
+            self.thetas = self.thetas[:n_stages]
         self.n_estimators_ = n_stages
         return self
 
@@ -402,6 +415,10 @@ class BaseGB(BaseGradientBoosting):
 
         i = begin_at_stage
 
+        best_iteration = None
+        best_score = float("inf")
+        no_improvement_count = 0
+
         sample_weight_c = _check_sample_weight(None, X)
         self.thetas = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         for i in range(begin_at_stage, self.n_estimators):
@@ -427,6 +444,7 @@ class BaseGB(BaseGradientBoosting):
                 sample_mask,
                 random_state,
                 sample_weight_c,
+                self.learning_rate,
                 X_csc=X_csc,
                 X_csr=X_csr,
             )
@@ -435,11 +453,12 @@ class BaseGB(BaseGradientBoosting):
                 # Task Specific
                 predictions = np.zeros_like(raw_predictions.copy())
                 raw_predictions_r = np.zeros_like(raw_predictions.copy())
+                learning_rate = self.learning_rate
                 for r, (_, value) in enumerate(stacks.items()):
                     X_, y_, task_index = value[0], value[1], value[2]
                     sample_weight = _check_sample_weight(None, X_)
                     y_ = self._label_y(y_)
-
+                    
                     raw_predictions_r[task_index] = self._fit_stage(
                         i,
                         r + 1,
@@ -449,9 +468,12 @@ class BaseGB(BaseGradientBoosting):
                         sample_mask[task_index],
                         random_state,
                         sample_weight,
+                        learning_rate,
                         X_csc=X_csc,
                         X_csr=X_csr,
                     )
+
+                    # learning_rate = self._update_learning_rate(learning_rate, i)
 
                     theta = self._opt_theta(
                         raw_predictions_c[task_index],
@@ -492,6 +514,16 @@ class BaseGB(BaseGradientBoosting):
                     sample_weight=sample_weight_c,
                 )
 
+            if self.early_stopping is not None and i > 0:
+                if self.train_score_[i] < best_score:
+                    best_score = self.train_score_[i]
+                    best_iteration = i
+                    no_improvement_count = 0
+                else:
+                    no_improvement_count += 1
+                
+                if no_improvement_count >= self.early_stopping:
+                    break
         return i + 1
 
     def _raw_predict_init(self, X):

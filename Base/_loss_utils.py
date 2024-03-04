@@ -112,14 +112,12 @@ class MultiOutputLeastSquaresError:
 
     def get_init_raw_predictions(self, X, estimator):
         predictions = estimator.predict(X)
-        if (
-            type_of_target(predictions) == "continuous-multioutput"
-            or "multiclass-multioutput"
-        ):
+        target_type = type_of_target(y)
+        if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
             predictions = predictions.reshape(-1, predictions.shape[1]).astype(
                 np.float64
             )
-        else:
+        elif target_type == "continuous":
             predictions = predictions.reshape(-1, 1).astype(np.float64)
         return predictions
 
@@ -128,16 +126,14 @@ class MultiOutputLeastSquaresError:
         if sample_weight is None:
             init = np.mean((y - raw_predictions.ravel()) ** 2)
         else:
-            if (
-                type_of_target(raw_predictions) == "continuous-multioutput"
-                or "multiclass-multioutput"
-            ):
+            target_type = type_of_target(y)
+            if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
                 init = (
                     1
                     / sample_weight.sum()
                     * np.sum(sample_weight[:, None] * ((y - raw_predictions) ** 2))
                 )
-            else:
+            elif target_type == "continuous":
                 init = (
                     1
                     / sample_weight.sum()

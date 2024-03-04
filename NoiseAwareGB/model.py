@@ -36,6 +36,7 @@ class Classifier(BaseGB):
         n_iter_no_change=None,
         tol=1e-4,
         ccp_alpha=0.0,
+        early_stopping=None,
     ):
         super().__init__(
             loss=loss,
@@ -58,6 +59,7 @@ class Classifier(BaseGB):
             n_iter_no_change=n_iter_no_change,
             tol=tol,
             ccp_alpha=ccp_alpha,
+            early_stopping=early_stopping,
         )
 
     def _encode_y(self, y):
@@ -178,6 +180,7 @@ class Regressor(BaseGB):
         n_iter_no_change=None,
         tol=1e-4,
         ccp_alpha=0.0,
+        early_stopping=None,
     ):
         super().__init__(
             loss=loss,
@@ -200,6 +203,7 @@ class Regressor(BaseGB):
             n_iter_no_change=n_iter_no_change,
             tol=tol,
             ccp_alpha=ccp_alpha,
+            early_stopping=early_stopping,
         )
 
     def _encode_y(self, y=None, sample_weight=None):
