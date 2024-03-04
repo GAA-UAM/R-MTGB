@@ -92,7 +92,7 @@ class run:
         csv_filename = f"{title_}_{title}.csv"
         df.to_csv(csv_filename, index=True)
 
-    def fit_clf(self, noise_mt, data_type):
+    def fit_clf(self, noise_mt, data_type, es):
 
         title = "Conventional MT" if not noise_mt else "Proposed MT"
 
@@ -122,7 +122,7 @@ class run:
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
-                early_stopping=3,
+                early_stopping=es,
             )
             model_mt.fit(X=x_train, y=y_train, task=task_train)
             pred_mt = model_mt.predict(x_test, task_test)
@@ -143,6 +143,7 @@ class run:
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
+                n_iter_no_change=es,
             )
 
             model_mt.fit(np.column_stack((x_train, task_train)), y_train)
@@ -156,6 +157,7 @@ class run:
             learning_rate=self.learning_rate,
             random_state=self.random_state,
             criterion="squared_error",
+            n_iter_no_change=es,
         )
 
         model_st.fit(x_train, y_train, True)
@@ -211,7 +213,7 @@ class run:
             noise_mt,
         )
 
-    def fit_reg(self, noise_mt, data_type):
+    def fit_reg(self, noise_mt, data_type, es):
 
         reg_data_gen = toy_reg_dataset(
             n_samples=self.n_samples,
@@ -241,7 +243,7 @@ class run:
                 learning_rate=0.05,
                 random_state=1,
                 criterion="squared_error",
-                early_stopping=None,
+                early_stopping=es,
             )
 
             model_mt.fit(x_train, y_train, task_train)
@@ -263,6 +265,7 @@ class run:
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
+                n_iter_no_change=es,
             )
 
             model_mt.fit(np.column_stack((x_train, task_train)), y_train)
@@ -276,6 +279,7 @@ class run:
             learning_rate=0.05,
             random_state=1,
             criterion="squared_error",
+            n_iter_no_change=es,
         )
 
         model_st.fit(x_train, y_train)
@@ -333,9 +337,9 @@ class run:
 if __name__ == "__main__":
     run_exp = run(
         n_samples=5000,
-        mean=0,
-        noise_prec=False,
-        noise_factor=1,
+        mean=10,
+        noise_prec=1e-1,
+        noise_factor=5,
         max_depth=5,
         n_estimators=100,
         subsample=0.5,
@@ -344,5 +348,5 @@ if __name__ == "__main__":
         random_state=111,
     )
 
-    # run_exp.fit_clf(noise_mt=True, data_type="multi_class")
-    run_exp.fit_reg(noise_mt=True, data_type="linear")
+    run_exp.fit_clf(noise_mt=True, data_type="multi_class", es=3)
+    # run_exp.fit_reg(noise_mt=True, data_type="linear", es=3)

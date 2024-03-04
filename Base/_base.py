@@ -56,7 +56,6 @@ def set_huber_delta(loss, y_true, raw_prediction, sample_weight=None):
     delta = _weighted_percentile(abserr, sample_weight, 100 * loss.quantile)
     loss.closs.delta = float(delta)
 
-
 class BaseGB(BaseGradientBoosting):
     @abstractmethod
     def __init__(
