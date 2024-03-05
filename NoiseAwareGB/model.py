@@ -201,7 +201,7 @@ class Regressor(BaseGB):
             early_stopping=early_stopping,
         )
 
-    def _encode_y(self, y=None, sample_weight=None):
+    def _encode_y(self, y=None):
         self.is_classifier = False
         self.n_trees_per_iteration_ = 1
         y = y.astype(DOUBLE, copy=False)

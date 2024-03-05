@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from sklearn.metrics import accuracy_score, confusion_matrix, mean_squared_error
 import seaborn as sns
+import pandas as pd
 
 colors = ["r", "g", "b", "k", "y"]
 
@@ -147,8 +148,9 @@ def threeD_surface(model, x_train, x_test, y_test, title):
     )
 
 
-def training_score(model_mt, model_st, title, data_type):
+def training_score(model_mt, model_st, noise_mt, data_type):
 
+    title = "Conventional MT" if not noise_mt else "Proposed MT"
     fig, axs = plt.subplots(1, 2, figsize=(7, 3))
     axs[1].plot(model_mt.train_score_, label=f"{title}", color="b")
     axs[0].plot(model_st.train_score_, label="GB (Data Pooling)", color="r")
@@ -178,22 +180,54 @@ def theta_plot(model_mt, title, data_type):
     fig.savefig(f"{title} {data_type}_Theta_ev.png", dpi=400)
 
 
-def confusion_plot(
-    score_st,
+def _extract_records(
     score_mt,
+    score_st,
     score_mt_task0,
     score_mt_task1,
     score_st_task0,
     score_st_task1,
-    data_type,
     title,
+    noise_mt,
+):
+    data = {
+        "Conventional MT" if not noise_mt else "proposed MT": [score_mt],
+        "GB (Data Pooling)": [score_st],
+        "GB (Data Pooling) (0)": [],
+        "GB (Data Pooling) (1)": [],
+        "Conventional MT (0)" if not noise_mt else "proposed MT (0)": [score_mt_task0],
+        "Conventional MT (1)" if not noise_mt else "proposed MT (1)": [score_mt_task1],
+        "GB (0)": [score_st_task0],
+        "GB (1)": [score_st_task1],
+    }
+
+    df = pd.DataFrame(data)
+    title_ = "Conventional MT" if not noise_mt else "Proposed MT"
+
+    csv_filename = f"{title_}_{title}.csv"
+    df.to_csv(csv_filename, index=True)
+
+
+def confusion_plot(
+    data_type,
+    noise_mt,
     y_test,
     pred_st,
     pred_mt,
     task_test,
     preds_st,
 ):
+    title = "Conventional MT" if not noise_mt else "Proposed MT"
     fig, axs = plt.subplots(4, 2, figsize=(15, 20))
+
+    score_mt = accuracy_score(y_test, pred_mt)
+    score_st = accuracy_score(y_test, pred_st)
+
+    score_mt_task0 = accuracy_score(y_test[task_test == 0], pred_mt[task_test == 0])
+    score_mt_task1 = accuracy_score(y_test[task_test == 1], pred_mt[task_test == 1])
+
+    score_st_task0 = accuracy_score(y_test[task_test == 0], preds_st[0])
+    score_st_task1 = accuracy_score(y_test[task_test == 1], preds_st[1])
 
     sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0][0])
     sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[0][1])
@@ -252,18 +286,23 @@ def confusion_plot(
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.suptitle(f"Dataset: {data_type}")
 
+    _extract_records(
+        score_mt,
+        score_st,
+        score_mt_task0,
+        score_mt_task1,
+        score_st_task0,
+        score_st_task1,
+        "clf",
+        noise_mt,
+    )
+
     fig.savefig(f"{data_type}_{title}.png", dpi=400)
 
 
 def reg_plot(
-    score_st,
-    score_mt,
-    score_mt_task0,
-    score_mt_task1,
-    score_st_task0,
-    score_st_task1,
     data_type,
-    title,
+    noise_mt,
     y_test,
     pred_st,
     pred_mt,
@@ -271,6 +310,16 @@ def reg_plot(
     preds_st,
 ):
 
+    score_mt = mean_squared_error(pred_mt, y_test)
+    score_st = mean_squared_error(pred_st, y_test)
+
+    score_mt_task0 = mean_squared_error(y_test[task_test == 0], pred_mt[task_test == 0])
+    score_mt_task1 = mean_squared_error(y_test[task_test == 1], pred_mt[task_test == 1])
+
+    score_st_task0 = mean_squared_error(y_test[task_test == 0], preds_st[0])
+    score_st_task1 = mean_squared_error(y_test[task_test == 1], preds_st[1])
+
+    title = "Conventional MT" if not noise_mt else "Proposed MT"
     fig, axs = plt.subplots(4, 2, figsize=(7, 10), sharex=False, sharey=True)
 
     axs[0][0].scatter(y_test, pred_st)
@@ -318,4 +367,13 @@ def reg_plot(
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.suptitle(f"Dataset: {data_type}")
 
-
+    _extract_records(
+        score_mt,
+        score_st,
+        score_mt_task0,
+        score_mt_task1,
+        score_st_task0,
+        score_st_task1,
+        "reg",
+        noise_mt,
+    )
