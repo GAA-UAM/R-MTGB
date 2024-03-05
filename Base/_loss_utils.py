@@ -82,8 +82,10 @@ class CondensedDeviance:
         denominator = np.sum(
             sample_weight * (y - residual) * (1 - y + residual), axis=0
         )
+
+        epsilon = 1e-5
         tree.value[leaf, :, 0] = np.where(
-            abs(denominator) < 1e-150, 0.0, numerator / denominator
+            abs(denominator) < 1e-150, 0.0, numerator / (denominator + epsilon)
         )
 
     def _raw_prediction_to_proba(self, raw_predictions):

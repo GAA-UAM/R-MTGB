@@ -80,28 +80,9 @@ class toy_clf_dataset:
         y = (X[:, 0] + X[:, 1] > 1).astype(int)
 
         correlated_noise = np.random.normal(
-            0, self.noise_factor, self.mean, size=self.n_samples
+            self.mean, self.noise_factor, size=self.n_samples
         )
         X[:, 1] += correlation_factor * correlated_noise
-
-        X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
-
-        return X, y, X_with_noise
-
-    def _imbalanced_data(self, imbalance_ratio=0.2):
-
-        num_minority_samples = int(self.n_samples * (1 - imbalance_ratio))
-        y_minority = np.ones(num_minority_samples)
-        y_majority = np.zeros(self.n_samples - num_minority_samples)
-        y = np.concatenate((y_minority, y_majority), axis=0)
-
-        X = np.random.rand(self.n_samples, 2)
-
-        # Add noise to minority class
-        noise_minority = np.random.normal(
-            0, self.noise_factor, self.mean, size=(num_minority_samples, 2)
-        )
-        X[:num_minority_samples, :] += noise_minority
 
         X_with_noise = _add_noise(X, self.noise_sample, self.noise_factor, self.mean)
 
@@ -119,7 +100,6 @@ class toy_clf_dataset:
             "multi_class": self._multi_class,
             "overlapping": self._overlapping_data,
             "correlated_noise": self._correlated_noise,
-            "imbalanced_data": self._imbalanced_data,
             "circle": self._circle,
         }
 

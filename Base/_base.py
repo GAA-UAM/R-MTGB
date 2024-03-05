@@ -56,6 +56,7 @@ def set_huber_delta(loss, y_true, raw_prediction, sample_weight=None):
     delta = _weighted_percentile(abserr, sample_weight, 100 * loss.quantile)
     loss.closs.delta = float(delta)
 
+
 class BaseGB(BaseGradientBoosting):
     @abstractmethod
     def __init__(
@@ -457,7 +458,7 @@ class BaseGB(BaseGradientBoosting):
                     X_, y_, task_index = value[0], value[1], value[2]
                     sample_weight = _check_sample_weight(None, X_)
                     y_ = self._label_y(y_)
-                    
+
                     raw_predictions_r[task_index] = self._fit_stage(
                         i,
                         r + 1,
@@ -486,6 +487,7 @@ class BaseGB(BaseGradientBoosting):
                     predictions[task_index] = (
                         sigma * raw_predictions_c[task_index]
                     ) + ((1 - sigma) * raw_predictions_r[task_index])
+
             else:
                 predictions = raw_predictions_c
             raw_predictions = predictions
@@ -520,7 +522,7 @@ class BaseGB(BaseGradientBoosting):
                     no_improvement_count = 0
                 else:
                     no_improvement_count += 1
-                
+
                 if no_improvement_count >= self.early_stopping:
                     break
         return i + 1
@@ -544,11 +546,11 @@ class BaseGB(BaseGradientBoosting):
         check_is_fitted(self)
         raw_predictions = self._raw_predict_init(X)
         raw_predictions = self._predict_stages(
-            self.estimators_, X, self.learning_rate, raw_predictions, task
+            self.estimators_, X, raw_predictions, task
         )
         return raw_predictions
 
-    def _predict_stages(self, estimators_, X, learning_rate, raw_predictions, task):
+    def _predict_stages(self, estimators_, X, raw_predictions, task):
 
         if not self.is_classifier:
             raw_predictions = raw_predictions.squeeze()
@@ -575,23 +577,51 @@ class BaseGB(BaseGradientBoosting):
                     predictions[task_index] = (
                         sigma * raw_predictions_c[task_index]
                     ) + ((1 - sigma) * raw_predictions_r[task_index])
-                raw_predictions += learning_rate * predictions
+                raw_predictions += self.learning_rate * predictions
         else:
             for i in range(len(estimators_)):
                 tree = estimators_[i][0]
-                raw_predictions += learning_rate * tree.predict(X)
+                raw_predictions += self.learning_rate * tree.predict(X)
 
         return raw_predictions
 
-    def _staged_raw_predict(self, X, check_input=True):
-        if check_input:
-            X = self._validate_data(
-                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
-            )
+    def _staged_raw_predict(self, X, task=None):
+        stacks = None
+
         raw_predictions = self._raw_predict_init(X)
-        for i in range(self.estimators_.shape[0]):
-            predict_stage(self.estimators_, i, X, self.learning_rate, raw_predictions)
-            yield raw_predictions.copy()
+        if raw_predictions.shape[1] == 1:
+            raw_predictions = np.squeeze(raw_predictions)
+
+        if task is not None and task.any():
+            stacks = {}
+            stack = pd.DataFrame(np.column_stack((X, task)))
+            num_features = X.shape[1]
+
+            for r, group in stack.groupby(stack.columns[-1]):
+                stacks[r] = self._extract_data(group, num_features, False)
+
+            raw_predictions_r = np.zeros_like(raw_predictions)
+            predictions = np.zeros_like(raw_predictions)
+
+            for i in range(self.estimators_.shape[0]):
+                tree = self.estimators_[i, 0]
+                raw_predictions_c = tree.predict(X)
+                for r, (_, value) in enumerate(stacks.items()):
+                    tree = self.estimators_[i, r + 1]
+                    X_, task_index = value[0], value[1]
+                    sigma = self._sigma(self.thetas[i, r])
+                    raw_predictions_r[task_index] = tree.predict(X_)
+                    predictions[task_index] = (
+                        sigma * raw_predictions_c[task_index]
+                    ) + ((1 - sigma) * raw_predictions_r[task_index])
+                raw_predictions += self.learning_rate * predictions
+                yield raw_predictions.copy()
+
+        else:
+            for i in range(len(self.estimators_.shape[0])):
+                tree = self.estimators_[i][0]
+                raw_predictions += self.learning_rate * tree.predict(X)
+                yield raw_predictions.copy()
 
     @property
     def feature_importances_(self):

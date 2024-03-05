@@ -126,15 +126,10 @@ class Classifier(BaseGB):
             encoded_classes = np.argmax(raw_predictions, axis=1)
         return self.classes_[encoded_classes]
 
-    def staged_predict(self, X):
-        if self.n_classes_ == 2:  # n_trees_per_iteration_ = 1
-            for raw_predictions in self._staged_raw_predict(X):
-                encoded_classes = (raw_predictions.squeeze() >= 0).astype(int)
-                yield self.classes_.take(encoded_classes, axis=0)
-        else:
-            for raw_predictions in self._staged_raw_predict(X):
-                encoded_classes = np.argmax(raw_predictions, axis=1)
-                yield self.classes_.take(encoded_classes, axis=0)
+    def staged_predict(self, X, task=None):
+        for raw_predictions in self._staged_raw_predict(X, task):
+            encoded_classes = np.argmax(raw_predictions, axis=1)
+            yield self.classes_.take(encoded_classes, axis=0)
 
     def predict_proba(self, X):
         raw_predictions = self.decision_function(X)
@@ -223,3 +218,8 @@ class Regressor(BaseGB):
             X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
         )
         return self._raw_predict(X, task)
+
+    def staged_predict(self, X, task):
+
+        for raw_predictions in self._staged_raw_predict(X, task):
+            yield raw_predictions.ravel()

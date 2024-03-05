@@ -149,6 +149,12 @@ class run:
             model_mt.fit(np.column_stack((x_train, task_train)), y_train)
             pred_mt = model_mt.predict(np.column_stack((x_test, task_test)))
 
+        fig, ax = plt.subplots(1, 1)
+        test_score = np.zeros((model_mt.estimators_.shape[0]), dtype=np.float64)
+        for i, y_pred in enumerate(model_mt.staged_predict(x_test, task_test)):
+            test_score[i] = accuracy_score(y_test, y_pred)
+        ax.plot(test_score)
+
         model_st = GradientBoostingClassifier(
             max_depth=self.max_depth,
             n_estimators=self.n_estimators,
@@ -251,6 +257,12 @@ class run:
             mean_squared_error(pred_mt, y_test)
             theta_plot(model_mt, title, data_type)
 
+            fig, ax = plt.subplots(1, 1)
+            test_score = np.zeros((model_mt.estimators_.shape[0]), dtype=np.float64)
+            for i, y_pred in enumerate(model_mt.staged_predict(x_test, task_test)):
+                test_score[i] = mean_squared_error(y_test, y_pred)
+            ax.plot(test_score)
+
         else:
             import sys
 
@@ -336,8 +348,8 @@ class run:
 
 if __name__ == "__main__":
     run_exp = run(
-        n_samples=5000,
-        mean=10,
+        n_samples=1000,
+        mean=0,
         noise_prec=1e-1,
         noise_factor=5,
         max_depth=5,
@@ -348,5 +360,5 @@ if __name__ == "__main__":
         random_state=111,
     )
 
-    run_exp.fit_clf(noise_mt=True, data_type="multi_class", es=3)
-    # run_exp.fit_reg(noise_mt=True, data_type="linear", es=3)
+    # run_exp.fit_clf(noise_mt=True, data_type="circle", es=3)
+    run_exp.fit_reg(noise_mt=True, data_type="linear", es=3)

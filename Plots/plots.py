@@ -146,8 +146,6 @@ def threeD_surface(model, x_train, x_test, y_test, title):
         scene_camera=dict(eye=dict(x=-1.87, y=0.88, z=-0.64)),
     )
 
-    fig.show()
-
 
 def training_score(model_mt, model_st, title, data_type):
 
@@ -162,13 +160,12 @@ def training_score(model_mt, model_st, title, data_type):
     fig.legend()
     fig.suptitle(f"Training Evolution")
     fig.savefig(f"{data_type}Training_score.png", dpi=400)
-    fig.show()
 
 
 def theta_plot(model_mt, title, data_type):
     fig, axs = plt.subplots(1, 2, figsize=(7, 3))
-    axs[0].plot(model_mt.thetas[:, 0], label="Task 0", color="orange")
-    axs[1].plot(model_mt.thetas[:, 1], label="Task 1", color="g")
+    axs[0].plot(model_mt.thetas[:, 0], label="Theta_0", color="orange")
+    axs[1].plot(model_mt.thetas[:, 1], label="Theta_1", color="g")
     axs[0].set_xlabel("Boosting epochs")
     axs[0].set_ylabel("Theta value")
     axs[1].set_ylabel("Theta value")
@@ -300,23 +297,25 @@ def reg_plot(
     axs[3][0].set_ylabel("pred Values")
     axs[3][1].set_xlabel("True Values")
 
-    axs[0][0].set_title(f"RMSE: {score_st:.2f} - GB (Data Pooling)")
-    axs[0][1].set_title(f"RMSE: {score_mt:.2f} - {title}")
+    axs[0][0].set_title(f"MSE: {score_st:.2f} - GB (Data Pooling)")
+    axs[0][1].set_title(f"MSE: {score_mt:.2f} - {title}")
 
-    axs[1][0].set_title(f"RMSE: {score_mt_task0:.2f} - {title} - task0")
-    axs[1][1].set_title(f"RMSE: {score_mt_task1:.2f} - {title} - task1")
+    axs[1][0].set_title(f"MSE: {score_mt_task0:.2f} - {title} - task0")
+    axs[1][1].set_title(f"MSE: {score_mt_task1:.2f} - {title} - task1")
 
-    axs[2][0].set_title(f"RMSE: {score_st_task0:.2f} - GB - task0")
-    axs[2][1].set_title(f"RMSE: {score_st_task1:.2f} - GB - task1")
+    axs[2][0].set_title(f"MSE: {score_st_task0:.2f} - GB - task0")
+    axs[2][1].set_title(f"MSE: {score_st_task1:.2f} - GB - task1")
 
     axs[3][0].set_title(
-        f"RMSE: {mean_squared_error(y_test[task_test == 0], pred_st[task_test == 0]):.2f} - GB (Data Pooling) - task0"
+        f"MSE: {mean_squared_error(y_test[task_test == 0], pred_st[task_test == 0]):.2f} - GB (Data Pooling) - task0"
     )
     axs[3][1].set_title(
-        f"RMSE: {mean_squared_error(y_test[task_test == 1], pred_st[task_test == 1]):.2f} - GB (Data Pooling)  - task1"
+        f"MSE: {mean_squared_error(y_test[task_test == 1], pred_st[task_test == 1]):.2f} - GB (Data Pooling)  - task1"
     )
 
     fig.savefig(f"{data_type}_{title}.png", dpi=400)
 
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.suptitle(f"Dataset: {data_type}")
+
+
