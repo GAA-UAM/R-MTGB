@@ -8,9 +8,9 @@ def split(df, train_ratio, random_state):
 
     def _split(df):
         X, y, task = (
-            df.drop(columns=["target", "task"]).values,
+            df.drop(columns=["target", "Task"]).values,
             df.target.values,
-            df.task.values,
+            df.Task.values,
         )
 
         return (X, y, task)

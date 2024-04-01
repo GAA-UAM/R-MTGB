@@ -365,7 +365,8 @@ class BaseGB(BaseGradientBoosting):
                 self.oob_improvement_ = self.oob_improvement_[:n_stages]
                 self.oob_scores_ = self.oob_scores_[:n_stages]
                 self.oob_score_ = self.oob_scores_[-1]
-            self.thetas = self.thetas[:n_stages]
+            self.sigmoid = self.sigmoid[:n_stages]
+            self.__theta = self.__theta[:n_stages]
         self.n_estimators_ = n_stages
         return self
 
@@ -420,7 +421,8 @@ class BaseGB(BaseGradientBoosting):
         no_improvement_count = 0
 
         sample_weight_c = _check_sample_weight(None, X)
-        self.thetas = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.sigmoid = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.__theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         for i in range(begin_at_stage, self.n_estimators):
             # subsampling
             if do_oob:
@@ -481,9 +483,9 @@ class BaseGB(BaseGradientBoosting):
                         y_,
                     )
 
-                    self.thetas[i, r] = theta
-
+                    self.__theta[i, r] = theta
                     sigma = self._sigma(theta)
+                    self.sigmoid[i, r] = sigma
                     predictions[task_index] = (
                         sigma * raw_predictions_c[task_index]
                     ) + ((1 - sigma) * raw_predictions_r[task_index])
@@ -572,7 +574,7 @@ class BaseGB(BaseGradientBoosting):
                 for r, (_, value) in enumerate(stacks.items()):
                     tree = estimators_[i, r + 1]
                     X_, task_index = value[0], value[1]
-                    sigma = self._sigma(self.thetas[i, r])
+                    sigma = self._sigma(self.__theta[i, r])
                     raw_predictions_r[task_index] = tree.predict(X_)
                     predictions[task_index] = (
                         sigma * raw_predictions_c[task_index]
@@ -609,7 +611,7 @@ class BaseGB(BaseGradientBoosting):
                 for r, (_, value) in enumerate(stacks.items()):
                     tree = self.estimators_[i, r + 1]
                     X_, task_index = value[0], value[1]
-                    sigma = self._sigma(self.thetas[i, r])
+                    sigma = self._sigma(self.__theta[i, r])
                     raw_predictions_r[task_index] = tree.predict(X_)
                     predictions[task_index] = (
                         sigma * raw_predictions_c[task_index]
