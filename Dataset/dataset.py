@@ -105,7 +105,7 @@ def regression(num_instances=100, same_task=False):
         task_one_data["Feature 1"],
         task_one_data["target"],
         color="red",
-        label="Task 1 (Cosine)",
+        label="Task 1 (Cosine)" if not same_task else "Task 1 (Sine)",
     )
 
     plt.title("Synthetic Regression Dataset")
