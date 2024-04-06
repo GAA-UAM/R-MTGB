@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def binary(num_instances=100, same_task=1):
-    np.random.seed(42)
+def binary(num_instances=100, same_task=1, seed=111):
+    np.random.seed(seed)
 
     X = np.random.normal(size=(num_instances, 2))
 
@@ -62,14 +62,14 @@ def binary(num_instances=100, same_task=1):
     return data
 
 
-def regression(num_instances=100, same_task=False):
+def regression(num_instances=100, same_task=False, seed=111):
 
     def generate_data(
         num_instances,
         task_num,
         same_task,
     ):
-        np.random.seed(42)
+        np.random.seed(seed)
         features = np.random.rand(num_instances, 2)
         if same_task:
             labels = np.sin(features[:, 0])  # Sine for task 0
