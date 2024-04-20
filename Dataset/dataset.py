@@ -4,25 +4,37 @@ import matplotlib.pyplot as plt
 
 
 def binary(num_instances=100, same_task=1, seed=111):
-    np.random.seed(seed)
 
-    X = np.random.normal(size=(num_instances, 2))
+    rng_task_0 = np.random.default_rng(seed)
+    rng_task_0 = np.random.default_rng(seed + seed)
+    X_task_0 = rng_task_0.normal(size=(num_instances, 2))
+    X_task_1 = rng_task_0.normal(size=(num_instances, 2))
 
     w = -1 if not same_task else 1
     weights_task_0 = np.array([w, 1])
     weights_task_1 = np.array([1, 1])
 
-    y_task_0 = np.dot(X, weights_task_0) > 0
-    y_task_1 = np.dot(X, weights_task_1) > 0
+    y_task_0 = np.dot(X_task_0, weights_task_0) > 0
+    y_task_1 = np.dot(X_task_1, weights_task_1) > 0
 
     y_task_0 = np.where(y_task_0, 1, -1)
     y_task_1 = np.where(y_task_1, 1, -1)
 
     data_task_0 = pd.DataFrame(
-        {"Feature 1": X[:, 0], "Feature 2": X[:, 1], "target": y_task_0, "Task": 0}
+        {
+            "Feature 1": X_task_0[:, 0],
+            "Feature 2": X_task_0[:, 1],
+            "target": y_task_0,
+            "Task": 0,
+        }
     )
     data_task_1 = pd.DataFrame(
-        {"Feature 1": X[:, 0], "Feature 2": X[:, 1], "target": y_task_1, "Task": 1}
+        {
+            "Feature 1": X_task_1[:, 0],
+            "Feature 2": X_task_1[:, 1],
+            "target": y_task_1,
+            "Task": 1,
+        }
     )
 
     data = pd.concat([data_task_0, data_task_1], ignore_index=True)
@@ -64,20 +76,20 @@ def binary(num_instances=100, same_task=1, seed=111):
 
 def regression(num_instances=100, same_task=False, seed=111):
 
-    def generate_data(
-        num_instances,
-        task_num,
-        same_task,
-    ):
-        np.random.seed(seed)
-        features = np.random.rand(num_instances, 2)
+    def generate_data(num_instances, task_num, same_task, seed):
+        rng_task = np.random.default_rng(seed + task_num)  # Seed for each task
+        features = rng_task.normal(size=(num_instances, 2))
         if same_task:
-            labels = np.sin(features[:, 0])  # Sine for task 0
+            labels = (
+                np.sin(features[:, 0]) if task_num == 0 else np.sin(features[:, 0])
+            )  # Sign with different seed for each task
         else:
             if task_num == 0:
-                labels = np.sin(features[:, 0])
+                labels = np.sin(features[:, 0])  # Sign for task 0
             else:
-                labels = np.cos(features[:, 0])  # Cosine for task 1
+                rng_task = np.random.default_rng((seed + seed))
+                features = rng_task.normal(size=(num_instances, 2))
+                labels = np.cos(features[:, 0])  # Cosign for task 1
         return pd.DataFrame(
             {
                 "Feature 1": features[:, 0],
@@ -87,8 +99,8 @@ def regression(num_instances=100, same_task=False, seed=111):
             }
         )
 
-    task_zero_data = generate_data(num_instances, 0, same_task)
-    task_one_data = generate_data(num_instances, 1, same_task)
+    task_zero_data = generate_data(num_instances, 0, same_task, seed)
+    task_one_data = generate_data(num_instances, 1, same_task, seed + seed)
 
     data = pd.concat([task_zero_data, task_one_data], ignore_index=True)
 

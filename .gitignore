@@ -168,3 +168,6 @@ run_.py
 /_plots
 *_ui.py
 *test*
+/ref
+*gen_data*
+debug.py

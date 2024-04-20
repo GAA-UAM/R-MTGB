@@ -1,6 +1,5 @@
 import warnings
 import numpy as np
-import pandas as pd
 from numbers import Integral
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils.stats import _weighted_percentile
@@ -23,7 +22,6 @@ from sklearn.utils.validation import check_is_fitted
 from scipy.sparse import csc_matrix, csr_matrix, issparse
 from sklearn.ensemble._gradient_boosting import (
     _random_sample_mask,
-    predict_stage,
 )
 
 from sklearn.tree._tree import DTYPE
@@ -284,19 +282,30 @@ class BaseGB(BaseGradientBoosting):
         # GradientBoosting*.init is not validated yet
         prefer_skip_nested_validation=False
     )
-    def _extract_data(self, group, num_features, fit):
-        X = group.iloc[:, :num_features].values
-        if fit:
-            y = group.iloc[:, num_features:-1].values
-        indices = group.index.tolist()
-        if fit:
-            return [X.astype(np.float32), y, indices]
-        else:
-            return [X.astype(np.float32), indices]
+    def _split_task(self, X: np.array, task_info: int) -> np.array:
 
-    def fit(self, X, y, task=None):
+        # Ensuring that every distinct value is replaced with an index, beginning from zero.
+        unique_values = np.unique(X[:, task_info])
+        mapping = {value: index for index, value in enumerate(unique_values)}
+        X[:, task_info] = [mapping[value] for value in X[:, task_info]]
+
+        # Separating the input array and task indices.
+        X_task = X[:, task_info]
+        X_data = np.delete(X, task_info, axis=1).astype(float)
+        return X_data, X_task
+
+    def fit(self, X: np.array, y: np.array, task_info: int):
         if not self.warm_start:
             self._clear_state()
+
+        if task_info is not None:
+            X, self.t = self._split_task(X, task_info)
+            unique = np.unique(self.t)
+            self.T = len(unique)
+            self.tasks_dic = dict(zip(unique, range(self.T)))
+        else:
+            self.T = 0
+            self.tasks_dic = None
 
         sample_weight = _check_sample_weight(None, X)
 
@@ -317,18 +326,6 @@ class BaseGB(BaseGradientBoosting):
         else:
             self._aux_loss = MultiOutputLeastSquaresError()
 
-        stacks = None
-        if task is not None and task.any():
-            stacks = {}
-            self.T = len(np.unique(task))
-            stack = pd.DataFrame(np.column_stack((X, y, task)))
-            # stack.sort_values(by=[3], ascending=True, inplace=True)
-            num_features = X.shape[1]
-
-            for r, group in stack.groupby(stack.columns[-1]):
-                stacks[r] = self._extract_data(group, num_features, True)
-        else:
-            self.T = 0
         self._init_state(y)
         self._set_max_features()
 
@@ -351,7 +348,6 @@ class BaseGB(BaseGradientBoosting):
         n_stages = self._fit_stages(
             X,
             y,
-            stacks,
             raw_predictions,
             self._rng,
             begin_at_stage,
@@ -388,7 +384,6 @@ class BaseGB(BaseGradientBoosting):
         self,
         X,
         y,
-        stacks,
         raw_predictions,
         random_state,
         begin_at_stage=0,
@@ -416,7 +411,6 @@ class BaseGB(BaseGradientBoosting):
 
         i = begin_at_stage
 
-        best_iteration = None
         best_score = float("inf")
         no_improvement_count = 0
 
@@ -451,44 +445,42 @@ class BaseGB(BaseGradientBoosting):
                 X_csr=X_csr,
             )
 
-            if stacks != None:
-                # Task Specific
+            # Task specific.
+            if self.tasks_dic != None:
                 predictions = np.zeros_like(raw_predictions.copy())
                 raw_predictions_r = np.zeros_like(raw_predictions.copy())
-                learning_rate = self.learning_rate
-                for r, (_, value) in enumerate(stacks.items()):
-                    X_, y_, task_index = value[0], value[1], value[2]
-                    sample_weight = _check_sample_weight(None, X_)
-                    y_ = self._label_y(y_)
+                for r_label, r in self.tasks_dic.items():
+                    idx_r = self.t == r_label
+                    X_r = X[idx_r]
+                    y_r = y[idx_r]
+                    sample_weight = _check_sample_weight(None, X_r)
 
-                    raw_predictions_r[task_index] = self._fit_stage(
+                    raw_predictions_r[idx_r] = self._fit_stage(
                         i,
                         r + 1,
-                        X_,
-                        y_,
-                        raw_predictions.copy()[task_index],
-                        sample_mask[task_index],
+                        X_r,
+                        y_r,
+                        raw_predictions.copy()[idx_r],
+                        sample_mask[idx_r],
                         random_state,
                         sample_weight,
-                        learning_rate,
+                        self.learning_rate,
                         X_csc=X_csc,
                         X_csr=X_csr,
                     )
 
-                    # learning_rate = self._update_learning_rate(learning_rate, i)
-
                     theta = self._opt_theta(
-                        raw_predictions_c[task_index],
-                        raw_predictions_r[task_index],
-                        y_,
+                        raw_predictions_c[idx_r],
+                        raw_predictions_r[idx_r],
+                        y_r,
                     )
 
                     self.__theta[i, r] = theta
                     sigma = self._sigma(theta)
                     self.sigmoid[i, r] = sigma
-                    predictions[task_index] = (
-                        sigma * raw_predictions_c[task_index]
-                    ) + ((1 - sigma) * raw_predictions_r[task_index])
+                    predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
+                        (1 - sigma) * raw_predictions_r[idx_r]
+                    )
 
             else:
                 predictions = raw_predictions_c
@@ -529,10 +521,31 @@ class BaseGB(BaseGradientBoosting):
                     break
         return i + 1
 
-    def _raw_predict_init(self, X):
+    def _raw_predict_init(self, X, task_info):
         """Check input and compute raw predictions of the init estimator."""
+
         self._check_initialized()
-        X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
+        if task_info is not None:
+
+            X, t = self._split_task(X, task_info)
+            unique = np.unique(t)
+
+            X = self._validate_data(
+                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
+            )
+            # 0_th index (common task estimator)
+            X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
+
+            for r_label in unique:
+                idx_r = t == r_label
+                X[idx_r] = self.estimators_[
+                    0, int(self.tasks_dic[r_label]) + 1
+                ]._validate_X_predict(X[idx_r], check_input=True)
+        else:
+            X = self._validate_data(
+                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
+            )
+            X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
         if self.init_ == "zero":
             raw_predictions = np.zeros(
                 shape=(X.shape[0], self.n_trees_per_iteration_), dtype=np.float64
@@ -543,43 +556,54 @@ class BaseGB(BaseGradientBoosting):
             )
         return raw_predictions
 
-    def _raw_predict(self, X, task):
+    def _raw_predict(self, X, task_info):
         """Return the sum of the trees raw predictions (+ init estimator)."""
         check_is_fitted(self)
-        raw_predictions = self._raw_predict_init(X)
+        raw_predictions = self._raw_predict_init(X, task_info)
         raw_predictions = self._predict_stages(
-            self.estimators_, X, raw_predictions, task
+            self.estimators_, X, raw_predictions, task_info
         )
         return raw_predictions
 
-    def _predict_stages(self, estimators_, X, raw_predictions, task):
+    def _predict_stages(self, estimators_, X, raw_predictions, task_info):
 
         if not self.is_classifier:
             raw_predictions = raw_predictions.squeeze()
-        stacks = None
-        if task is not None and task.any():
-            stacks = {}
-            stack = pd.DataFrame(np.column_stack((X, task)))
-            # stack.sort_values(by=[2], ascending=True, inplace=True)
-            num_features = X.shape[1]
 
-            for r, group in stack.groupby(stack.columns[-1]):
-                stacks[r] = self._extract_data(group, num_features, False)
-
+        # Multi task learning
+        if self.tasks_dic != None:
             raw_predictions_r = np.zeros_like(raw_predictions)
             predictions = np.zeros_like(raw_predictions)
+
+            X, t = self._split_task(X, task_info)
+            unique = np.unique(t)
+            tasks_dic = dict(zip(unique, range(len(unique))))
+
             for i in range(len(estimators_)):
+
+                # Common task prediction.
                 tree = estimators_[i, 0]
                 raw_predictions_c = tree.predict(X)
-                for r, (_, value) in enumerate(stacks.items()):
+
+                # Task specific prediction.
+                for r_label, r in tasks_dic.items():
+                    if r_label not in self.tasks_dic:
+                        raise ValueError(
+                            "The task {} was not present in the training set".format(
+                                r_label
+                            )
+                        )
                     tree = estimators_[i, r + 1]
-                    X_, task_index = value[0], value[1]
+                    idx_r = t == r_label
+                    X_r = X[idx_r]
                     sigma = self._sigma(self.__theta[i, r])
-                    raw_predictions_r[task_index] = tree.predict(X_)
-                    predictions[task_index] = (
-                        sigma * raw_predictions_c[task_index]
-                    ) + ((1 - sigma) * raw_predictions_r[task_index])
+                    raw_predictions_r[idx_r] = tree.predict(X_r)
+                    predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
+                        (1 - sigma) * raw_predictions_r[idx_r]
+                    )
                 raw_predictions += self.learning_rate * predictions
+
+        # Single task learning
         else:
             for i in range(len(estimators_)):
                 tree = estimators_[i][0]
@@ -587,35 +611,48 @@ class BaseGB(BaseGradientBoosting):
 
         return raw_predictions
 
-    def _staged_raw_predict(self, X, task=None):
+    def _staged_raw_predict(self, X):
         stacks = None
 
         raw_predictions = self._raw_predict_init(X)
         if raw_predictions.shape[1] == 1:
             raw_predictions = np.squeeze(raw_predictions)
 
-        if task is not None and task.any():
-            stacks = {}
-            stack = pd.DataFrame(np.column_stack((X, task)))
-            num_features = X.shape[1]
-
-            for r, group in stack.groupby(stack.columns[-1]):
-                stacks[r] = self._extract_data(group, num_features, False)
-
+        # Multi task learning
+        if self.tasks_dic != None:
             raw_predictions_r = np.zeros_like(raw_predictions)
             predictions = np.zeros_like(raw_predictions)
 
+            X, t = self._split_task(X)
+            unique = np.unique(t)
+            tasks_dic = dict(zip(unique, range(len(unique))))
+            X = self._validate_data(
+                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
+            )
+
             for i in range(self.estimators_.shape[0]):
+
+                # Common task prediction.
                 tree = self.estimators_[i, 0]
                 raw_predictions_c = tree.predict(X)
-                for r, (_, value) in enumerate(stacks.items()):
+
+                # Task specific prediction.
+                for r_label, r in tasks_dic.items():
+                    if r_label not in self.tasks_dic:
+                        raise ValueError(
+                            "The task {} was not present in the training set".format(
+                                r_label
+                            )
+                        )
                     tree = self.estimators_[i, r + 1]
-                    X_, task_index = value[0], value[1]
+                    idx_r = self.t == r_label
+                    X_r = X[idx_r]
+
                     sigma = self._sigma(self.__theta[i, r])
-                    raw_predictions_r[task_index] = tree.predict(X_)
-                    predictions[task_index] = (
-                        sigma * raw_predictions_c[task_index]
-                    ) + ((1 - sigma) * raw_predictions_r[task_index])
+                    raw_predictions_r[idx_r] = tree.predict(X_r)
+                    predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
+                        (1 - sigma) * raw_predictions_r[idx_r]
+                    )
                 raw_predictions += self.learning_rate * predictions
                 yield raw_predictions.copy()
 

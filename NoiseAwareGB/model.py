@@ -106,11 +106,9 @@ class Classifier(BaseGB):
             else:
                 return ExponentialLoss(sample_weight=sample_weight)
 
-    def decision_function(self, X, task):
-        X = self._validate_data(
-            X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
-        )
-        raw_predictions = self._raw_predict(X, task)
+    def decision_function(self, X, task_info=None):
+        
+        raw_predictions = self._raw_predict(X, task_info)
         if raw_predictions.shape[1] == 1:
             return raw_predictions.ravel()
         return raw_predictions
@@ -118,16 +116,16 @@ class Classifier(BaseGB):
     def staged_decision_function(self, X):
         yield from self._staged_raw_predict(X)
 
-    def predict(self, X, task=None):
-        raw_predictions = self.decision_function(X, task)
+    def predict(self, X, task_info):
+        raw_predictions = self.decision_function(X, task_info)
         if raw_predictions.ndim == 1:  # decision_function already squeezed it
             encoded_classes = (raw_predictions >= 0).astype(int)
         else:
             encoded_classes = np.argmax(raw_predictions, axis=1)
         return self.classes_[encoded_classes]
 
-    def staged_predict(self, X, task=None):
-        for raw_predictions in self._staged_raw_predict(X, task):
+    def staged_predict(self, X):
+        for raw_predictions in self._staged_raw_predict(X):
             encoded_classes = np.argmax(raw_predictions, axis=1)
             yield self.classes_.take(encoded_classes, axis=0)
 
@@ -213,13 +211,13 @@ class Regressor(BaseGB):
         else:
             return _LOSSES[self.loss](sample_weight=sample_weight)
 
-    def predict(self, X, task=None):
+    def predict(self, X):
         X = self._validate_data(
             X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
         )
-        return self._raw_predict(X, task)
+        return self._raw_predict(X)
 
-    def staged_predict(self, X, task):
+    def staged_predict(self, X):
 
-        for raw_predictions in self._staged_raw_predict(X, task):
+        for raw_predictions in self._staged_raw_predict(X):
             yield raw_predictions.ravel()
