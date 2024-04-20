@@ -211,13 +211,10 @@ class Regressor(BaseGB):
         else:
             return _LOSSES[self.loss](sample_weight=sample_weight)
 
-    def predict(self, X):
-        X = self._validate_data(
-            X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
-        )
-        return self._raw_predict(X)
+    def predict(self, X, task_info):
+        return self._raw_predict(X, task_info)
 
-    def staged_predict(self, X):
+    def staged_predict(self, X, task_info):
 
-        for raw_predictions in self._staged_raw_predict(X):
+        for raw_predictions in self._staged_raw_predict(X, task_info):
             yield raw_predictions.ravel()
