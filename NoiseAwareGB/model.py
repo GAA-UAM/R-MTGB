@@ -124,8 +124,8 @@ class Classifier(BaseGB):
             encoded_classes = np.argmax(raw_predictions, axis=1)
         return self.classes_[encoded_classes]
 
-    def staged_predict(self, X):
-        for raw_predictions in self._staged_raw_predict(X):
+    def staged_predict(self, X, task_info):
+        for raw_predictions in self._staged_raw_predict(X, task_info):
             encoded_classes = np.argmax(raw_predictions, axis=1)
             yield self.classes_.take(encoded_classes, axis=0)
 

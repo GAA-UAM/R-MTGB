@@ -611,10 +611,10 @@ class BaseGB(BaseGradientBoosting):
 
         return raw_predictions
 
-    def _staged_raw_predict(self, X):
-        stacks = None
+    def _staged_raw_predict(self, X, task_info):
 
-        raw_predictions = self._raw_predict_init(X)
+
+        raw_predictions = self._raw_predict_init(X, task_info)
         if raw_predictions.shape[1] == 1:
             raw_predictions = np.squeeze(raw_predictions)
 
@@ -623,7 +623,7 @@ class BaseGB(BaseGradientBoosting):
             raw_predictions_r = np.zeros_like(raw_predictions)
             predictions = np.zeros_like(raw_predictions)
 
-            X, t = self._split_task(X)
+            X, t = self._split_task(X, task_info)
             unique = np.unique(t)
             tasks_dic = dict(zip(unique, range(len(unique))))
             X = self._validate_data(
@@ -645,7 +645,7 @@ class BaseGB(BaseGradientBoosting):
                             )
                         )
                     tree = self.estimators_[i, r + 1]
-                    idx_r = self.t == r_label
+                    idx_r = t == r_label
                     X_r = X[idx_r]
 
                     sigma = self._sigma(self.__theta[i, r])
