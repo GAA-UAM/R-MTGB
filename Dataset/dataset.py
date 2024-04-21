@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def binary(num_instances=100, same_task=1, seed=111):
+def binary(num_instances=100, same_task=True, seed=111):
 
     rng_task_0 = np.random.default_rng(seed)
     rng_task_0 = np.random.default_rng(seed + seed)
