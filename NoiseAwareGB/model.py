@@ -37,6 +37,8 @@ class Classifier(BaseGB):
         tol=1e-4,
         ccp_alpha=0.0,
         early_stopping=None,
+        step_size=None,
+        opt_iter=200,
     ):
         super().__init__(
             loss=loss,
@@ -60,6 +62,8 @@ class Classifier(BaseGB):
             tol=tol,
             ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
+            step_size=step_size,
+            opt_iter=opt_iter,
         )
 
     def _encode_y(self, y):
@@ -107,7 +111,7 @@ class Classifier(BaseGB):
                 return ExponentialLoss(sample_weight=sample_weight)
 
     def decision_function(self, X, task_info=None):
-        
+
         raw_predictions = self._raw_predict(X, task_info)
         if raw_predictions.shape[1] == 1:
             return raw_predictions.ravel()
@@ -174,6 +178,8 @@ class Regressor(BaseGB):
         tol=1e-4,
         ccp_alpha=0.0,
         early_stopping=None,
+        step_size=None,
+        opt_iter=200,
     ):
         super().__init__(
             loss=loss,
@@ -197,6 +203,8 @@ class Regressor(BaseGB):
             tol=tol,
             ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
+            step_size=step_size,
+            opt_iter=opt_iter,
         )
 
     def _encode_y(self, y=None):

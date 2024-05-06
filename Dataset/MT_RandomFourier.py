@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 
 
 class TaskGenerator:
-    def __init__(self, num_instances, seed):
+    def __init__(self, num_instances, tasks):
 
-        self.seed = seed
         self.N = num_instances
         self.D = 2  # Two input features
         self.W = np.random.randn(
@@ -18,6 +17,7 @@ class TaskGenerator:
         self.theta = np.random.randn(self.N)  # Random weights for each Fourier feature
         self.alpha = 100.0
         self.l = 10.0
+        self.tasks = tasks
 
     def _f(self, x):
         x = np.atleast_2d(x)
@@ -31,67 +31,77 @@ class TaskGenerator:
             x,
         )
 
-    def _target_cs(self, x_c, x_s):
-        return np.concatenate((self._f(x_c), self.specific_part(x_s)))
+    def _target_c(self, x_c):
+        return self._f(x_c)
 
-    def _target_s(self, x_c, x_s):
-        return np.concatenate((self.specific_part(x_c), self.specific_part(x_s)))
-
-    def _target_c(self, x_c, x_s):
-        return np.concatenate((self._f(x_c), self._f(x_s)))
-
-    def specific_part(self, x):
+    def target_s(self, x):
         return np.sin(x[:, 0]) * np.cos(x[:, 1])
 
     def _task_gen(self, clf):
 
-        t1 = np.random.default_rng(np.random.randint(self.seed))
-        x_common = t1.uniform(-3, 3, size=(self.N, self.D))
+        random_seed = np.random.randint(0, 100)
+        t1 = np.random.default_rng(np.random.randint(random_seed))
+        x1 = t1.uniform(-3, 3, size=(self.N, self.D))
 
-        t2 = np.random.default_rng(np.random.randint(self.seed))
-        x_specific = t2.uniform(-3, 3, size=(self.N, self.D))
+        random_seed = np.random.randint(101, 200)
+        t2 = np.random.default_rng(np.random.randint(random_seed))
+        x2 = t2.uniform(-3, 3, size=(self.N, self.D))
 
-        x_cs = np.concatenate((x_common, x_specific))
-        x_s = np.concatenate((x_specific, x_specific))
-        x_c = np.concatenate((x_common, x_common))
+        random_seed = np.random.randint(201, 300)
+        t3 = np.random.default_rng(np.random.randint(random_seed))
+        x3 = t3.uniform(-3, 3, size=(self.N, self.D))
+
+        random_seed = np.random.randint(301, 400)
+        t4 = np.random.default_rng(np.random.randint(random_seed))
+        x4 = t4.uniform(-3, 3, size=(self.N, self.D))
 
         if clf:
             # Generate target values for each task
-            y_cs = self._classify_output(self._target_cs(x_common, x_specific))
-            y_s = self._classify_output(self._target_s(x_specific, x_specific))
-            y_c = self._classify_output(self._target_c(x_common, x_common))
+            y1 = self._classify_output(self._target_c(x1) + self.target_s(x1))
+            y2 = self._classify_output(self._target_c(x2) + self.target_s(x2))
+            y3 = self._classify_output(self._target_c(x3) + self.target_s(x3))
+            y4 = self._classify_output(self.target_s(x4))
         else:
-            y_cs = self._target_cs(x_common, x_specific)
-            y_s = self._target_s(x_specific, x_specific)
-            y_c = self._target_c(x_common, x_common)
+            y1 = self._target_c(x1) + self.target_s(x1)
+            y2 = self._target_c(x2) + self.target_s(x2)
+            y3 = self._target_c(x3) + self.target_s(x3)
+            y4 = self.target_s(x4)
 
-        return (
-            x_c,
-            y_c,
-            x_s,
-            y_s,
-            x_cs,
-            y_cs,
-        )
+        return (x1, y1, x2, y2, x3, y3, x4, y4)
 
     def _classify_output(self, output):
-        threshold = np.mean(output)
-        return np.where(output > threshold, 1, 0)
+        threshold = 0
+        # if np.all(output >= threshold) or np.all(output < threshold):
+        #     if np.all(output >= threshold):
+        #         output -= np.random.rand(*output.shape) * threshold / 2
+        #     # If only negative values are present, add some positive noise
+        #     elif np.all(output < threshold):
+        #         output += np.random.rand(*output.shape) * threshold / 2
+        threshold = output.mean()
+        return np.where(output < threshold, 0, 1)
 
     def clf(self):
-        x_c, y_c, x_s, y_s, x_cs, y_cs = self._task_gen(True)
-        self._plot(x_c, y_c, x_s, y_s, x_cs, y_cs, "classification")
+        x1, y1, x2, y2, x3, y3, x4, y4 = self._task_gen(True)
+        self._plot(x1, y1, x2, y2, x3, y3, x4, y4, "classification")
         dfs = []
-        for i, (x, y) in enumerate([(x_c, y_c), (x_s, y_s), (x_cs, y_cs)]):
+        t = 0
+        for i, (x, y) in enumerate([(x1, y1), (x2, y2), (x3, y3), (x4, y4)]):
             dfs.append(self._gen_df(x, y, i))
+            t += 1
+            if self.tasks and t == self.tasks:
+                break
         return pd.concat(dfs, ignore_index=True)
 
     def reg(self):
-        x_c, y_c, x_s, y_s, x_cs, y_cs = self._task_gen(False)
-        self._plot(x_c, y_c, x_s, y_s, x_cs, y_cs, "Regression")
+        x1, y1, x2, y2, x3, y3, x4, y4 = self._task_gen(False)
+        self._plot(x1, y1, x2, y2, x3, y3, x4, y4, "Regression")
         dfs = []
-        for i, (x, y) in enumerate([(x_c, y_c), (x_s, y_s), (x_cs, y_cs)]):
+        t = 0
+        for i, (x, y) in enumerate([(x1, y1), (x2, y2), (x3, y3), (x4, y4)]):
             dfs.append(self._gen_df(x, y, i))
+            t += 1
+            if self.tasks and t == self.tasks:
+                break
         return pd.concat(dfs, ignore_index=True)
 
     def _gen_df(self, x, y, task_num):
@@ -103,62 +113,84 @@ class TaskGenerator:
 
     def _plot(
         self,
-        x_c,
-        y_c,
-        x_s,
-        y_s,
-        x_cs,
-        y_cs,
+        x1,
+        y1,
+        x2,
+        y2,
+        x3,
+        y3,
+        x4,
+        y4,
         title,
     ):
 
-        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+        fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 
-        axs[0].scatter(x_c[:, 0], x_c[:, 1], c=y_c, cmap="viridis")
-        axs[0].set_xlabel("x1")
-        axs[0].set_ylabel("x2")
-        axs[0].set_title("Common and specific part")
+        axs[0][0].scatter(x1[:, 0], x1[:, 1], c=y1, cmap="viridis")
+        axs[0][0].set_xlabel("x1")
+        axs[0][0].set_ylabel("x2")
+        axs[0][0].set_title("Task 1")
 
-        axs[1].scatter(x_s[:, 0], x_s[:, 1], c=y_s, cmap="viridis")
-        axs[1].set_xlabel("x1")
-        axs[1].set_ylabel("x2")
-        axs[1].set_title("Specific part")
+        axs[0][1].scatter(x2[:, 0], x2[:, 1], c=y2, cmap="viridis")
+        axs[0][1].set_xlabel("x1")
+        axs[0][1].set_ylabel("x2")
+        axs[0][1].set_title("Task 2")
 
-        axs[2].scatter(x_cs[:, 0], x_cs[:, 1], c=y_cs, cmap="viridis")
-        axs[2].set_xlabel("x1")
-        axs[2].set_ylabel("x2")
-        axs[2].set_title("Common part")
+        if not self.tasks:
+
+            axs[1][0].scatter(x3[:, 0], x3[:, 1], c=y3, cmap="viridis")
+            axs[1][0].set_xlabel("x1")
+            axs[1][0].set_ylabel("x2")
+            axs[1][0].set_title("Task 3")
+
+            axs[1][1].scatter(x4[:, 0], x4[:, 1], c=y4, cmap="viridis")
+            axs[1][1].set_xlabel("x1")
+            axs[1][1].set_ylabel("x2")
+            axs[1][1].set_title("Task 4")
 
         plt.colorbar(
-            axs[0].scatter(
-                x_c[:, 0],
-                x_c[:, 1],
-                c=y_c,
+            axs[0][0].scatter(
+                x1[:, 0],
+                x1[:, 1],
+                c=y1,
                 cmap="viridis",
             ),
-            ax=axs[0],
+            ax=axs[0][0],
             label="Class",
         )
         plt.colorbar(
-            axs[1].scatter(
-                x_s[:, 0],
-                x_s[:, 1],
-                c=y_s,
+            axs[0][1].scatter(
+                x2[:, 0],
+                x2[:, 1],
+                c=y2,
                 cmap="viridis",
             ),
-            ax=axs[1],
+            ax=axs[0][1],
             label="Class",
         )
-        plt.colorbar(
-            axs[2].scatter(
-                x_cs[:, 0],
-                x_cs[:, 1],
-                c=y_cs,
-                cmap="viridis",
-            ),
-            ax=axs[2],
-            label="Class",
-        )
+
+        if not self.tasks:
+            plt.colorbar(
+                axs[1][0].scatter(
+                    x3[:, 0],
+                    x3[:, 1],
+                    c=y3,
+                    cmap="viridis",
+                ),
+                ax=axs[1][0],
+                label="Class",
+            )
+
+            plt.colorbar(
+                axs[1][1].scatter(
+                    x4[:, 0],
+                    x4[:, 1],
+                    c=y4,
+                    cmap="viridis",
+                ),
+                ax=axs[1][1],
+                label="Class",
+            )
 
         fig.suptitle(f"{title}")
 

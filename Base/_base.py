@@ -31,6 +31,7 @@ from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
 )
+from scipy.optimize import minimize
 
 
 def _init_raw_predictions(X, estimator, loss, is_classifier):
@@ -82,6 +83,8 @@ class BaseGB(BaseGradientBoosting):
         n_iter_no_change=None,
         tol=1e-4,
         early_stopping=None,
+        step_size=None,
+        opt_iter=200,
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -106,6 +109,8 @@ class BaseGB(BaseGradientBoosting):
         self.tol = tol
         self.is_classifier = False
         self.early_stopping = early_stopping
+        self.step_size = step_size
+        self.opt_iter = opt_iter
 
     @abstractmethod
     def _encode_y(self, y=None):
@@ -141,18 +146,31 @@ class BaseGB(BaseGradientBoosting):
     def _task_obj_fun(self, theta, c_h, r_h, y):
         sigma_theta = self._sigma(theta)
         w_pred = (sigma_theta * c_h) + ((1 - sigma_theta) * r_h)
-        loss = np.mean((y - w_pred) ** 2)
-        gradient = np.mean(-2 * np.mean(y - w_pred, axis=0))
-        return loss, gradient
+        loss = self._aux_loss(y, w_pred, None)
+        return loss
 
     def _opt_theta(self, c_h, r_h, y):
-
         initial_guess = np.random.normal(np.mean(y), np.std(y))
-
-        args = (c_h, r_h, y)
-        result = fmin_l_bfgs_b(self._task_obj_fun, initial_guess, args=args)
-        optimized_theta = result[0][0]
+        result = minimize(
+            self._task_obj_fun,
+            initial_guess,
+            args=(c_h, r_h, y),
+            method="BFGS",
+            options={"disp": False, "maxiter": self.opt_iter, "gtol": self.step_size},
+        )
+        optimized_theta = result.x[0]
         return optimized_theta
+
+    # def _opt_theta(self, c_h, r_h, y):
+
+    #     initial_guess = np.random.normal(np.mean(y), np.std(y))
+
+    #     args = (c_h, r_h, y)
+    #     result = fmin_l_bfgs_b(
+    #         self._task_obj_fun, initial_guess, args=args, approx_grad=True
+    #     )
+    #     optimized_theta = result[0][0]
+    #     return optimized_theta
 
     def _update_learning_rate(self, learning_rate, current_stage):
         new_learning_rate = learning_rate * np.exp(-self.alpha * current_stage)
@@ -612,7 +630,6 @@ class BaseGB(BaseGradientBoosting):
         return raw_predictions
 
     def _staged_raw_predict(self, X, task_info):
-
 
         raw_predictions = self._raw_predict_init(X, task_info)
         if raw_predictions.shape[1] == 1:

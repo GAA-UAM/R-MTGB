@@ -171,3 +171,4 @@ run_.py
 /ref
 *gen_data*
 debug.py
+RandomFourier_base.py
