@@ -493,6 +493,8 @@ class BaseGB(BaseGradientBoosting):
                         y_r,
                     )
 
+                    theta = theta * self.step_size
+
                     self.__theta[i, r] = theta
                     sigma = self._sigma(theta)
                     self.sigmoid[i, r] = sigma

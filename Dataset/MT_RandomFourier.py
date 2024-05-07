@@ -35,7 +35,7 @@ class TaskGenerator:
         return self._f(x_c)
 
     def target_s(self, x):
-        return np.sin(x[:, 0]) * np.cos(x[:, 1])
+        return np.sin(x[:, 0])
 
     def _task_gen(self, clf):
 
@@ -55,12 +55,17 @@ class TaskGenerator:
         t4 = np.random.default_rng(np.random.randint(random_seed))
         x4 = t4.uniform(-3, 3, size=(self.N, self.D))
 
+        random_seed = np.random.randint(401, 500)
+        t5 = np.random.default_rng(np.random.randint(random_seed))
+        x5 = t5.uniform(-3, 3, size=(self.N, self.D))
+
         if clf:
             # Generate target values for each task
             y1 = self._classify_output(self._target_c(x1) + self.target_s(x1))
             y2 = self._classify_output(self._target_c(x2) + self.target_s(x2))
             y3 = self._classify_output(self._target_c(x3) + self.target_s(x3))
             y4 = self._classify_output(self.target_s(x4))
+
         else:
             y1 = self._target_c(x1) + self.target_s(x1)
             y2 = self._target_c(x2) + self.target_s(x2)
@@ -84,11 +89,16 @@ class TaskGenerator:
         x1, y1, x2, y2, x3, y3, x4, y4 = self._task_gen(True)
         self._plot(x1, y1, x2, y2, x3, y3, x4, y4, "classification")
         dfs = []
+        ranges = (
+            [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+            if self.tasks == None or self.tasks == "same"
+            else [(x1, y1), (x4, y4)]
+        )
         t = 0
-        for i, (x, y) in enumerate([(x1, y1), (x2, y2), (x3, y3), (x4, y4)]):
+        for i, (x, y) in enumerate(ranges):
             dfs.append(self._gen_df(x, y, i))
             t += 1
-            if self.tasks and t == self.tasks:
+            if self.tasks and t == 2:
                 break
         return pd.concat(dfs, ignore_index=True)
 
@@ -96,11 +106,16 @@ class TaskGenerator:
         x1, y1, x2, y2, x3, y3, x4, y4 = self._task_gen(False)
         self._plot(x1, y1, x2, y2, x3, y3, x4, y4, "Regression")
         dfs = []
+        ranges = (
+            [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+            if self.tasks == None or self.tasks == "same"
+            else [(x1, y1), (x4, y4)]
+        )
         t = 0
-        for i, (x, y) in enumerate([(x1, y1), (x2, y2), (x3, y3), (x4, y4)]):
+        for i, (x, y) in enumerate(ranges):
             dfs.append(self._gen_df(x, y, i))
             t += 1
-            if self.tasks and t == self.tasks:
+            if self.tasks and t == 2:
                 break
         return pd.concat(dfs, ignore_index=True)
 
@@ -136,17 +151,15 @@ class TaskGenerator:
         axs[0][1].set_ylabel("x2")
         axs[0][1].set_title("Task 2")
 
-        if not self.tasks:
+        axs[1][0].scatter(x3[:, 0], x3[:, 1], c=y3, cmap="viridis")
+        axs[1][0].set_xlabel("x1")
+        axs[1][0].set_ylabel("x2")
+        axs[1][0].set_title("Task 3")
 
-            axs[1][0].scatter(x3[:, 0], x3[:, 1], c=y3, cmap="viridis")
-            axs[1][0].set_xlabel("x1")
-            axs[1][0].set_ylabel("x2")
-            axs[1][0].set_title("Task 3")
-
-            axs[1][1].scatter(x4[:, 0], x4[:, 1], c=y4, cmap="viridis")
-            axs[1][1].set_xlabel("x1")
-            axs[1][1].set_ylabel("x2")
-            axs[1][1].set_title("Task 4")
+        axs[1][1].scatter(x4[:, 0], x4[:, 1], c=y4, cmap="viridis")
+        axs[1][1].set_xlabel("x1")
+        axs[1][1].set_ylabel("x2")
+        axs[1][1].set_title("Task 4")
 
         plt.colorbar(
             axs[0][0].scatter(
@@ -156,41 +169,39 @@ class TaskGenerator:
                 cmap="viridis",
             ),
             ax=axs[0][0],
-            label="Class",
+            label="target",
         )
+        if self.tasks == "same":
+            plt.colorbar(
+                axs[0][1].scatter(
+                    x2[:, 0],
+                    x2[:, 1],
+                    c=y2,
+                    cmap="viridis",
+                ),
+                ax=axs[0][1],
+                label="target",
+            )
         plt.colorbar(
-            axs[0][1].scatter(
-                x2[:, 0],
-                x2[:, 1],
-                c=y2,
+            axs[1][0].scatter(
+                x3[:, 0],
+                x3[:, 1],
+                c=y3,
                 cmap="viridis",
             ),
-            ax=axs[0][1],
-            label="Class",
+            ax=axs[1][0],
+            label="target",
         )
-
-        if not self.tasks:
-            plt.colorbar(
-                axs[1][0].scatter(
-                    x3[:, 0],
-                    x3[:, 1],
-                    c=y3,
-                    cmap="viridis",
-                ),
-                ax=axs[1][0],
-                label="Class",
-            )
-
-            plt.colorbar(
-                axs[1][1].scatter(
-                    x4[:, 0],
-                    x4[:, 1],
-                    c=y4,
-                    cmap="viridis",
-                ),
-                ax=axs[1][1],
-                label="Class",
-            )
+        plt.colorbar(
+            axs[1][1].scatter(
+                x4[:, 0],
+                x4[:, 1],
+                c=y4,
+                cmap="viridis",
+            ),
+            ax=axs[1][1],
+            label="target",
+        )
 
         fig.suptitle(f"{title}")
 
