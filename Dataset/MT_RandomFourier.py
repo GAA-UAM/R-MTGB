@@ -39,7 +39,7 @@ class TaskGenerator:
 
     def _task_gen(self, clf):
 
-        random_seed = np.random.randint(0, 100)
+        random_seed = np.random.randint(1, 100)
         t1 = np.random.default_rng(np.random.randint(random_seed))
         x1 = t1.uniform(-3, 3, size=(self.N, self.D))
 
