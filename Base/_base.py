@@ -224,6 +224,7 @@ class BaseGB(BaseGradientBoosting):
             )
 
             self.estimators_[i, r] = tree
+            self._residual[i, r] = residual.mean()
 
         return rawpredictions
 
@@ -258,6 +259,9 @@ class BaseGB(BaseGradientBoosting):
                 self.init_ = DummyRegressor(strategy="mean")
 
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
+        self._residual = np.zeros((self.n_estimators, self.T + 1), dtype=np.float32)
+        self.sigmoid = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.__theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         if self.subsample < 1.0:
@@ -364,14 +368,16 @@ class BaseGB(BaseGradientBoosting):
         if n_stages != self.estimators_.shape[0]:
             self.estimators_ = self.estimators_[:n_stages]
             self.train_score_ = self.train_score_[:n_stages]
+            self.sigmoid = self.sigmoid[:n_stages]
+            self.__theta = self.__theta[:n_stages]
+            self._residual = self._residual[:n_stages]
+            self.n_estimators = n_stages
             if hasattr(self, "oob_improvement_"):
                 # OOB scores were computed
                 self.oob_improvement_ = self.oob_improvement_[:n_stages]
                 self.oob_scores_ = self.oob_scores_[:n_stages]
                 self.oob_score_ = self.oob_scores_[-1]
-            self.sigmoid = self.sigmoid[:n_stages]
-            self.__theta = self.__theta[:n_stages]
-        self.n_estimators = n_stages
+
         return self
 
     def _label_y(self, y):
@@ -420,8 +426,7 @@ class BaseGB(BaseGradientBoosting):
         no_improvement_count = 0
 
         sample_weight_c = _check_sample_weight(None, X)
-        self.sigmoid = np.zeros((self.n_estimators, self.T), dtype=np.float64)
-        self.__theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+
         for i in range(0, self.n_estimators):
             # subsampling
             if do_oob:
