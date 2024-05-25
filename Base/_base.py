@@ -147,30 +147,23 @@ class BaseGB(BaseGradientBoosting):
         sigma_theta = self._sigma(theta)
         w_pred = (sigma_theta * c_h) + ((1 - sigma_theta) * r_h)
         loss = self._aux_loss(y, w_pred, None)
-        return loss
+        gradient = self._aux_loss.negative_gradient(y, w_pred)
+        return loss, np.mean(gradient)
 
     def _opt_theta(self, c_h, r_h, y):
+
         initial_guess = np.random.normal(np.mean(y), np.std(y))
-        result = minimize(
+
+        args = (c_h, r_h, y)
+        result = fmin_l_bfgs_b(
             self._task_obj_fun,
             initial_guess,
-            args=(c_h, r_h, y),
-            method="BFGS",
-            options={"disp": False, "maxiter": self.opt_iter, "gtol": self.step_size},
+            args=args,
+            approx_grad=False,
+            maxls=1,
         )
-        optimized_theta = result.x[0]
+        optimized_theta = result[0][0]
         return optimized_theta
-
-    # def _opt_theta(self, c_h, r_h, y):
-
-    #     initial_guess = np.random.normal(np.mean(y), np.std(y))
-
-    #     args = (c_h, r_h, y)
-    #     result = fmin_l_bfgs_b(
-    #         self._task_obj_fun, initial_guess, args=args, approx_grad=True
-    #     )
-    #     optimized_theta = result[0][0]
-    #     return optimized_theta
 
     def _update_learning_rate(self, learning_rate, current_stage):
         new_learning_rate = learning_rate * np.exp(-self.alpha * current_stage)
@@ -359,8 +352,6 @@ class BaseGB(BaseGradientBoosting):
                 X, self.init_, self._loss, self.is_classifier
             )
 
-        begin_at_stage = 0
-
         self._rng = check_random_state(self.random_state)
 
         n_stages = self._fit_stages(
@@ -368,7 +359,6 @@ class BaseGB(BaseGradientBoosting):
             y,
             raw_predictions,
             self._rng,
-            begin_at_stage,
         )
 
         if n_stages != self.estimators_.shape[0]:
@@ -381,7 +371,7 @@ class BaseGB(BaseGradientBoosting):
                 self.oob_score_ = self.oob_scores_[-1]
             self.sigmoid = self.sigmoid[:n_stages]
             self.__theta = self.__theta[:n_stages]
-        self.n_estimators_ = n_stages
+        self.n_estimators = n_stages
         return self
 
     def _label_y(self, y):
@@ -404,7 +394,6 @@ class BaseGB(BaseGradientBoosting):
         y,
         raw_predictions,
         random_state,
-        begin_at_stage=0,
     ):
         n_samples = X.shape[0]
         do_oob = self.subsample < 1.0
@@ -427,15 +416,13 @@ class BaseGB(BaseGradientBoosting):
 
         y = self._label_y(y)
 
-        i = begin_at_stage
-
         best_score = float("inf")
         no_improvement_count = 0
 
         sample_weight_c = _check_sample_weight(None, X)
         self.sigmoid = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         self.__theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
-        for i in range(begin_at_stage, self.n_estimators):
+        for i in range(0, self.n_estimators):
             # subsampling
             if do_oob:
                 sample_mask = _random_sample_mask(n_samples, n_inbag, random_state)
