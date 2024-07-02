@@ -47,7 +47,7 @@ class TaskGenerator:
             x,
         )
 
-    def target_s(self, x):
+    def _target_s(self, x):
         return np.sin(x[:, 0]) + np.cos(x[:, 1])
 
     def __call__(self, clf, num_instances):
@@ -75,19 +75,20 @@ class TaskGenerator:
         x4 = scl.fit_transform(x4)
 
         # Generate target values for each task
+
         if clf:
-            y1 = self._classify_output(self._target_c(x1) + self.target_s(x1))
-            y2 = self._classify_output(self._target_c(x2) + self.target_s(x2))
-            y3 = self._classify_output(self._target_c(x3) + self.target_s(x3))
-            y4 = self._classify_output(self.target_s(x4))
+            y1 = self._classify_output(self._multi_task_gen(x1, 0.9))
+            y2 = self._classify_output(self._multi_task_gen(x2, 0.9))
+            y3 = self._classify_output(self._multi_task_gen(x3, 0.9))
+            y4 = self._classify_output(self._target_s(x4))
 
             self._plot(x1, y1, x2, y2, x3, y3, x4, y4, "classification")
 
         else:
-            y1 = self._target_c(x1) + self.target_s(x1)
-            y2 = self._target_c(x2) + self.target_s(x2)
-            y3 = self._target_c(x3) + self.target_s(x3)
-            y4 = self.target_s(x4)
+            y1 = self._multi_task_gen(x1, 0.9)
+            y2 = self._multi_task_gen(x2, 0.9)
+            y3 = self._multi_task_gen(x3, 0.9)
+            y4 = self._target_s(x4)
 
             self._plot(x1, y1, x2, y2, x3, y3, x4, y4, "Regression")
 
@@ -98,6 +99,9 @@ class TaskGenerator:
             dfs.append(self._gen_df(x, y, i))
 
         return pd.concat(dfs, ignore_index=True)
+
+    def _multi_task_gen(self, x, w):
+        return w * self._target_c(x) + (1 - w) * self._target_s(x)
 
     def _classify_output(self, output):
         normalized_output = (output - np.mean(output)) / np.std(output)
