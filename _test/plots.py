@@ -9,24 +9,6 @@ import pandas as pd
 colors = ["r", "g", "b", "k", "y"]
 
 
-def boundaries(X, y, clf, axs, title):
-
-    x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
-    y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
-    xx, yy = np.meshgrid(np.arange(x_min, x_max, 0.1), np.arange(y_min, y_max, 0.1))
-
-    Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
-    Z = Z.reshape(xx.shape)
-
-    axs.contourf(xx, yy, Z, alpha=0.4)
-    axs.scatter(X[:, 0], X[:, 1], c=y, s=20, edgecolor="k")
-    plt.gca().set_xlim(xx.min(), xx.max())
-    plt.gca().set_ylim(yy.min(), yy.max())
-
-    axs.set_title(title)
-    axs.grid(True)
-
-
 def training_score(model_mt, model_st, noise_mt, data_type, path):
 
     title = "Conventional MT" if not noise_mt else "Proposed MT"

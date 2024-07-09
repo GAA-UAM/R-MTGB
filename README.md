@@ -1,8 +1,6 @@
 # Noise Aware Boost
 
-Noise-Aware Gradient Boosting: A Dual-Task Model for Enhanced Data Analysis with Robust Outlier Handling
-
-Welcome to the repository for the Noise-Aware Gradient Boosting model, a dual-task model designed for enhanced data analysis with robust outlier handling.
+Multi-Task Noise-Aware Gradient Boosting: A Multi-Task ensemble for Enhanced Data Analysis with Robust Outlier Handling.
 
 ## Table of Contents
 
@@ -21,9 +19,9 @@ The Noise-Aware Gradient Boosting model is developed to provide a robust solutio
 
 ## Features
 
-- Dual-task optimization for enhanced data analysis.
+- Multi-task optimization for enhanced data analysis.
 - Robust outlier handling to improve model resilience.
-- Easy integration into existing workflows.
+- Easy integration into various Gradient Boosting frameworks.
 - Compatibility with popular machine learning frameworks.
 
 ## Usage
@@ -31,6 +29,8 @@ The Noise-Aware Gradient Boosting model is developed to provide a robust solutio
 To use the model in your project, follow these basic steps:
 
 ```Python
+# For classification
+
 from NoiseAwareGB.model import *
 
 model = Classifier(
@@ -58,8 +58,6 @@ Make sure you have the dependencies ([requirements](requirements.txt)) installed
 ```bash
 pip install -r requirements.txt
 ```
-
-
 
 ## License
 

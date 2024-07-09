@@ -2,7 +2,7 @@
 
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 from sklearn.metrics import accuracy_score, mean_squared_error
-from _plots.plots import *
+from _test.plots import *
 import pandas as pd
 import warnings
 import os
@@ -28,8 +28,8 @@ class run:
         random_state,
         es,
         clf,
-        multi_task,
         path_exp,
+        scenario,
     ):
         self.max_depth = max_depth
         self.n_estimators = n_estimators
@@ -38,10 +38,10 @@ class run:
         self.learning_rate = learning_rate
         self.random_state = random_state
         self.es = es
+        self.scenario = scenario
 
-        task = "multi_task" if multi_task else "same_task"
-        prob = "clf" if clf else "reg"
-        self.path = rf"Results\{path_exp}\{task}\{prob}"
+        problem = "clf" if clf else "reg"
+        self.path = rf"Results\{path_exp}\{problem}"
 
     def fit_clf(
         self, x_train, y_train, task_train, x_test, y_test, task_test, noise_mt
@@ -173,12 +173,6 @@ class run:
             self.path,
         )
 
-        # _, axs = plt.subplots(1, 2, figsize=(15, 6), facecolor="w", edgecolor="k")
-        # axs = axs.ravel()
-        # boundaries(X, y, model_st, axs=axs[0], title="GB (Data Pooling)")
-        # if noise_mt:
-        #     boundaries(X, y, model_mt, axs=axs[1], title=f"Proposed MT")
-
     def fit_reg(
         self, x_train, y_train, task_train, x_test, y_test, task_test, noise_mt
     ):
@@ -309,17 +303,11 @@ class run:
         )
 
 
-def extract_data(path, clf, multi_task):
+def extract_data(path, clf, scenario):
 
-    if not multi_task:
-        title = "one_task_"
-    else:
-        title = "multi_task_"
+    clf_ = "clf_" if clf else "reg_"
 
-    if clf:
-        title = title + "clf.csv"
-    else:
-        title = title + "reg.csv"
+    title = clf_ + f"{scenario}.csv"
 
     df = pd.read_csv(os.path.join(path, title))
     df = df.iloc[:, 1:]
@@ -329,12 +317,12 @@ def extract_data(path, clf, multi_task):
 
 if __name__ == "__main__":
 
-    noise_mt = False
-
+    noise_mt = True
+    experiment = "9Jul"
     for clf in [True, False]:
-        # for multi_task in [True, False]:
-        for multi_task in [True]:
+        for scenario in [1, 2, 3]:
             for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
+                path_exp = f"{experiment}\scenario_{scenario}\{path_exp}"
                 run_exp = run(
                     max_depth=5,
                     n_estimators=100,
@@ -344,19 +332,17 @@ if __name__ == "__main__":
                     random_state=111,
                     es=None,
                     clf=clf,
-                    multi_task=multi_task,
-                    path_exp=f"10Jun\{path_exp}",
+                    path_exp=path_exp,
+                    scenario=scenario,
                 )
 
                 train_path = (
-                    rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\10Jun\{path_exp}"
+                    rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{path_exp}"
                 )
-                test_path = (
-                    r"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\10Jun\test_data"
-                )
+                test_path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{path_exp}\test_data"
 
-                df_train = extract_data(train_path, clf, multi_task)
-                df_test = extract_data(test_path, clf, multi_task)
+                df_train = extract_data(train_path, clf, scenario)
+                df_test = extract_data(test_path, clf, scenario)
 
                 x_train, y_train, task_train = data_pre_split(df_train)
                 x_test, y_test, task_test = data_pre_split(df_test)
@@ -381,4 +367,3 @@ if __name__ == "__main__":
                         task_test=task_test,
                         noise_mt=noise_mt,
                     )
-            break
