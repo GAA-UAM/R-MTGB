@@ -26,7 +26,7 @@ The Noise-Aware Gradient Boosting model is developed to provide a robust solutio
 
 ## Usage
 
-To use the model in your project, follow these basic steps:
+To use the model in your project, follow the following steps:
 
 ```Python
 # For classification

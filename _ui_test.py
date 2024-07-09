@@ -317,7 +317,7 @@ def extract_data(path, clf, scenario):
 
 if __name__ == "__main__":
 
-    noise_mt = True
+    noise_mt = False
     experiment = "9Jul"
     for clf in [True, False]:
         for scenario in [1, 2, 3]:
@@ -339,7 +339,7 @@ if __name__ == "__main__":
                 train_path = (
                     rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{path_exp}"
                 )
-                test_path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{path_exp}\test_data"
+                test_path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{experiment}\scenario_{scenario}\test_data"
 
                 df_train = extract_data(train_path, clf, scenario)
                 df_test = extract_data(test_path, clf, scenario)
