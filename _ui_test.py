@@ -44,16 +44,16 @@ class run:
         self.path = rf"Results\{path_exp}\{problem}"
 
     def fit_clf(
-        self, x_train, y_train, task_train, x_test, y_test, task_test, noise_mt
+        self, x_train, y_train, task_train, x_test, y_test, task_test, proposed_mtgb
     ):
 
-        data_type = "binary"
-        title = "Conventional MT" if not noise_mt else "Proposed MT"
+        data_type = "classification"
+        title = "Conventional MT" if not proposed_mtgb else "Proposed MT"
 
-        if noise_mt:
-            from NoiseAwareGB.model import Classifier
+        if proposed_mtgb:
+            from mtgb_models.mt_gb import MTGBClassifier
 
-            model_mt = Classifier(
+            model_mt = MTGBClassifier(
                 max_depth=self.max_depth,
                 n_estimators=self.n_estimators,
                 subsample=self.subsample,
@@ -109,19 +109,19 @@ class run:
         pred_st = model_st.predict(x_test)
         np.savetxt(rf"{self.path}\pred_GB_clf_.csv", pred_st, delimiter=",")
 
-        training_score(model_mt, model_st, noise_mt, data_type, self.path)
+        training_score(model_mt, model_st, proposed_mtgb, data_type, self.path)
 
-        if noise_mt:
+        if proposed_mtgb:
             np.savetxt(rf"{self.path}\pred_GB_DataPooling.csv", pred_st, delimiter=",")
         test_score_mt = np.zeros((model_mt.estimators_.shape[0]), dtype=np.float64)
-        if noise_mt:
+        if proposed_mtgb:
             for i, y_pred in enumerate(
                 model_mt.staged_predict(
                     np.column_stack((x_test, task_test)), task_info=-1
                 )
             ):
                 test_score_mt[i] = accuracy_score(y_test, y_pred)
-        if not noise_mt:
+        if not proposed_mtgb:
             for i, y_pred in enumerate(
                 model_mt.staged_predict(np.column_stack((x_test, task_test)))
             ):
@@ -151,20 +151,20 @@ class run:
 
             for i, y_pred in enumerate(model_st_i.staged_predict(x_test)):
                 test_score_st_i[i, int(r)] = accuracy_score(y_test, y_pred)
-        if noise_mt:
+        if proposed_mtgb:
             pd.DataFrame(pred_st_i).to_csv(rf"{self.path}\pred_GB_task_independent.csv")
         predict_stage_plot(
             test_score_mt,
             test_score_st,
             test_score_st_i,
-            noise_mt,
+            proposed_mtgb,
             data_type,
             self.path,
         )
 
         confusion_plot(
             data_type,
-            noise_mt,
+            proposed_mtgb,
             y_test,
             pred_st,
             pred_mt,
@@ -174,15 +174,15 @@ class run:
         )
 
     def fit_reg(
-        self, x_train, y_train, task_train, x_test, y_test, task_test, noise_mt
+        self, x_train, y_train, task_train, x_test, y_test, task_test, proposed_mtgb
     ):
 
-        title = "Conventional MT" if not noise_mt else "Proposed MT"
+        title = "Conventional MT" if not proposed_mtgb else "Proposed MT"
         data_type = "regression"
-        if noise_mt:
-            from NoiseAwareGB.model import Regressor
+        if proposed_mtgb:
+            from mtgb_models.mt_gb import MTGBRegressor
 
-            model_mt = Regressor(
+            model_mt = MTGBRegressor(
                 max_depth=5,
                 n_estimators=100,
                 subsample=0.5,
@@ -238,9 +238,9 @@ class run:
         model_st.fit(x_train, y_train)
         pred_st = model_st.predict(x_test)
 
-        training_score(model_mt, model_st, noise_mt, data_type, self.path)
+        training_score(model_mt, model_st, proposed_mtgb, data_type, self.path)
 
-        if noise_mt:
+        if proposed_mtgb:
             test_score_mt = np.zeros((model_mt.estimators_.shape[0]), dtype=np.float64)
             for i, y_pred in enumerate(
                 model_mt.staged_predict(
@@ -281,19 +281,19 @@ class run:
             for i, y_pred in enumerate(model_st_i.staged_predict(x_test)):
                 test_score_st_i[i, int(r)] = mean_squared_error(y_test, y_pred)
 
-        if noise_mt:
+        if proposed_mtgb:
             pd.DataFrame(pred_st_i).to_csv(rf"{self.path}\pred_GB_task_independent.csv")
         predict_stage_plot(
             test_score_mt,
             test_score_st,
             test_score_st_i,
-            noise_mt,
+            proposed_mtgb,
             data_type,
             self.path,
         )
         reg_plot(
             data_type,
-            noise_mt,
+            proposed_mtgb,
             y_test,
             pred_st,
             pred_mt,
@@ -317,15 +317,16 @@ def extract_data(path, clf, scenario):
 
 if __name__ == "__main__":
 
-    noise_mt = False
+    proposed_mtgb = True
     experiment = "9Jul"
     for clf in [True, False]:
         for scenario in [1, 2, 3]:
-            for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
+            # for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
+            for path_exp in ["1"]:
                 path_exp = f"{experiment}\scenario_{scenario}\{path_exp}"
                 run_exp = run(
                     max_depth=5,
-                    n_estimators=100,
+                    n_estimators=5,
                     subsample=0.5,
                     max_features="sqrt",
                     learning_rate=1,
@@ -355,7 +356,7 @@ if __name__ == "__main__":
                         x_test=x_test,
                         y_test=y_test,
                         task_test=task_test,
-                        noise_mt=noise_mt,
+                        proposed_mtgb=proposed_mtgb,
                     )
                 else:
                     run_exp.fit_reg(
@@ -365,5 +366,5 @@ if __name__ == "__main__":
                         x_test=x_test,
                         y_test=y_test,
                         task_test=task_test,
-                        noise_mt=noise_mt,
+                        proposed_mtgb=proposed_mtgb,
                     )

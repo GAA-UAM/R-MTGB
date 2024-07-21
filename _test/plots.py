@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from sklearn.metrics import accuracy_score, confusion_matrix, mean_squared_error
 import seaborn as sns
 import pandas as pd
+import itertools
 
 colors = ["r", "g", "b", "k", "y"]
 
@@ -34,7 +35,7 @@ def training_score(model_mt, model_st, noise_mt, data_type, path):
 
 
 def sigmoid_plot(model_mt, title, data_type, path):
-    num_sigmoids = model_mt.sigmoid.shape[1]
+    num_sigmoids = model_mt.sigmoid_.shape[1]
     fig, axs = plt.subplots(1, num_sigmoids, figsize=(7 * num_sigmoids // 2, 3))
 
     if num_sigmoids == 1:
@@ -44,7 +45,7 @@ def sigmoid_plot(model_mt, title, data_type, path):
 
     for i in range(num_sigmoids):
         axs[i].plot(
-            model_mt.sigmoid[:, i], label=f"sigmoid_{i}", color=colors[i % len(colors)]
+            model_mt.sigmoid_[:, i], label=f"sigmoid_{i}", color=colors[i % len(colors)]
         )
         axs[i].set_xlabel("Boosting epochs")
         axs[i].set_ylabel("sigmoid value")
@@ -55,7 +56,7 @@ def sigmoid_plot(model_mt, title, data_type, path):
     fig.tight_layout()
     fig.savefig(rf"{path}\{title}_{data_type}_sigmoid_ev.png", dpi=400)
     np.savetxt(
-        rf"{path}\{title}_{data_type}_sigmoid.csv", model_mt.sigmoid, delimiter=","
+        rf"{path}\{title}_{data_type}_sigmoid.csv", model_mt.sigmoid_, delimiter=","
     )
 
 
@@ -219,16 +220,46 @@ def reg_plot(data_type, noise_mt, y_test, pred_st, pred_mt, task_test, preds_st,
 
 def predict_stage_plot(acc_mt, acc_gb, acc_gb_i, noise_mt, data_type, path):
     title = "Conventional MT" if not noise_mt else "Proposed MT"
+
+    colors = [
+        "tab:blue",
+        "tab:red",
+        "tab:green",
+        "tab:orange",
+        "tab:purple",
+        "tab:brown",
+        "tab:pink",
+        "tab:gray",
+        "tab:olive",
+        "tab:cyan",
+    ]
+    line_styles = ["-"]
+
+    styles = list(itertools.product(colors, line_styles))
+
     np.savetxt(rf"{path}\proposed_MT_staged_score.csv", acc_mt, delimiter=",")
     np.savetxt(rf"{path}\GB_DataPooling_staged_score.csv", acc_gb, delimiter=",")
     np.savetxt(rf"{path}\GB_task_independent_staged_score.csv", acc_gb_i, delimiter=",")
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 3))
-    ax.plot(acc_mt, label=f"{title}_{data_type}", color="tab:blue")
-    ax.plot(acc_gb, label=f"GB (Data Pooling)_{data_type}", color="tab:red")
+    ax.plot(
+        acc_mt, label=f"{title}_{data_type}", color=styles[0][0], linestyle=styles[0][1]
+    )
+    ax.plot(
+        acc_gb,
+        label=f"GB (Data Pooling)_{data_type}",
+        color=styles[1][0],
+        linestyle=styles[1][1],
+    )
 
-    for i in range(acc_gb_i.shape[1]):
-        ax.plot(acc_gb_i[:, i], label=f"GB (task independent {i})_{data_type}")
+    for j, i in enumerate(range(acc_gb_i.shape[1])):
+        color, linestyle = styles[j + 2]
+        ax.plot(
+            acc_gb_i[:, i],
+            label=f"GB (task independent {i})_{data_type}",
+            color=color,
+            linestyle=linestyle,
+        )
 
     fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.15), ncols=2)
     fig.suptitle(f"Staged Accuracy of {data_type} problem")

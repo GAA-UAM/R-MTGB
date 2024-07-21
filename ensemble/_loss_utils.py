@@ -30,7 +30,8 @@ class CondensedDeviance:
         learning_rate,
         k=0,
     ):
-
+        if X.dtype != np.float32:
+            X = X.astype(np.float32)
         terminal_regions = tree.apply(X)
 
         masked_terminal_regions = terminal_regions.copy()
@@ -87,24 +88,6 @@ class CondensedDeviance:
         tree.value[leaf, :, 0] = np.where(
             abs(denominator) < 1e-150, 0.0, numerator / (denominator + epsilon)
         )
-
-    def _raw_prediction_to_proba(self, raw_predictions):
-        return np.nan_to_num(
-            np.exp(
-                raw_predictions - (logsumexp(raw_predictions, axis=1)[:, np.newaxis])
-            )
-        )
-
-    def _raw_prediction_to_decision(self, raw_predictions):
-        proba = self._raw_prediction_to_proba(raw_predictions)
-        return np.argmax(proba, axis=1)
-
-    def get_init_raw_predictions(self, X, estimator):
-        probas = estimator.predict_proba(X)
-        eps = np.finfo(np.float32).eps
-        probas = np.clip(probas, eps, 1 - eps)
-        raw_predictions = np.log(probas).astype(np.float64)
-        return raw_predictions
 
 
 class MultiOutputLeastSquaresError:
@@ -164,7 +147,8 @@ class MultiOutputLeastSquaresError:
         learning_rate=0.1,
         k=0,
     ):
-
+        if X.dtype != np.float32:
+            X = X.astype(np.float32)
         target_type = type_of_target(y)
         if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
             for i in range(y.shape[1]):

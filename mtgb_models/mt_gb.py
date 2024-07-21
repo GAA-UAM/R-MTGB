@@ -1,5 +1,5 @@
 import numpy as np
-from Base._base import BaseGB
+from ensemble._base import BaseMTGB
 from sklearn.tree._tree import DTYPE, DOUBLE
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import LabelEncoder
@@ -12,7 +12,7 @@ from sklearn._loss.loss import (
 )
 
 
-class Classifier(BaseGB):
+class MTGBClassifier(BaseMTGB):
     def __init__(
         self,
         *,
@@ -33,12 +33,9 @@ class Classifier(BaseGB):
         max_leaf_nodes=None,
         warm_start=False,
         validation_fraction=0.1,
-        n_iter_no_change=None,
-        tol=1e-4,
         ccp_alpha=0.0,
         early_stopping=None,
         step_size=None,
-        opt_iter=200,
     ):
         super().__init__(
             loss=loss,
@@ -58,12 +55,9 @@ class Classifier(BaseGB):
             min_impurity_decrease=min_impurity_decrease,
             warm_start=warm_start,
             validation_fraction=validation_fraction,
-            n_iter_no_change=n_iter_no_change,
-            tol=tol,
             ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
             step_size=step_size,
-            opt_iter=opt_iter,
         )
 
     def _encode_y(self, y):
@@ -120,7 +114,7 @@ class Classifier(BaseGB):
     def staged_decision_function(self, X):
         yield from self._staged_raw_predict(X)
 
-    def predict(self, X, task_info):
+    def predict(self, X, task_info=None):
         raw_predictions = self.decision_function(X, task_info)
         if raw_predictions.ndim == 1:  # decision_function already squeezed it
             encoded_classes = (raw_predictions >= 0).astype(int)
@@ -153,7 +147,7 @@ class Classifier(BaseGB):
             ) from e
 
 
-class Regressor(BaseGB):
+class MTGBRegressor(BaseMTGB):
     def __init__(
         self,
         *,
@@ -174,12 +168,9 @@ class Regressor(BaseGB):
         max_leaf_nodes=None,
         warm_start=False,
         validation_fraction=0.1,
-        n_iter_no_change=None,
-        tol=1e-4,
         ccp_alpha=0.0,
         early_stopping=None,
         step_size=None,
-        opt_iter=200,
     ):
         super().__init__(
             loss=loss,
@@ -199,12 +190,9 @@ class Regressor(BaseGB):
             min_impurity_decrease=min_impurity_decrease,
             warm_start=warm_start,
             validation_fraction=validation_fraction,
-            n_iter_no_change=n_iter_no_change,
-            tol=tol,
             ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
             step_size=step_size,
-            opt_iter=opt_iter,
         )
 
     def _encode_y(self, y=None):
@@ -219,7 +207,7 @@ class Regressor(BaseGB):
         else:
             return _LOSSES[self.loss](sample_weight=sample_weight)
 
-    def predict(self, X, task_info):
+    def predict(self, X, task_info=None):
         return self._raw_predict(X, task_info)
 
     def staged_predict(self, X, task_info):

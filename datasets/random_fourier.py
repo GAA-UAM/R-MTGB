@@ -31,6 +31,13 @@ class TaskGenerator:
         self.x3 = generate_data((201, 300), num_instances)
         self.x4 = generate_data((301, 400), int(num_instances / 2))
 
+    # TODO:
+    # Seperate the code to generate the task and 
+    # on the other hand generate the
+    # input instances.
+
+    # Including 4 tasks in each setting.
+
     def _target_c(self, x):
         x = np.atleast_2d(x)
 
@@ -61,6 +68,8 @@ class TaskGenerator:
 
         if scenario == 1:
             # Included the common task only.
+            # Data Pooling should be optimal.
+            # One random function (calling the constructor one time).
             y1 = classify_or_regress(self.x1, self._target_c)
             y2 = classify_or_regress(self.x2, self._target_c)
             y3 = classify_or_regress(self.x3, self._target_c)
@@ -68,15 +77,33 @@ class TaskGenerator:
 
         elif scenario == 2:
             # Included the specific task only.
+            # The simple single-Task learning should be optimal.
+            # One different function per task without common function.
             y4 = classify_or_regress(self.x4, self._target_s)
             ranges = [(self.x4, y4)]
         elif scenario == 3:
-            # Included all tasks.
+            # Multi-Task setting.
+            # Multi-Task learning should be optimal.
+            # TODO:
+            # Chaning self.b and self.D only for this scenario
+            # By creatining different obejcts of init.
+
+            # Reducing the specific task function by multiplying low w
+
+            # _target_s should be different for each task.
+
             y1 = classify_or_regress(self.x1, lambda x: self._multi_task_gen(x, 0.9))
             y2 = classify_or_regress(self.x2, lambda x: self._multi_task_gen(x, 0.9))
             y3 = classify_or_regress(self.x3, lambda x: self._multi_task_gen(x, 0.9))
+            y4 = classify_or_regress(self.x4, lambda x: self._multi_task_gen(x, 0.1))
             y4 = classify_or_regress(self.x4, self._target_s)
             ranges = [(self.x1, y1), (self.x2, y2), (self.x3, y3), (self.x4, y4)]
+        elif scenario == 4:
+            # Including the outliers.
+            # which is a task that it doesn't have a common part.
+            # The robust Multi-task model should be optimal.
+            # Ideal objective: the Robust MT sould close to optimal in the rest of scenarios.
+            pass
 
         dfs = []
         for i, (x, y) in enumerate(ranges):
@@ -86,7 +113,7 @@ class TaskGenerator:
         )
 
     def _multi_task_gen(self, x, w):
-        return w * self._target_c(x) + (1 - w) * self._target_s(x)
+        return self._target_c(x) + 0.1 * self._target_s(x)
 
     def _classify_output(self, output):
         normalized_output = (output - np.mean(output)) / np.std(output)

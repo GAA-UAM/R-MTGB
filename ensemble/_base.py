@@ -2,7 +2,6 @@ import warnings
 import numpy as np
 from numbers import Integral
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.utils.stats import _weighted_percentile
 from sklearn.ensemble._gb import BaseGradientBoosting
 from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn._loss.loss import (
@@ -12,7 +11,7 @@ from sklearn._loss.loss import (
 )
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.utils.multiclass import type_of_target
-
+from sklearn.model_selection import train_test_split
 from abc import abstractmethod
 from scipy.special import expit
 from scipy.optimize import fmin_l_bfgs_b
@@ -31,7 +30,6 @@ from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
 )
-from scipy.optimize import minimize
 
 
 def _init_raw_predictions(X, estimator, loss, is_classifier):
@@ -48,15 +46,7 @@ def _init_raw_predictions(X, estimator, loss, is_classifier):
         return loss.link.link(predictions)
 
 
-def set_huber_delta(loss, y_true, raw_prediction, sample_weight=None):
-    """Calculate and set self.closs.delta based on self.quantile."""
-    abserr = np.abs(y_true - raw_prediction.squeeze())
-    # sample_weight is always a ndarray, never None.
-    delta = _weighted_percentile(abserr, sample_weight, 100 * loss.quantile)
-    loss.closs.delta = float(delta)
-
-
-class BaseGB(BaseGradientBoosting):
+class BaseMTGB(BaseGradientBoosting):
     @abstractmethod
     def __init__(
         self,
@@ -80,11 +70,8 @@ class BaseGB(BaseGradientBoosting):
         max_leaf_nodes=None,
         warm_start=False,
         validation_fraction=0.1,
-        n_iter_no_change=None,
-        tol=1e-4,
         early_stopping=None,
-        step_size=None,
-        opt_iter=200,
+        step_size,
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -105,30 +92,19 @@ class BaseGB(BaseGradientBoosting):
         self.max_leaf_nodes = max_leaf_nodes
         self.warm_start = warm_start
         self.validation_fraction = validation_fraction
-        self.n_iter_no_change = n_iter_no_change
-        self.tol = tol
         self.is_classifier = False
         self.early_stopping = early_stopping
         self.step_size = step_size
-        self.opt_iter = opt_iter
 
     @abstractmethod
     def _encode_y(self, y=None):
         """Called by fit to validate and encode y."""
 
     @abstractmethod
-    def _get_loss(self, sample_weight):
+    def _get_loss(self, sample_weight: np.ndarray):
         """Get loss object from sklearn._loss.loss."""
 
-    def _neg_gradient(self, y, raw_predictions):
-        if isinstance(self._loss, HuberLoss):
-            set_huber_delta(
-                loss=self._loss,
-                y_true=y,
-                raw_prediction=raw_predictions,
-                sample_weight=None,
-            )
-
+    def _neg_gradient(self, y, raw_predictions: np.ndarray):
         neg_gradient = y - np.nan_to_num(
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
@@ -224,7 +200,7 @@ class BaseGB(BaseGradientBoosting):
             )
 
             self.estimators_[i, r] = tree
-            self._residual[i, r] = residual.mean()
+            self.residual_[i, r] = np.abs(residual).mean()
 
         return rawpredictions
 
@@ -259,9 +235,9 @@ class BaseGB(BaseGradientBoosting):
                 self.init_ = DummyRegressor(strategy="mean")
 
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
-        self._residual = np.zeros((self.n_estimators, self.T + 1), dtype=np.float32)
-        self.sigmoid = np.zeros((self.n_estimators, self.T), dtype=np.float64)
-        self.__theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.residual_ = np.zeros((self.n_estimators, self.T + 1), dtype=np.float32)
+        self.sigmoid_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self._theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         if self.subsample < 1.0:
@@ -297,7 +273,7 @@ class BaseGB(BaseGradientBoosting):
         # GradientBoosting*.init is not validated yet
         prefer_skip_nested_validation=False
     )
-    def _split_task(self, X: np.array, task_info: int) -> np.array:
+    def _split_task(self, X: np.ndarray, task_info: int) -> np.ndarray:
 
         # Ensuring that every distinct value is replaced with an index, beginning from zero.
         unique_values = np.unique(X[:, task_info])
@@ -309,18 +285,55 @@ class BaseGB(BaseGradientBoosting):
         X_data = np.delete(X, task_info, axis=1).astype(float)
         return X_data, X_task
 
-    def fit(self, X: np.array, y: np.array, task_info: int):
+    def _stratified_train_test_split(
+        self, X, y, sample_weight, test_size, random_state
+    ):
+
+        stratify = y if self.is_classifier else None
+        X_train, X_val, y_train, y_val, sample_weight_train, sample_weight_val = (
+            train_test_split(
+                X,
+                y,
+                sample_weight,
+                test_size=test_size,
+                random_state=random_state,
+                stratify=stratify,
+            )
+        )
+
+        if self.is_classifier:
+
+            # Check for missing classes in y_val
+            unique_classes = np.unique(y)
+            missing_classes = np.setdiff1d(unique_classes, np.unique(y_val))
+
+            if len(missing_classes) > 0:
+                # Find indices of the missing classes in the original dataset
+                missing_indices = [np.where(y == cls)[0][0] for cls in missing_classes]
+
+                # Move these samples from train to val
+                for idx in missing_indices:
+                    X_val = np.vstack([X_val, X[idx].reshape(1, -1)])
+                    y_val = np.append(y_val, y[idx])
+                    sample_weight_val = np.append(sample_weight_val, sample_weight[idx])
+
+                    train_idx = np.where((X_train == X[idx]).all(axis=1))[0][0]
+                    X_train = np.delete(X_train, train_idx, axis=0)
+                    y_train = np.delete(y_train, train_idx)
+                    sample_weight_train = np.delete(sample_weight_train, train_idx)
+
+        return (
+            X_train,
+            X_val,
+            y_train,
+            y_val,
+            sample_weight_train,
+            sample_weight_val,
+        )
+
+    def fit(self, X: np.ndarray, y: np.ndarray, task_info=None):
         if not self.warm_start:
             self._clear_state()
-
-        if task_info is not None:
-            X, self.t = self._split_task(X, task_info)
-            unique = np.unique(self.t)
-            self.T = len(unique)
-            self.tasks_dic = dict(zip(unique, range(self.T)))
-        else:
-            self.T = 0
-            self.tasks_dic = None
 
         sample_weight = _check_sample_weight(None, X)
 
@@ -332,12 +345,36 @@ class BaseGB(BaseGradientBoosting):
             multi_output=True,
         )
 
-        y_copy = y.copy()
-        y = self._encode_y(y=y_copy)
+        y = self._encode_y(y=y)
+
+        if self.early_stopping is not None:
+            (
+                X_train,
+                X_val,
+                y_train,
+                y_val,
+                sample_weight_train,
+                sample_weight_val,
+            ) = self._stratified_train_test_split(
+                X, y, sample_weight, self.validation_fraction, self.random_state
+            )
+        else:
+            X_train, y_train, sample_weight_train = X, y, sample_weight
+            X_val = y_val = sample_weight_val = None
+
+        if task_info is not None:
+            X_train, self.t = self._split_task(X_train, task_info)
+            unique = np.unique(self.t)
+            self.T = len(unique)
+            self.tasks_dic = dict(zip(unique, range(self.T)))
+        else:
+            self.T = 0
+            self.tasks_dic = None
+
         self._loss = self._get_loss(sample_weight=sample_weight)
 
         if self.is_classifier:
-            self._aux_loss = CondensedDeviance(len(set(y_copy)))
+            self._aux_loss = CondensedDeviance(len(set(y_train)))
         else:
             self._aux_loss = MultiOutputLeastSquaresError()
 
@@ -346,31 +383,36 @@ class BaseGB(BaseGradientBoosting):
 
         if self.init_ == "zero":
             raw_predictions = np.zeros(
-                shape=(X.shape[0], 1),
+                shape=(X_train.shape[0], 1),
                 dtype=np.float64,
             )
         else:
-            self.init_.fit(X, y)
+            self.init_.fit(X_train, y_train)
 
             raw_predictions = _init_raw_predictions(
-                X, self.init_, self._loss, self.is_classifier
+                X_train, self.init_, self._loss, self.is_classifier
             )
 
         self._rng = check_random_state(self.random_state)
 
         n_stages = self._fit_stages(
-            X,
-            y,
+            X_train,
+            y_train,
             raw_predictions,
+            sample_weight_train,
+            sample_weight_val,
             self._rng,
+            X_val,
+            y_val,
+            task_info,
         )
 
         if n_stages != self.estimators_.shape[0]:
             self.estimators_ = self.estimators_[:n_stages]
             self.train_score_ = self.train_score_[:n_stages]
-            self.sigmoid = self.sigmoid[:n_stages]
-            self.__theta = self.__theta[:n_stages]
-            self._residual = self._residual[:n_stages]
+            self.sigmoid_ = self.sigmoid_[:n_stages]
+            self._theta = self._theta[:n_stages]
+            self.residual_ = self.residual_[:n_stages]
             self.n_estimators = n_stages
             if hasattr(self, "oob_improvement_"):
                 # OOB scores were computed
@@ -380,7 +422,7 @@ class BaseGB(BaseGradientBoosting):
 
         return self
 
-    def _label_y(self, y):
+    def _label_y(self, y: np.ndarray):
         if self._loss.is_multiclass:
             y = LabelBinarizer().fit_transform(y)
         elif type_of_target(y) == "binary":
@@ -399,8 +441,13 @@ class BaseGB(BaseGradientBoosting):
         X,
         y,
         raw_predictions,
+        sample_weight,
+        sample_weight_val,
         random_state,
-    ):
+        X_val,
+        y_val,
+        task_info,
+    ) -> np.int32:
         n_samples = X.shape[0]
         do_oob = self.subsample < 1.0
         sample_mask = np.ones((n_samples,), dtype=bool)
@@ -422,10 +469,14 @@ class BaseGB(BaseGradientBoosting):
 
         y = self._label_y(y)
 
-        best_score = float("inf")
-        no_improvement_count = 0
+        if self.early_stopping is not None:
+            loss_history = np.full(self.early_stopping, np.inf)
+            # creating a generator to get the predictions for X_val after
+            # the addition of each successive stage
+            y_val_pred_iter = self._staged_raw_predict(X_val, task_info)
+            y_val = self._label_y(y_val)
 
-        sample_weight_c = _check_sample_weight(None, X)
+        sample_weight_c = _check_sample_weight(sample_weight, X)
 
         for i in range(0, self.n_estimators):
             # subsampling
@@ -440,7 +491,7 @@ class BaseGB(BaseGradientBoosting):
                         sample_weight=sample_weight_oob_masked,
                     )
 
-            # Common task
+            # Common task.
             raw_predictions_c = self._fit_stage(
                 i,
                 0,
@@ -463,7 +514,7 @@ class BaseGB(BaseGradientBoosting):
                     idx_r = self.t == r_label
                     X_r = X[idx_r]
                     y_r = y[idx_r]
-                    sample_weight = _check_sample_weight(None, X_r)
+                    sample_weight_r = _check_sample_weight(sample_weight[idx_r], X_r)
 
                     raw_predictions_r[idx_r] = self._fit_stage(
                         i,
@@ -473,7 +524,7 @@ class BaseGB(BaseGradientBoosting):
                         raw_predictions.copy()[idx_r],
                         sample_mask[idx_r],
                         random_state,
-                        sample_weight,
+                        sample_weight_r,
                         self.learning_rate,
                         X_csc=X_csc,
                         X_csr=X_csr,
@@ -487,9 +538,9 @@ class BaseGB(BaseGradientBoosting):
 
                     theta = theta * self.step_size
 
-                    self.__theta[i, r] = theta
+                    self._theta[i, r] = theta
                     sigma = self._sigma(theta)
-                    self.sigmoid[i, r] = sigma
+                    self.sigmoid_[i, r] = sigma
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         (1 - sigma) * raw_predictions_r[idx_r]
                     )
@@ -522,18 +573,17 @@ class BaseGB(BaseGradientBoosting):
                 )
 
             if self.early_stopping is not None and i > 0:
-                if self.train_score_[i] < best_score:
-                    best_score = self.train_score_[i]
-                    best_iteration = i
-                    no_improvement_count = 0
-                else:
-                    no_improvement_count += 1
+                validation_loss = factor * self._aux_loss(
+                    y_val, next(y_val_pred_iter), sample_weight_val
+                )
 
-                if no_improvement_count >= self.early_stopping:
+                if np.any(validation_loss + 1e-4 < loss_history):
+                    loss_history[i % len(loss_history)] = validation_loss
+                else:
                     break
         return i + 1
 
-    def _raw_predict_init(self, X, task_info):
+    def _raw_predict_init(self, X: np.ndarray, task_info=None) -> np.ndarray:
         """Check input and compute raw predictions of the init estimator."""
 
         self._check_initialized()
@@ -542,9 +592,6 @@ class BaseGB(BaseGradientBoosting):
             X, t = self._split_task(X, task_info)
             unique = np.unique(t)
 
-            X = self._validate_data(
-                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
-            )
             # 0_th index (common task estimator)
             X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
 
@@ -553,12 +600,14 @@ class BaseGB(BaseGradientBoosting):
                 X[idx_r] = self.estimators_[
                     0, int(self.tasks_dic[r_label]) + 1
                 ]._validate_X_predict(X[idx_r], check_input=True)
-        else:
+
+        elif task_info is None:
             X = self._validate_data(
                 X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
             )
             X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
         if self.init_ == "zero":
+
             raw_predictions = np.zeros(
                 shape=(X.shape[0], self.n_trees_per_iteration_), dtype=np.float64
             )
@@ -566,9 +615,10 @@ class BaseGB(BaseGradientBoosting):
             raw_predictions = _init_raw_predictions(
                 X, self.init_, self._loss, self.is_classifier
             )
+
         return raw_predictions
 
-    def _raw_predict(self, X, task_info):
+    def _raw_predict(self, X: np.ndarray, task_info=None) -> np.ndarray:
         """Return the sum of the trees raw predictions (+ init estimator)."""
         check_is_fitted(self)
         raw_predictions = self._raw_predict_init(X, task_info)
@@ -577,13 +627,19 @@ class BaseGB(BaseGradientBoosting):
         )
         return raw_predictions
 
-    def _predict_stages(self, estimators_, X, raw_predictions, task_info):
+    def _predict_stages(
+        self,
+        estimators_: np.ndarray,
+        X: np.ndarray,
+        raw_predictions: np.ndarray,
+        task_info=None,
+    ) -> np.ndarray:
 
         if not self.is_classifier:
             raw_predictions = raw_predictions.squeeze()
 
-        # Multi task learning
-        if self.tasks_dic != None:
+        # Multi task learning.
+        if self.tasks_dic != None and task_info != None:
             raw_predictions_r = np.zeros_like(raw_predictions)
             predictions = np.zeros_like(raw_predictions)
 
@@ -608,14 +664,14 @@ class BaseGB(BaseGradientBoosting):
                     tree = estimators_[i, r + 1]
                     idx_r = t == r_label
                     X_r = X[idx_r]
-                    sigma = self._sigma(self.__theta[i, r])
+                    sigma = self._sigma(self._theta[i, r])
                     raw_predictions_r[idx_r] = tree.predict(X_r)
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         (1 - sigma) * raw_predictions_r[idx_r]
                     )
                 raw_predictions += self.learning_rate * predictions
 
-        # Single task learning
+        # Single task learning.
         else:
             for i in range(len(estimators_)):
                 tree = estimators_[i][0]
@@ -623,25 +679,22 @@ class BaseGB(BaseGradientBoosting):
 
         return raw_predictions
 
-    def _staged_raw_predict(self, X, task_info):
+    def _staged_raw_predict(self, X: np.ndarray, task_info=None):
 
         raw_predictions = self._raw_predict_init(X, task_info)
         if raw_predictions.shape[1] == 1:
             raw_predictions = np.squeeze(raw_predictions)
 
-        # Multi task learning
-        if self.tasks_dic != None:
+        # Multi task learning.
+        if self.tasks_dic != None and task_info != None:
             raw_predictions_r = np.zeros_like(raw_predictions)
             predictions = np.zeros_like(raw_predictions)
 
             X, t = self._split_task(X, task_info)
             unique = np.unique(t)
             tasks_dic = dict(zip(unique, range(len(unique))))
-            X = self._validate_data(
-                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
-            )
 
-            for i in range(self.estimators_.shape[0]):
+            for i in range(len(self.estimators_)):
 
                 # Common task prediction.
                 tree = self.estimators_[i, 0]
@@ -659,16 +712,21 @@ class BaseGB(BaseGradientBoosting):
                     idx_r = t == r_label
                     X_r = X[idx_r]
 
-                    sigma = self._sigma(self.__theta[i, r])
+                    sigma = self._sigma(self._theta[i, r])
                     raw_predictions_r[idx_r] = tree.predict(X_r)
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         (1 - sigma) * raw_predictions_r[idx_r]
                     )
                 raw_predictions += self.learning_rate * predictions
+
                 yield raw_predictions.copy()
 
         else:
-            for i in range(len(self.estimators_.shape[0])):
+            # Single task learning.
+            X = self._validate_data(
+                X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
+            )
+            for i in range(len(self.estimators_)):
                 tree = self.estimators_[i][0]
                 raw_predictions += self.learning_rate * tree.predict(X)
                 yield raw_predictions.copy()
