@@ -4,26 +4,65 @@ from sklearn.preprocessing import StandardScaler
 
 
 class TaskGenerator:
+    """Function generator
+
+    Output
+    ----------
+
+    This class creates various sets of toy datasets
+    using different scenarios
+    (Including 4 tasks in each setting):
+
+        Scenario 1:
+                    Generates a set of common tasks with identical
+                    weights and randomness in their Fourier function
+                    generator.
+        Scenario 2:
+                    Produces a set of specific tasks using a simple
+                    trigonometric function.
+        Scenario 3:
+                    Utilizes the function from Scenario 1
+                    but with varying weights and randomness to
+                    create diverse tasks.
+        Scenario 4:
+                    Includes three common tasks with the
+                    same parameters and one outlier task with
+                    a lower participation weight.
+
+    Parameters
+    ----------
+        N: int
+                The number of features, to generate the output.
+        d: int
+                The number of features (dimension).
+        w: np.ndaaray
+                Random weights for the Fourier features.
+        b: np.ndaaray
+                Random biases for the Fourier features.
+        theta: np.ndaaray
+                Coefficients to scale the cosine
+        alpha: int
+                Size control
+
+    Attributes
+    ----------
+    """
+
     def __init__(self, num_instances):
 
-        self.N = 500  # Number of features, only to generate the output not the X size.
-        self.D = 2  # Number of features (dimension)
-        self.W = np.random.randn(
-            self.N, self.D
-        )  # Random weights for the Fourier features
-        self.b = np.random.uniform(
-            0, 2 * np.pi, self.N
-        )  # Random biases for the Fourier features
-        self.theta = np.random.randn(
-            self.N
-        )  # Random weights for each Fourier feature, randomnes for various functions.
-        self.alpha = 100  # Dataset size.
+        self.N = 500
+        self.d = 2
+        self.w = np.random.randn(self.N, self.d)
+        self.b = np.random.uniform(0, 2 * np.pi, self.N)
+        self.theta = np.random.randn(self.N)
+        self.alpha = 100
         self.l = 10.0
+        self.n = num_instances
 
         def generate_data(seed_range, num_samples):
-            random_seed = np.random.randint(*4)
+            random_seed = np.random.randint(seed_range[0], seed_range[1])
             rng = np.random.default_rng(np.random.randint(random_seed))
-            data = rng.uniform(-3, 3, size=(num_samples, self.D))
+            data = rng.uniform(-3, 3, size=(num_samples, self.d))
             return StandardScaler().fit_transform(data)
 
         self.x1 = generate_data((1, 100), num_instances)
@@ -31,21 +70,20 @@ class TaskGenerator:
         self.x3 = generate_data((201, 300), num_instances)
         self.x4 = generate_data((301, 400), int(num_instances / 2))
 
-    # TODO:
-    # Seperate the code to generate the task and 
-    # on the other hand generate the
-    # input instances.
-
-    # Including 4 tasks in each setting.
-
     def _target_c(self, x):
+        # ensuring that the function can handle
+        # both 1D and 2D inputs uniformly.
         x = np.atleast_2d(x)
 
+        # f(\mathbf{x}) = \sum_{i=1}^{n}
+        # \theta_i \sqrt{\frac{\alpha}{N}} \cos
+        # \left( \frac{\mathbf{w}_i \cdot
+        # \mathbf{x}}{l} + b_i \right)
         return np.apply_along_axis(
             lambda x: np.sum(
                 self.theta
                 * np.sqrt(self.alpha / self.N)
-                * np.cos(np.dot(self.W, x / self.l) + self.b)
+                * np.cos(np.dot(self.w, x / self.l) + self.b)
             ),
             1,
             x,
@@ -67,43 +105,65 @@ class TaskGenerator:
             return df
 
         if scenario == 1:
-            # Included the common task only.
-            # Data Pooling should be optimal.
-            # One random function (calling the constructor one time).
-            y1 = classify_or_regress(self.x1, self._target_c)
-            y2 = classify_or_regress(self.x2, self._target_c)
-            y3 = classify_or_regress(self.x3, self._target_c)
-            ranges = [(self.x1, y1), (self.x2, y2), (self.x3, y3)]
+            """Included the common task only.
+            Data Pooling should be optimal.
+            """
+            # One random function with unique randomness values.
+            # (calling the constructor one time).
+            tg = TaskGenerator(self.n)
+            y1 = classify_or_regress(tg.x1, self._target_c)
+            y2 = classify_or_regress(tg.x2, self._target_c)
+            y3 = classify_or_regress(tg.x3, self._target_c)
+            y4 = classify_or_regress(tg.x4, self._target_c)
+            ranges = [(tg.x1, y1), (tg.x2, y2), (tg.x3, y3), (tg.x4, y4)]
 
         elif scenario == 2:
-            # Included the specific task only.
-            # The simple single-Task learning should be optimal.
-            # One different function per task without common function.
-            y4 = classify_or_regress(self.x4, self._target_s)
-            ranges = [(self.x4, y4)]
+            """Included the specific task only.
+            Single-task learning should be optimal.
+            """
+            # Different functions per task without a common function.
+            tg1 = TaskGenerator(self.n)
+            tg2 = TaskGenerator(self.n)
+            tg3 = TaskGenerator(self.n)
+            tg4 = TaskGenerator(self.n)
+            y1 = classify_or_regress(tg1.x1, self._target_s)
+            y2 = classify_or_regress(tg2.x2, self._target_s)
+            y3 = classify_or_regress(tg3.x3, self._target_s)
+            y4 = classify_or_regress(tg1.x1, self._target_s)
+            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg1.x1, y4)]
         elif scenario == 3:
-            # Multi-Task setting.
-            # Multi-Task learning should be optimal.
-            # TODO:
-            # Chaning self.b and self.D only for this scenario
-            # By creatining different obejcts of init.
-
+            """Multi-Task setting.
+            Multi-Task learning should be optimal.
+            """
+            # Calling the constructor various times
+            # to create diverse weights (self.b, self.w) for the common task.
+            tg1 = TaskGenerator(self.n)
+            tg2 = TaskGenerator(self.n)
+            tg3 = TaskGenerator(self.n)
+            tg4 = TaskGenerator(self.n)
+            y1 = classify_or_regress(tg1.x1, self._target_c)
+            y2 = classify_or_regress(tg2.x2, self._target_c)
+            y3 = classify_or_regress(tg3.x3, self._target_c)
+            y4 = classify_or_regress(tg4.x1, self._target_c)
+            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x1, y4)]
+        elif scenario == 4:
+            """Multi-Task including an outlier,
+            which is a task that doesn't have a common part.
+            The robust Multi-task model should be optimal.
+            """
+            # Ideal objective: the Robust MT sould close to optimal in the rest of scenarios.
             # Reducing the specific task function by multiplying low w
 
             # _target_s should be different for each task.
-
-            y1 = classify_or_regress(self.x1, lambda x: self._multi_task_gen(x, 0.9))
-            y2 = classify_or_regress(self.x2, lambda x: self._multi_task_gen(x, 0.9))
-            y3 = classify_or_regress(self.x3, lambda x: self._multi_task_gen(x, 0.9))
-            y4 = classify_or_regress(self.x4, lambda x: self._multi_task_gen(x, 0.1))
-            y4 = classify_or_regress(self.x4, self._target_s)
-            ranges = [(self.x1, y1), (self.x2, y2), (self.x3, y3), (self.x4, y4)]
-        elif scenario == 4:
-            # Including the outliers.
-            # which is a task that it doesn't have a common part.
-            # The robust Multi-task model should be optimal.
-            # Ideal objective: the Robust MT sould close to optimal in the rest of scenarios.
-            pass
+            tg1 = TaskGenerator(self.n)
+            tg2 = TaskGenerator(self.n)
+            tg3 = TaskGenerator(self.n)
+            tg4 = TaskGenerator(self.n)
+            y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x))
+            y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x))
+            y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x))
+            y4 = classify_or_regress(tg4.x4, tg4._target_s)
+            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x4, y4)]
 
         dfs = []
         for i, (x, y) in enumerate(ranges):
@@ -112,7 +172,7 @@ class TaskGenerator:
             f"{'clf' if clf else 'reg'}_{scenario}.csv"
         )
 
-    def _multi_task_gen(self, x, w):
+    def _multi_task_gen(self, x):
         return self._target_c(x) + 0.1 * self._target_s(x)
 
     def _classify_output(self, output):

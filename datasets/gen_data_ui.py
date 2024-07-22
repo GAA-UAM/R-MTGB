@@ -15,8 +15,8 @@ class data_gen:
             self.task_gen(clf=False, scenario=scenario)
 
 
-gen_data = data_gen(1000)
+gen_data = data_gen(200)
 
 for problem in ["clf", "reg"]:
-    for scenario in [1, 2, 3]:
+    for scenario in [1, 2, 3, 4]:
         gen_data(problem, scenario)

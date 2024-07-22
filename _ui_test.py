@@ -320,9 +320,8 @@ if __name__ == "__main__":
     proposed_mtgb = True
     experiment = "9Jul"
     for clf in [True, False]:
-        for scenario in [1, 2, 3]:
-            # for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
-            for path_exp in ["1"]:
+        for scenario in [1, 2, 3, 4]:
+            for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
                 path_exp = f"{experiment}\scenario_{scenario}\{path_exp}"
                 run_exp = run(
                     max_depth=5,
