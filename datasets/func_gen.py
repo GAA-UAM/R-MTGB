@@ -137,19 +137,21 @@ class FuncGen:
             """Multi-Task setting.
             Multi-Task learning should be optimal.
             """
-            # Calling the constructor various times
-            # to create diverse weights (self.b, self.w) for the common task.
+            # Calling the constructor various times,
+            # to create diverse weights (self.b, self.w) for the common task, and
+            # have different specific functions input.
             tg1 = FuncGen(self.n)
             tg2 = FuncGen(self.n)
             tg3 = FuncGen(self.n)
             tg4 = FuncGen(self.n)
-            y1 = classify_or_regress(tg1.x1, self._target_c)
-            y2 = classify_or_regress(tg2.x2, self._target_c)
-            y3 = classify_or_regress(tg3.x3, self._target_c)
-            y4 = classify_or_regress(tg4.x1, self._target_c)
-            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x1, y4)]
+            y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x, 1))
+            y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x, 1))
+            y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x, 1))
+            y4 = classify_or_regress(tg4.x4, tg4._target_s)
+            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x4, y4)]
         elif scenario == 4:
-            """Multi-Task including an outlier,
+            """Robust Multitask learning.
+            Multi-Task including an outlier (specific task weight=0.1),
             which is a task that doesn't have a common part.
             The robust Multi-task model should be optimal.
             """
@@ -161,9 +163,9 @@ class FuncGen:
             tg2 = FuncGen(self.n)
             tg3 = FuncGen(self.n)
             tg4 = FuncGen(self.n)
-            y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x))
-            y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x))
-            y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x))
+            y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x, 0.1))
+            y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x, 0.1))
+            y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x, 0.1))
             y4 = classify_or_regress(tg4.x4, tg4._target_s)
             ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x4, y4)]
 
@@ -174,8 +176,8 @@ class FuncGen:
             f"{'clf' if clf else 'reg'}_{scenario}.csv"
         )
 
-    def _multi_task_gen(self, x):
-        return self._target_c(x) + 0.1 * self._target_s(x)
+    def _multi_task_gen(self, x, w):
+        return self._target_c(x) + w * self._target_s(x)
 
     def _classify_output(self, output):
         normalized_output = (output - np.mean(output)) / np.std(output)
