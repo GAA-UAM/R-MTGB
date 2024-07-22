@@ -1,11 +1,11 @@
 # %%
 
-from random_fourier import TaskGenerator
+from func_gen import FuncGen
 
 
 class data_gen:
     def __init__(self, n):
-        self.task_gen = TaskGenerator(n)
+        self.task_gen = FuncGen(n)
 
     def __call__(self, problem, scenario):
 

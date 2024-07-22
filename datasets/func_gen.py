@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 
-class TaskGenerator:
+class FuncGen:
     """Function generator
 
     Output
@@ -31,6 +31,8 @@ class TaskGenerator:
 
     Parameters
     ----------
+        num_instances: int
+                The number of output instances.
         N: int
                 The number of features, to generate the output.
         d: int
@@ -40,9 +42,9 @@ class TaskGenerator:
         b: np.ndaaray
                 Random biases for the Fourier features.
         theta: np.ndaaray
-                Coefficients to scale the cosine
+                Coefficients to scale the cosine.
         alpha: int
-                Size control
+                Random Fourier size control.
 
     Attributes
     ----------
@@ -110,7 +112,7 @@ class TaskGenerator:
             """
             # One random function with unique randomness values.
             # (calling the constructor one time).
-            tg = TaskGenerator(self.n)
+            tg = FuncGen(self.n)
             y1 = classify_or_regress(tg.x1, self._target_c)
             y2 = classify_or_regress(tg.x2, self._target_c)
             y3 = classify_or_regress(tg.x3, self._target_c)
@@ -122,10 +124,10 @@ class TaskGenerator:
             Single-task learning should be optimal.
             """
             # Different functions per task without a common function.
-            tg1 = TaskGenerator(self.n)
-            tg2 = TaskGenerator(self.n)
-            tg3 = TaskGenerator(self.n)
-            tg4 = TaskGenerator(self.n)
+            tg1 = FuncGen(self.n)
+            tg2 = FuncGen(self.n)
+            tg3 = FuncGen(self.n)
+            tg4 = FuncGen(self.n)
             y1 = classify_or_regress(tg1.x1, self._target_s)
             y2 = classify_or_regress(tg2.x2, self._target_s)
             y3 = classify_or_regress(tg3.x3, self._target_s)
@@ -137,10 +139,10 @@ class TaskGenerator:
             """
             # Calling the constructor various times
             # to create diverse weights (self.b, self.w) for the common task.
-            tg1 = TaskGenerator(self.n)
-            tg2 = TaskGenerator(self.n)
-            tg3 = TaskGenerator(self.n)
-            tg4 = TaskGenerator(self.n)
+            tg1 = FuncGen(self.n)
+            tg2 = FuncGen(self.n)
+            tg3 = FuncGen(self.n)
+            tg4 = FuncGen(self.n)
             y1 = classify_or_regress(tg1.x1, self._target_c)
             y2 = classify_or_regress(tg2.x2, self._target_c)
             y3 = classify_or_regress(tg3.x3, self._target_c)
@@ -155,10 +157,10 @@ class TaskGenerator:
             # Reducing the specific task function by multiplying low w
 
             # _target_s should be different for each task.
-            tg1 = TaskGenerator(self.n)
-            tg2 = TaskGenerator(self.n)
-            tg3 = TaskGenerator(self.n)
-            tg4 = TaskGenerator(self.n)
+            tg1 = FuncGen(self.n)
+            tg2 = FuncGen(self.n)
+            tg3 = FuncGen(self.n)
+            tg4 = FuncGen(self.n)
             y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x))
             y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x))
             y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x))

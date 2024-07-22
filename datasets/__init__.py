@@ -1,3 +1,3 @@
-from .random_fourier import TaskGenerator
+from .func_gen import FuncGen
 
-__all__ = ["TaskGenerator"]
+__all__ = ["FuncGen"]
