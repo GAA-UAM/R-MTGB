@@ -178,7 +178,8 @@ class FuncGen:
             The robust Multi-task model should be optimal.
             """
 
-            y1, y2, y3, y4 = _output_space(multi_task=True, noise=True)
+            y1, y2, _, _ = _output_space(multi_task=False, noise=False)
+            _, _, y3, y4 = _output_space(multi_task=True, noise=True)
             x1, x2, x3, x4 = _input_space(FuncGen(self.n), True)
             y4 = y4[: len(x4)]
 
