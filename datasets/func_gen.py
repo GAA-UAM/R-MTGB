@@ -167,7 +167,8 @@ class FuncGen:
             Multi-Task learning should be optimal.
             """
 
-            y1, y2, y3, y4 = _output_space(multi_task=True, noise=False)
+            y1, y2, _, _ = _output_space(multi_task=False, noise=False)
+            _, _, y3, y4 = _output_space(multi_task=True, noise=False)
             x1, x2, x3, x4 = _input_space(FuncGen(self.n), False)
 
         elif scenario == 4:
