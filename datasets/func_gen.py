@@ -61,20 +61,16 @@ class FuncGen:
         self.l = 10.0
         self.n = num_instances
 
-        def generate_data(seed_range, num_samples):
-            random_seed = np.random.randint(seed_range[0], seed_range[1])
-            rng = np.random.default_rng(np.random.randint(random_seed))
-            data = rng.uniform(-3, 3, size=(num_samples, self.d))
-            return StandardScaler().fit_transform(data)
+    def _gen_data(self, seed_range, num_samples):
+        random_seed = np.random.randint(seed_range[0], seed_range[1])
+        rng = np.random.default_rng(np.random.randint(random_seed))
+        data = rng.uniform(-3, 3, size=(num_samples, self.d))
+        return StandardScaler().fit_transform(data)
 
-        self.x1 = generate_data((1, 100), num_instances)
-        self.x2 = generate_data((101, 200), num_instances)
-        self.x3 = generate_data((201, 300), num_instances)
-        self.x4 = generate_data((301, 400), int(num_instances / 2))
-
-    def _target_c(self, x):
+    def _gen_target(self):
         # ensuring that the function can handle
         # both 1D and 2D inputs uniformly.
+        x = np.random.standard_normal(size=(self.n, self.d))
         x = np.atleast_2d(x)
 
         # f(\mathbf{x}) = \sum_{i=1}^{n}
@@ -91,13 +87,18 @@ class FuncGen:
             x,
         )
 
-    def _target_s(self, x):
-        return np.sin(x[:, 0]) + np.cos(x[:, 1])
+    def _multi_task_gen(self, c, t, w):
+        return c() + (w * t())
+
+    def _classify_output(self, output):
+        threshold = np.mean(output)
+        output = np.where(output > threshold, 0, 1).astype(int)
+        return output
 
     def __call__(self, clf, scenario):
 
-        def classify_or_regress(data, func):
-            return self._classify_output(func(data)) if clf else func(data)
+        def classify_or_regress(func):
+            return self._classify_output(func()) if clf else func()
 
         def _gen_df(x, y, task_num):
             df = pd.DataFrame(
@@ -106,68 +107,81 @@ class FuncGen:
             df["Task"] = np.ones_like(y) * task_num
             return df
 
+        def _input_space(tg, multi_task=False):
+
+            ranges = [(1, 10), (11, 20), (21, 30), (31, 40)]
+            ns = [self.n, self.n, self.n, self.n // 2 if multi_task else self.n]
+            input_space = [tg._gen_data(ranges[i], ns[i]) for i in range(len(ranges))]
+            return input_space
+
+        def _output_space(multi_task=False, noise=False):
+            ranges = [(41, 50), (51, 60), (61, 70), (71, 80)]
+
+            if multi_task:
+                # Diverse weights (self.b, self.w) for the specific task.
+                task_generators = [FuncGen(self.n) for _ in range(4)]
+
+                if not noise:
+                    output_space = [
+                        classify_or_regress(tg._gen_target) for tg in task_generators
+                    ]
+                elif noise:
+                    # Adding weight to the last task.
+                    output_space = [
+                        (
+                            classify_or_regress(tg._gen_target)
+                            if i < 3
+                            else classify_or_regress(
+                                lambda: self._multi_task_gen(
+                                    task_generators[0]._gen_target,
+                                    tg._gen_target,
+                                    0.1,
+                                )
+                            )
+                        )
+                        for i, tg in enumerate(task_generators)
+                    ]
+            else:
+                # One random function with the unique seeds.F
+                tg = FuncGen(self.n)
+                output_space = [classify_or_regress(tg._gen_target) for _ in ranges]
+
+            return output_space
+
         if scenario == 1:
             """Included the common task only.
             Data Pooling should be optimal.
             """
-            # One random function with unique randomness values.
-            # (calling the constructor one time).
-            tg = FuncGen(self.n)
-            y1 = classify_or_regress(tg.x1, self._target_c)
-            y2 = classify_or_regress(tg.x2, self._target_c)
-            y3 = classify_or_regress(tg.x3, self._target_c)
-            y4 = classify_or_regress(tg.x4, self._target_c)
-            ranges = [(tg.x1, y1), (tg.x2, y2), (tg.x3, y3), (tg.x4, y4)]
+            y1, y2, y3, y4 = _output_space(multi_task=False, noise=False)
+            x1, x2, x3, x4 = _input_space(FuncGen(self.n), False)
 
         elif scenario == 2:
-            """Included the specific task only.
+            """Included the specific task only (different weights).
             Single-task learning should be optimal.
             """
-            # Different functions per task without a common function.
-            tg1 = FuncGen(self.n)
-            tg2 = FuncGen(self.n)
-            tg3 = FuncGen(self.n)
-            tg4 = FuncGen(self.n)
-            y1 = classify_or_regress(tg1.x1, self._target_s)
-            y2 = classify_or_regress(tg2.x2, self._target_s)
-            y3 = classify_or_regress(tg3.x3, self._target_s)
-            y4 = classify_or_regress(tg1.x1, self._target_s)
-            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg1.x1, y4)]
+            y1, y2, y3, y4 = _output_space(multi_task=True, noise=False)
+            x1, x2, x3, x4 = _input_space(FuncGen(self.n), False)
+
         elif scenario == 3:
             """Multi-Task setting.
             Multi-Task learning should be optimal.
             """
-            # Calling the constructor various times,
-            # to create diverse weights (self.b, self.w) for the common task, and
-            # have different specific functions input.
-            tg1 = FuncGen(self.n)
-            tg2 = FuncGen(self.n)
-            tg3 = FuncGen(self.n)
-            tg4 = FuncGen(self.n)
-            y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x, 1))
-            y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x, 1))
-            y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x, 1))
-            y4 = classify_or_regress(tg4.x4, tg4._target_s)
-            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x4, y4)]
+
+            y1, y2, y3, y4 = _output_space(multi_task=True, noise=False)
+            x1, x2, x3, x4 = _input_space(FuncGen(self.n), False)
+
         elif scenario == 4:
             """Robust Multitask learning.
             Multi-Task including an outlier (specific task weight=0.1),
             which is a task that doesn't have a common part.
             The robust Multi-task model should be optimal.
             """
-            # Ideal objective: the Robust MT sould close to optimal in the rest of scenarios.
-            # Reducing the specific task function by multiplying low w
 
-            # _target_s should be different for each task.
-            tg1 = FuncGen(self.n)
-            tg2 = FuncGen(self.n)
-            tg3 = FuncGen(self.n)
-            tg4 = FuncGen(self.n)
-            y1 = classify_or_regress(tg1.x1, lambda x: tg1._multi_task_gen(x, 0.1))
-            y2 = classify_or_regress(tg2.x2, lambda x: tg2._multi_task_gen(x, 0.1))
-            y3 = classify_or_regress(tg3.x3, lambda x: tg3._multi_task_gen(x, 0.1))
-            y4 = classify_or_regress(tg4.x4, tg4._target_s)
-            ranges = [(tg1.x1, y1), (tg2.x2, y2), (tg3.x3, y3), (tg4.x4, y4)]
+            y1, y2, y3, y4 = _output_space(multi_task=True, noise=True)
+            x1, x2, x3, x4 = _input_space(FuncGen(self.n), True)
+            y4 = y4[: len(x4)]
+
+        ranges = [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
 
         dfs = []
         for i, (x, y) in enumerate(ranges):
@@ -175,11 +189,3 @@ class FuncGen:
         pd.concat(dfs, ignore_index=True).to_csv(
             f"{'clf' if clf else 'reg'}_{scenario}.csv"
         )
-
-    def _multi_task_gen(self, x, w):
-        return self._target_c(x) + w * self._target_s(x)
-
-    def _classify_output(self, output):
-        normalized_output = (output - np.mean(output)) / np.std(output)
-        threshold = 0
-        return np.where(normalized_output < threshold, 0, 1)
