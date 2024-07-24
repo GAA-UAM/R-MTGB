@@ -318,7 +318,7 @@ def extract_data(path, clf, scenario):
 if __name__ == "__main__":
 
     proposed_mtgb = True
-    experiment = "9Jul"
+    experiment = "24Jul"
     for clf in [True, False]:
         for scenario in [1, 2, 3, 4]:
             for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
