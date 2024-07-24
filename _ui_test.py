@@ -184,7 +184,7 @@ class run:
 
             model_mt = MTGBRegressor(
                 max_depth=5,
-                n_estimators=100,
+                n_estimators=self.n_estimators,
                 subsample=0.5,
                 max_features="sqrt",
                 learning_rate=0.05,
@@ -317,7 +317,7 @@ def extract_data(path, clf, scenario):
 
 if __name__ == "__main__":
 
-    proposed_mtgb = True
+    proposed_mtgb = False
     experiment = "24Jul"
     for clf in [True, False]:
         for scenario in [1, 2, 3, 4]:
@@ -325,7 +325,7 @@ if __name__ == "__main__":
                 path_exp = f"{experiment}\scenario_{scenario}\{path_exp}"
                 run_exp = run(
                     max_depth=5,
-                    n_estimators=5,
+                    n_estimators=100,
                     subsample=0.5,
                     max_features="sqrt",
                     learning_rate=1,

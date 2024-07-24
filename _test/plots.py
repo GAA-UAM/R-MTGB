@@ -1,11 +1,9 @@
-import os
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
-from sklearn.metrics import accuracy_score, confusion_matrix, mean_squared_error
 import seaborn as sns
 import pandas as pd
-import itertools
+from sklearn.metrics import accuracy_score, confusion_matrix, mean_squared_error
+
 
 colors = ["r", "g", "b", "k", "y"]
 
@@ -51,7 +49,11 @@ def sigmoid_plot(model_mt, title, data_type, path):
         axs[i].set_ylabel("sigmoid value")
         axs[i].grid(visible=True, axis="y", color="k", linestyle="-", linewidth=0.5)
 
-    fig.legend()
+    fig.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.25),
+        ncols=(num_sigmoids),
+    )
     fig.suptitle(f"sigmoid Evolution")
     fig.tight_layout()
     fig.savefig(rf"{path}\{title}_{data_type}_sigmoid_ev.png", dpi=400)
@@ -119,31 +121,39 @@ def confusion_plot(
     title = "Conventional MT" if not noise_mt else "Proposed MT"
 
     fig, axs = plt.subplots(
-        2, num_tasks + 1, figsize=(14, 10), sharex=False, sharey=True
+        2, num_tasks + 1, figsize=(15, 7), sharex=False, sharey=True
     )
 
-    sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, ax=axs[0, 0])
-    axs[1, 0].set_title("Data Pooling")
-    sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, ax=axs[1, 0])
-    axs[0, 0].set_title(f"{title}")
+    sns.heatmap(confusion_matrix(y_test, pred_st), annot=True, fmt=".3e", ax=axs[0, 0])
+    axs[1, 0].set_title(
+        f" Data Pooling \n score: {accuracy_score(y_test, pred_st):.2f}"
+    )
+    sns.heatmap(confusion_matrix(y_test, pred_mt), annot=True, fmt=".3e", ax=axs[1, 0])
+    axs[0, 0].set_title(f"{title} \n score: {accuracy_score(y_test, pred_mt):.2f}")
 
     for i in range(num_tasks):
         sns.heatmap(
             confusion_matrix(y_test[task_test == i], pred_mt[task_test == i]),
             annot=True,
+            fmt=".3e",
             ax=axs[0, i + 1],
         )
-        axs[0, i + 1].set_title(f"{title} Task {i}")
+        axs[0, i + 1].set_title(
+            f"{title} Task {i} \n score: {accuracy_score(y_test[task_test == i], pred_mt[task_test == i]):.2f}"
+        )
         sns.heatmap(
             confusion_matrix(y_test[task_test == i], preds_st[i]),
             annot=True,
+            fmt=".3e",
             ax=axs[1, i + 1],
         )
-        axs[1, i + 1].set_title(f"GB Task {i}")
+        axs[1, i + 1].set_title(
+            f"GB Task {i} \n score: {accuracy_score(y_test[task_test == i], preds_st[i]):.2f}"
+        )
 
     fig.suptitle(title)
-    fig.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
-    fig.savefig(rf"{path}\{data_type}_{title}_CF.png", dpi=400)
+    fig.tight_layout()  # rect=[0, 0.03, 1, 0.95] # Adjust layout to fit title
+    fig.savefig(rf"{path}\{data_type}_{title}_CF.png", dpi=400, bbox_inches="tight")
 
     _extract_records(
         score_mt,
@@ -184,27 +194,33 @@ def reg_plot(data_type, noise_mt, y_test, pred_st, pred_mt, task_test, preds_st,
     axs[0, 0].scatter(y_test, pred_st)
     axs[0, 0].set_xlabel("True Values")
     axs[0, 0].set_ylabel("Pred Values")
-    axs[0, 0].set_title("Data Pooling")
+    axs[0, 0].set_title(
+        f"Data Pooling \n MSE:{mean_squared_error(y_test, pred_st):.1e}"
+    )
 
     axs[1, 0].scatter(y_test, pred_mt)
     axs[1, 0].set_xlabel("True Values")
     axs[1, 0].set_ylabel("Pred Values")
-    axs[1, 0].set_title(f"{title}")
+    axs[1, 0].set_title(f"{title} \n MSE:{mean_squared_error(y_test, pred_mt):.1e}")
 
     for i in range(num_tasks):
         axs[0, i + 1].scatter(y_test[task_test == i], pred_mt[task_test == i])
         axs[0, i + 1].set_xlabel(f"Task {i} True Values")
         axs[0, i + 1].set_ylabel("Pred Values")
-        axs[0, i + 1].set_title(f"{title} Task {i}")
+        axs[0, i + 1].set_title(
+            f"{title} Task {i} \n MSE:{mean_squared_error(y_test[task_test == i], pred_mt[task_test == i]):.1e}"
+        )
 
         axs[1, i + 1].scatter(y_test[task_test == i], preds_st[i])
         axs[1, i + 1].set_xlabel(f"Task {i} True Values")
         axs[1, i + 1].set_ylabel("Pred Values")
-        axs[1, i + 1].set_title(f"GB Task {i}")
+        axs[1, i + 1].set_title(
+            f"GB Task {i} \n MSE:{mean_squared_error(y_test[task_test == i], preds_st[i]):.1e}"
+        )
 
     fig.suptitle(title)
-    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-    fig.savefig(rf"{path}\{data_type}_{title}_reg.png", dpi=400)
+    fig.tight_layout()
+    fig.savefig(rf"{path}\{data_type}_{title}_reg.png", dpi=400, bbox_inches="tight")
 
     _extract_records(
         score_mt,
@@ -233,9 +249,7 @@ def predict_stage_plot(acc_mt, acc_gb, acc_gb_i, noise_mt, data_type, path):
         "tab:olive",
         "tab:cyan",
     ]
-    line_styles = ["-"]
-
-    styles = list(itertools.product(colors, line_styles))
+    line_styles = ["-", "--", "-.", ":", "-", "--", "-."]
 
     np.savetxt(rf"{path}\proposed_MT_staged_score.csv", acc_mt, delimiter=",")
     np.savetxt(rf"{path}\GB_DataPooling_staged_score.csv", acc_gb, delimiter=",")
@@ -243,30 +257,32 @@ def predict_stage_plot(acc_mt, acc_gb, acc_gb_i, noise_mt, data_type, path):
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 3))
     ax.plot(
-        acc_mt, label=f"{title}_{data_type}", color=styles[0][0], linestyle=styles[0][1]
+        acc_mt, label=f"{title}_{data_type}", color=colors[0], linestyle=line_styles[1]
     )
     ax.plot(
         acc_gb,
         label=f"GB (Data Pooling)_{data_type}",
-        color=styles[1][0],
-        linestyle=styles[1][1],
+        color=colors[1],
+        linestyle=line_styles[1],
     )
 
     for j, i in enumerate(range(acc_gb_i.shape[1])):
-        color, linestyle = styles[j + 2]
+        color = colors[j + 2]
+        line = line_styles[j + 2]
         ax.plot(
             acc_gb_i[:, i],
             label=f"GB (task independent {i})_{data_type}",
             color=color,
-            linestyle=linestyle,
+            linestyle=line,
+            linewidth=3,
         )
 
-    fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.15), ncols=2)
+    fig.legend(loc="lower center", bbox_to_anchor=(0.5, -0.35), ncols=2)
     fig.suptitle(f"Staged Accuracy of {data_type} problem")
     ax.set_xlabel("Boosting epochs")
     ax.set_ylabel("Score")
     ax.grid()
-    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.tight_layout()  # rect=[0, 0, 1, 0.92]
     fig.savefig(
         rf"{path}\{data_type}_{title}_accuracy.png", dpi=400, bbox_inches="tight"
     )
