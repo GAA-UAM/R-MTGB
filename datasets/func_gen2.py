@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 
 class FuncGen:
@@ -9,7 +9,7 @@ class FuncGen:
         num_dims,
         num_random_features=500,
         alpha=5.0,
-        length_scale=10.0,
+        length_scale=3,
     ):
 
         self.N = num_random_features
@@ -20,7 +20,22 @@ class FuncGen:
         self.alpha = alpha
         self.l = length_scale * num_dims  # Smoother functions in higher dimensions
 
-    def evaluate_function(self, x, regression):
+        # Generate a 2D grid of points
+        x1 = np.linspace(-5, 5, 100)
+        x2 = np.linspace(-5, 5, 100)
+        x1, x2 = np.meshgrid(x1, x2)
+        points = np.c_[x1.ravel(), x2.ravel()]
+
+        # z = self.evaluate_function(points).reshape(x1.shape)
+        # plt.figure(figsize=(10, 8))
+        # plt.contourf(x1, x2, z, levels=50, cmap="viridis")
+        # plt.colorbar(label="Function Value")
+        # plt.title("Contour plot of the random function")
+        # plt.xlabel("x1")
+        # plt.ylabel("x2")
+        # plt.show()
+
+    def evaluate_function(self, x):
         output = np.apply_along_axis(
             lambda x: np.sum(
                 self.theta
@@ -31,11 +46,6 @@ class FuncGen:
             x,
         )
 
-        if not regression:
-            if np.all(output >= 0) or np.all(output <= 0):
-                # To make sure of balanced classification
-                bias = np.mean(output)
-                output -= bias
         return output
 
 
@@ -63,7 +73,7 @@ class GenerateDataset:
 
         for _ in range(num_tasks):
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-            y = funcgen.evaluate_function(x, self.regression)
+            y = funcgen.evaluate_function(x)
 
             if self.regression is False:
                 y = self._classify_output(y)
@@ -83,7 +93,7 @@ class GenerateDataset:
             funcgen = FuncGen(num_dims)
 
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-            y = funcgen.evaluate_function(x, self.regression)
+            y = funcgen.evaluate_function(x)
 
             if self.regression is False:
                 y = self._classify_output(y)
@@ -109,9 +119,9 @@ class GenerateDataset:
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
             y = common_funcgen.evaluate_function(
-                x, self.regression
+                x
             ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                x, self.regression
+                x
             )  # Higher weight to the common part
 
             if self.regression is False:
@@ -140,14 +150,12 @@ class GenerateDataset:
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
             if i >= num_tasks - num_outlier_tasks:
-                y = specific_funcgen.evaluate_function(
-                    x, self.regression
-                )  # No common part
+                y = specific_funcgen.evaluate_function(x)  # No common part
             else:
                 y = common_funcgen.evaluate_function(
-                    x, self.regression
+                    x
                 ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                    x, self.regression
+                    x
                 )  # Higher weight to the common part
 
             if self.regression is False:
@@ -158,7 +166,7 @@ class GenerateDataset:
 
         return X, Y
 
-    def __call__(self, regression, test):
+    def __call__(self, regression):
 
         self.regression = regression
 
@@ -176,11 +184,8 @@ class GenerateDataset:
             df["Task"] = np.ones_like(y) * task_num
             return df
 
-        num_instances = 100 if not test else 1000
         if self.scenario in scenario_methods:
-            x_list, y_list = scenario_methods[self.scenario](
-                num_instances=num_instances
-            )
+            x_list, y_list = scenario_methods[self.scenario](num_instances=1000)
 
         ranges = []
         for x, y in zip(x_list, y_list):
@@ -189,6 +194,5 @@ class GenerateDataset:
         dfs = []
         for i, (x, y) in enumerate(ranges):
             dfs.append(_gen_df(x, y, i))
-        pd.concat(dfs, ignore_index=True).to_csv(
-            f"{'clf' if not self.regression else 'reg'}_{self.scenario}.csv"
-        )
+
+        return pd.concat(dfs, ignore_index=True)

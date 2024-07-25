@@ -1,15 +1,17 @@
 # %%
 import os
+import numpy as np
 from func_gen2 import GenerateDataset
+from sklearn.model_selection import train_test_split
 
 
 class data_gen:
     def __init__(self, scenario):
         self.scenario = scenario
 
-    def __call__(self, regression, test):
+    def __call__(self, regression):
         self.task_gen = GenerateDataset(self.scenario)
-        self.task_gen(regression, test)
+        return self.task_gen(regression)
 
 
 if __name__ == "__main__":
@@ -24,7 +26,7 @@ if __name__ == "__main__":
     original_dir = os.getcwd()
 
     for scenario in [1, 2, 3, 4]:
-        for subdir in range(1, 10 + 1):
+        for i, subdir in enumerate(range(1, 10 + 1)):
             scenario_name = "scenario_" + str(scenario)
             dir_path = os.path.join(base_dir, scenario_name, str(subdir))
             os.makedirs(dir_path, exist_ok=True)
@@ -33,12 +35,22 @@ if __name__ == "__main__":
             os.mkdir("reg")
             for regression in [True, False]:
                 gen_data2 = data_gen(scenario)
-                gen_data2(regression, False)
+                df = gen_data2(regression)
+                if not regression:
+                    unique_labels = np.unique(df.target)
+                    while len(unique_labels) != 2:
+                        df = gen_data2(regression)
+                        unique_labels = np.unique(df.target)
+                    assert len(np.unique(df.target)) == 2, "Missing class label"
+                train_df, test_df = train_test_split(
+                    df,
+                    train_size=0.1,
+                    random_state=np.random.randint(i, i + 1),
+                    stratify=None if regression else df.target,
+                )
+                train_df.to_csv(
+                    f"train_{'reg' if regression else 'clf'}_{scenario}.csv"
+                )
+                test_df.to_csv(f"test_{'reg' if regression else 'clf'}_{scenario}.csv")
             os.chdir(original_dir)
-        dir_path = os.path.join(base_dir, scenario_name, "test_data")
-        os.makedirs(dir_path, exist_ok=True)
-        os.chdir(dir_path)
-        for regression in [True, False]:
-            gen_data2 = data_gen(scenario)
-            gen_data2(regression, True)
         os.chdir(original_dir)
