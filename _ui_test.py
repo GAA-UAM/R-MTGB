@@ -318,7 +318,7 @@ def extract_data(path, clf, scenario, train):
 if __name__ == "__main__":
 
     proposed_mtgb = False
-    experiment = "25Jul"
+    experiment = "27Jul"
     for clf in [True, False]:
         for scenario in [1, 2, 3, 4]:
             for batch in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
@@ -326,7 +326,7 @@ if __name__ == "__main__":
                 run_exp = run(
                     max_depth=5,
                     n_estimators=100,
-                    subsample=1,
+                    subsample=0.5,
                     max_features="sqrt",
                     learning_rate=1,
                     random_state=111,
