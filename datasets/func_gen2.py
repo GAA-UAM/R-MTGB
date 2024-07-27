@@ -58,29 +58,43 @@ class GenerateDataset:
     def __init__(self, scenario):
         self.scenario = scenario
 
+    def _valid_class_prop(self, y, alpha):
+        unique, counts = np.unique(y, return_counts=True)
+        normalized_counts = counts / counts.sum()
+        return len(unique) == 2 and all(normalized_counts >= alpha)
+
     def _classify_output(self, y):
         y = np.sign(y)
-        # y = (y + 1) // 2
+        y = (y + 1) // 2
         return y
 
     # Here pooling is optimal
     def _gen_data_scenario_1(self, num_dims=2, num_tasks=5, num_instances=100):
 
-        X = list()
-        Y = list()
+        valid = False
+        while not valid:
 
-        funcgen = FuncGen(num_dims)
+            X, Y = [], []
+            funcgen = FuncGen(num_dims)
 
-        for _ in range(num_tasks):
-            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-            y = funcgen.evaluate_function(x)
+            for _ in range(num_tasks):
+                x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                y = funcgen.evaluate_function(x)
 
-            if self.regression is False:
-                y = self._classify_output(y)
+                if self.regression is False:
+                    y = self._classify_output(y)
+                    if not self._valid_class_prop(y, 0.1):
+                        valid = False
+                        break
+                    else:
+                        X.append(x)
+                        Y.append(y)
+                else:
+                    X.append(x)
+                    Y.append(y)
 
-            X.append(x)
-            Y.append(y)
-
+            if len(X) == num_tasks and len(Y) == num_tasks:
+                valid = True
         return X, Y
 
     # Here single task learning is optimal
@@ -90,6 +104,7 @@ class GenerateDataset:
         Y = list()
 
         for _ in range(num_tasks):
+
             funcgen = FuncGen(num_dims)
 
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
@@ -98,38 +113,55 @@ class GenerateDataset:
             if self.regression is False:
                 y = self._classify_output(y)
 
+            if not self.regression and not self._valid_class_prop(y, 0.1):
+
+                while not self._valid_class_prop(y, 0.1):
+                    funcgen = FuncGen(num_dims)
+
+                    x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                    y = funcgen.evaluate_function(x)
+
+                    if self.regression is False:
+                        y = self._classify_output(y)
+
             X.append(x)
             Y.append(y)
 
         return X, Y
 
     # Here multi-task learning is optimal
-
     def _gen_data_scenario_3(self, num_dims=2, num_tasks=5, num_instances=100):
 
-        X = list()
-        Y = list()
+        valid = False
+        while not valid:
+            X, Y = [], []
+            common_funcgen = FuncGen(num_dims)
 
-        common_funcgen = FuncGen(num_dims)
+            for _ in range(num_tasks):
 
-        for _ in range(num_tasks):
+                specific_funcgen = FuncGen(num_dims)
 
-            specific_funcgen = FuncGen(num_dims)
+                x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
-            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                y = common_funcgen.evaluate_function(
+                    x
+                ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
+                    x
+                )  # Higher weight to the common part
 
-            y = common_funcgen.evaluate_function(
-                x
-            ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                x
-            )  # Higher weight to the common part
-
-            if self.regression is False:
-                y = self._classify_output(y)
-
-            X.append(x)
-            Y.append(y)
-
+                if self.regression is False:
+                    y = self._classify_output(y)
+                    if not self._valid_class_prop(y, 0.1):
+                        valid = False
+                        break
+                    else:
+                        X.append(x)
+                        Y.append(y)
+                else:
+                    X.append(x)
+                    Y.append(y)
+            if len(X) == num_tasks and len(Y) == num_tasks:
+                valid = True
         return X, Y
 
     # Here robust multi-task learning is optimal since
@@ -138,32 +170,47 @@ class GenerateDataset:
         self, num_dims=2, num_tasks=5, num_instances=100, num_outlier_tasks=2
     ):
 
-        X = list()
-        Y = list()
-
-        common_funcgen = FuncGen(num_dims)
-
-        for i in range(num_tasks):
-
-            specific_funcgen = FuncGen(num_dims)
-
+        while True:
+            common_funcgen = FuncGen(num_dims)
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+            y = common_funcgen.evaluate_function(x)
+            y = self._classify_output(y)
+            if self._valid_class_prop(y, 0.1):
+                break
 
-            if i >= num_tasks - num_outlier_tasks:
-                y = specific_funcgen.evaluate_function(x)  # No common part
-            else:
-                y = common_funcgen.evaluate_function(
-                    x
-                ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                    x
-                )  # Higher weight to the common part
+        valid = False
+        while not valid:
+            X, Y = [], []
 
-            if self.regression is False:
-                y = self._classify_output(y)
+            for i in range(num_tasks):
 
-            X.append(x)
-            Y.append(y)
+                specific_funcgen = FuncGen(num_dims)
 
+                x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+
+                if i >= num_tasks - num_outlier_tasks:
+                    y = specific_funcgen.evaluate_function(x)  # No common part
+                else:
+                    y = common_funcgen.evaluate_function(
+                        x
+                    ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
+                        x
+                    )  # Higher weight to the common part
+
+                if self.regression is False:
+                    y = self._classify_output(y)
+                    if not self._valid_class_prop(y, 0.05):
+                        valid = False
+                        break
+                    else:
+                        X.append(x)
+                        Y.append(y)
+                else:
+                    X.append(x)
+                    Y.append(y)
+            print(len(X))
+            if len(X) == num_tasks and len(Y) == num_tasks:
+                valid = True
         return X, Y
 
     def __call__(self, regression):
@@ -185,7 +232,7 @@ class GenerateDataset:
             return df
 
         if self.scenario in scenario_methods:
-            x_list, y_list = scenario_methods[self.scenario](num_instances=2000)
+            x_list, y_list = scenario_methods[self.scenario](num_instances=1500)
 
         ranges = []
         for x, y in zip(x_list, y_list):

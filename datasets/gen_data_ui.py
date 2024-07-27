@@ -14,25 +14,13 @@ class data_gen:
         return self.task_gen(regression)
 
 
-def has_valid_class_proportion(df, min_class_proportion):
-    if min_class_proportion == 0:
-        return False
-    class_counts = []
-    for i in set(df.Task):
-        proportions = df.target[df.Task == (i)].value_counts(normalize=True)
-        class_counts.append(proportions)
-
-        if len(proportions) != 2:
-            return False
-
-    # return len(class_counts) == 2 and all(class_counts >= min_class_proportion)
-
-
 if __name__ == "__main__":
 
-    base_dir = "25Jul"
+    base_dir = "24Jul"
 
     if os.path.exists(base_dir):
+        print("a")
+    else:
         os.mkdir(base_dir)
 
     original_dir = os.getcwd()
@@ -46,42 +34,23 @@ if __name__ == "__main__":
             os.mkdir("clf")
             os.mkdir("reg")
             for regression in [True, False]:
-                if regression:
-                    gen_data2 = data_gen(scenario)
-                    df = gen_data2(regression)
-                    df = gen_data2(regression)
-                    train_df, test_df = train_test_split(
-                        df,
-                        train_size=0.1,
-                        random_state=np.random.randint(i, i + 1),
-                        stratify=None if regression else df.target,
-                    )
-                else:
-                    train_df, test_df = None, None
-                    prec = 0
-                    while not has_valid_class_proportion(
-                        train_df, prec
-                    ) and not has_valid_class_proportion(test_df, prec):
-                        prec = 0.1
-                        while True:
-                            try:
-                                gen_data2 = data_gen(scenario)
-                                df = gen_data2(regression)
-                                df = gen_data2(regression)
-                                train_df, test_df = train_test_split(
-                                    df,
-                                    train_size=0.1,
-                                    random_state=np.random.randint(i, i + 1),
-                                    stratify=None if regression else df.target,
-                                )
-                                break
-                            except Exception as e:
-                                print(e)
+                gen_data2 = data_gen(scenario)
+                df = gen_data2(regression)
+                if not regression:
+                    unique_labels = np.unique(df.target)
+                    while len(unique_labels) != 2:
+                        df = gen_data2(regression)
+                        unique_labels = np.unique(df.target)
+                    assert len(np.unique(df.target)) == 2, "Missing class label"
+                train_df, test_df = train_test_split(
+                    df,
+                    train_size=0.1,
+                    random_state=np.random.randint(i, i + 1),
+                    stratify=None if regression else df.target,
+                )
                 train_df.to_csv(
                     f"train_{'reg' if regression else 'clf'}_{scenario}.csv"
                 )
                 test_df.to_csv(f"test_{'reg' if regression else 'clf'}_{scenario}.csv")
             os.chdir(original_dir)
         os.chdir(original_dir)
-
-# %%
