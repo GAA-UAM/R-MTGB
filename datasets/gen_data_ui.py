@@ -16,7 +16,7 @@ class data_gen:
 
 if __name__ == "__main__":
 
-    base_dir = "24Jul"
+    base_dir = "27Jul"
 
     if os.path.exists(base_dir):
         print("a")
@@ -36,12 +36,6 @@ if __name__ == "__main__":
             for regression in [True, False]:
                 gen_data2 = data_gen(scenario)
                 df = gen_data2(regression)
-                if not regression:
-                    unique_labels = np.unique(df.target)
-                    while len(unique_labels) != 2:
-                        df = gen_data2(regression)
-                        unique_labels = np.unique(df.target)
-                    assert len(np.unique(df.target)) == 2, "Missing class label"
                 train_df, test_df = train_test_split(
                     df,
                     train_size=0.1,

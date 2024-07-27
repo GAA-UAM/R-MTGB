@@ -208,7 +208,6 @@ class GenerateDataset:
                 else:
                     X.append(x)
                     Y.append(y)
-            print(len(X))
             if len(X) == num_tasks and len(Y) == num_tasks:
                 valid = True
         return X, Y
