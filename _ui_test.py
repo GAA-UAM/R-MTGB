@@ -183,12 +183,12 @@ class run:
             from mtgb_models.mt_gb import MTGBRegressor
 
             model_mt = MTGBRegressor(
-                max_depth=5,
+                max_depth=self.max_depth,
                 n_estimators=self.n_estimators,
-                subsample=0.5,
+                subsample=self.subsample,
                 max_features="sqrt",
-                learning_rate=0.05,
-                random_state=1,
+                learning_rate=self.learning_rate,
+                random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
                 step_size=0.1,
@@ -225,12 +225,12 @@ class run:
         np.savetxt(rf"{self.path}\pred_reg_{title}.csv", pred_mt, delimiter=",")
 
         model_st = GradientBoostingRegressor(
-            max_depth=5,
+            max_depth=self.max_depth,
             n_estimators=self.n_estimators,
-            subsample=0.5,
+            subsample=self.subsample,
             max_features="sqrt",
-            learning_rate=0.05,
-            random_state=1,
+            learning_rate=self.learning_rate,
+            random_state=self.random_state,
             criterion="squared_error",
             n_iter_no_change=self.es,
         )
@@ -265,12 +265,12 @@ class run:
         pred_st_i = []
         for r in set(task_train):
             model_st_i = GradientBoostingRegressor(
-                max_depth=5,
+                max_depth=self.max_depth,
                 n_estimators=self.n_estimators,
-                subsample=0.5,
+                subsample=self.subsample,
                 max_features="sqrt",
-                learning_rate=0.05,
-                random_state=1,
+                learning_rate=self.learning_rate,
+                random_state=self.random_state,
                 criterion="squared_error",
                 n_iter_no_change=self.es,
             )
@@ -303,11 +303,11 @@ class run:
         )
 
 
-def extract_data(path, clf, scenario):
+def extract_data(path, clf, scenario, train):
 
     clf_ = "clf_" if clf else "reg_"
-
-    title = clf_ + f"{scenario}.csv"
+    pre_title = "train_" if train else "test_"
+    title = pre_title + clf_ + f"{scenario}.csv"
 
     df = pd.read_csv(os.path.join(path, title))
     df = df.iloc[:, 1:]
@@ -318,45 +318,46 @@ def extract_data(path, clf, scenario):
 if __name__ == "__main__":
 
     proposed_mtgb = False
-    experiment = "24Jul"
+    experiment = "25Jul"
     for clf in [True, False]:
         for scenario in [1, 2, 3, 4]:
-            for path_exp in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
-                path_exp = f"{experiment}\scenario_{scenario}\{path_exp}"
+            for batch in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
+                data_path = f"{experiment}\scenario_{scenario}\{batch}"
                 run_exp = run(
                     max_depth=5,
                     n_estimators=100,
-                    subsample=0.5,
+                    subsample=1,
                     max_features="sqrt",
                     learning_rate=1,
                     random_state=111,
                     es=None,
                     clf=clf,
-                    path_exp=path_exp,
+                    path_exp=data_path,
                     scenario=scenario,
                 )
 
-                train_path = (
-                    rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{path_exp}"
-                )
-                test_path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{experiment}\scenario_{scenario}\test_data"
+                path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{data_path}"
 
-                df_train = extract_data(train_path, clf, scenario)
-                df_test = extract_data(test_path, clf, scenario)
+                df_train = extract_data(path, clf, scenario, True)
+                df_test = extract_data(path, clf, scenario, False)
 
                 x_train, y_train, task_train = data_pre_split(df_train)
                 x_test, y_test, task_test = data_pre_split(df_test)
 
                 if clf:
-                    run_exp.fit_clf(
-                        x_train=x_train,
-                        y_train=y_train,
-                        task_train=task_train,
-                        x_test=x_test,
-                        y_test=y_test,
-                        task_test=task_test,
-                        proposed_mtgb=proposed_mtgb,
-                    )
+                    try:
+                        run_exp.fit_clf(
+                            x_train=x_train,
+                            y_train=y_train,
+                            task_train=task_train,
+                            x_test=x_test,
+                            y_test=y_test,
+                            task_test=task_test,
+                            proposed_mtgb=proposed_mtgb,
+                        )
+                    except Exception as e:
+                        print(f"scenario_{scenario}_batch{batch}")
+                        break
                 else:
                     run_exp.fit_reg(
                         x_train=x_train,

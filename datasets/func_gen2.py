@@ -60,7 +60,7 @@ class GenerateDataset:
 
     def _classify_output(self, y):
         y = np.sign(y)
-        y = (y + 1) // 2
+        # y = (y + 1) // 2
         return y
 
     # Here pooling is optimal
@@ -185,7 +185,7 @@ class GenerateDataset:
             return df
 
         if self.scenario in scenario_methods:
-            x_list, y_list = scenario_methods[self.scenario](num_instances=1000)
+            x_list, y_list = scenario_methods[self.scenario](num_instances=2000)
 
         ranges = []
         for x, y in zip(x_list, y_list):
