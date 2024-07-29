@@ -317,18 +317,18 @@ def extract_data(path, clf, scenario, train):
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
-    experiment = "28Jul_8tasks_4outliers"
+    proposed_mtgb = True
+    experiment = "28Jul_8tasks_4outliers_stumps"
     for clf in [True, False]:
         for scenario in [1, 2, 3, 4]:
             for batch in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
                 data_path = f"{experiment}\scenario_{scenario}\{batch}"
                 run_exp = run(
-                    max_depth=5,
+                    max_depth=1,
                     n_estimators=100,
                     subsample=0.5,
                     max_features="sqrt",
-                    learning_rate=1,
+                    learning_rate=0.1,
                     random_state=111,
                     es=None,
                     clf=clf,
