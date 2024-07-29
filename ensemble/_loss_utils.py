@@ -109,7 +109,10 @@ class MultiOutputLeastSquaresError:
     def __call__(self, y, raw_predictions, sample_weight=None):
 
         if sample_weight is None:
-            init = np.mean((y - raw_predictions.ravel()) ** 2)
+            try:
+                init = np.mean((y - raw_predictions.ravel()) ** 2)
+            except:
+                init = np.mean((y - raw_predictions) ** 2)
         else:
             target_type = type_of_target(y)
             if target_type in ["continuous-multioutput", "multiclass-multioutput"]:

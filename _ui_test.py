@@ -318,7 +318,7 @@ def extract_data(path, clf, scenario, train):
 if __name__ == "__main__":
 
     proposed_mtgb = False
-    experiment = "27Jul"
+    experiment = "28Jul_8tasks_4outliers"
     for clf in [True, False]:
         for scenario in [1, 2, 3, 4]:
             for batch in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
@@ -345,19 +345,15 @@ if __name__ == "__main__":
                 x_test, y_test, task_test = data_pre_split(df_test)
 
                 if clf:
-                    try:
-                        run_exp.fit_clf(
-                            x_train=x_train,
-                            y_train=y_train,
-                            task_train=task_train,
-                            x_test=x_test,
-                            y_test=y_test,
-                            task_test=task_test,
-                            proposed_mtgb=proposed_mtgb,
-                        )
-                    except Exception as e:
-                        print(f"scenario_{scenario}_batch{batch}")
-                        break
+                    run_exp.fit_clf(
+                        x_train=x_train,
+                        y_train=y_train,
+                        task_train=task_train,
+                        x_test=x_test,
+                        y_test=y_test,
+                        task_test=task_test,
+                        proposed_mtgb=proposed_mtgb,
+                    )
                 else:
                     run_exp.fit_reg(
                         x_train=x_train,

@@ -69,7 +69,7 @@ class GenerateDataset:
         return y
 
     # Here pooling is optimal
-    def _gen_data_scenario_1(self, num_dims=2, num_tasks=5, num_instances=100):
+    def _gen_data_scenario_1(self, num_dims=2, num_tasks=8, num_instances=100):
 
         valid = False
         while not valid:
@@ -98,7 +98,7 @@ class GenerateDataset:
         return X, Y
 
     # Here single task learning is optimal
-    def _gen_data_scenario_2(self, num_dims=2, num_tasks=5, num_instances=100):
+    def _gen_data_scenario_2(self, num_dims=2, num_tasks=8, num_instances=100):
 
         X = list()
         Y = list()
@@ -130,7 +130,7 @@ class GenerateDataset:
         return X, Y
 
     # Here multi-task learning is optimal
-    def _gen_data_scenario_3(self, num_dims=2, num_tasks=5, num_instances=100):
+    def _gen_data_scenario_3(self, num_dims=2, num_tasks=8, num_instances=100):
 
         valid = False
         while not valid:
@@ -167,7 +167,7 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims=2, num_tasks=5, num_instances=100, num_outlier_tasks=2
+        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=4
     ):
 
         while True:

@@ -248,8 +248,11 @@ def predict_stage_plot(acc_mt, acc_gb, acc_gb_i, noise_mt, data_type, path):
         "tab:gray",
         "tab:olive",
         "tab:cyan",
+        "tab:blue",
+        "tab:red",
+        "tab:green",
     ]
-    line_styles = ["-", "--", "-.", ":", "-", "--", "-."]
+    line_styles = ["-", "--", "-.", ":", "-", "--", "-.", "-", "--", "-.", ":"]
 
     np.savetxt(rf"{path}\proposed_MT_staged_score.csv", acc_mt, delimiter=",")
     np.savetxt(rf"{path}\GB_DataPooling_staged_score.csv", acc_gb, delimiter=",")

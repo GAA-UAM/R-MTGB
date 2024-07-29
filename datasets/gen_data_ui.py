@@ -16,7 +16,7 @@ class data_gen:
 
 if __name__ == "__main__":
 
-    base_dir = "27Jul"
+    base_dir = "28Jul_8tasks_4outliers"
 
     if os.path.exists(base_dir):
         print("a")
