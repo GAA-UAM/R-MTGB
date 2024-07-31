@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix, mean_squared_error
 
 
-colors = ["r", "g", "b", "k", "y"]
+colors = ["orange", "green", "blue", "red", "purple", "brown", "pink", "gray"]
 
 
 def training_score(model_mt, model_st, noise_mt, data_type, path):
@@ -30,6 +30,31 @@ def training_score(model_mt, model_st, noise_mt, data_type, path):
     fig.suptitle(f"Training Evolution")
     fig.tight_layout()
     fig.savefig(rf"{path}\{data_type}_{title}_training_score.png", dpi=400)
+
+
+def training_score_task_specific(model_mt, data_type, path):
+
+    title = "Task_Specific_loss_proposed_MT"
+    np.savetxt(rf"{path}\{title}.csv", model_mt.train_score_r, delimiter=",")
+    fig, axs = plt.subplots(1, 1, figsize=(7, 3))
+
+    for task in range(model_mt.train_score_r.shape[1]):
+        if task > 3:
+            axs.plot(
+                model_mt.train_score_r[:, task],
+                label=f"task {task}",
+                color=colors[task],
+            )
+
+    axs.set_xlabel("Boosting epochs")
+    axs.set_ylabel("Training Score")
+    axs.set_xlabel("Boosting epochs")
+    fig.legend()
+    fig.suptitle(f"Training Evolution - Task Specific")
+    fig.tight_layout()
+    fig.savefig(
+        rf"{path}\{data_type}_{title}_training_score_task_specific.png", dpi=400
+    )
 
 
 def sigmoid_plot(model_mt, title, data_type, path):

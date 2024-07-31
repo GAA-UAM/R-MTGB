@@ -5,6 +5,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 from _test.plots import *
 import pandas as pd
 import warnings
+import tqdm
 import os
 
 warnings.simplefilter("ignore")
@@ -200,7 +201,7 @@ class run:
             )
             mean_squared_error(pred_mt, y_test)
             sigmoid_plot(model_mt, title, data_type, self.path)
-
+            training_score_task_specific(model_mt, data_type, self.path)
         else:
             import sys
 
@@ -318,49 +319,78 @@ def extract_data(path, clf, scenario, train):
 if __name__ == "__main__":
 
     proposed_mtgb = True
-    experiment = "28Jul_8tasks_4outliers_stumps"
-    for clf in [True, False]:
-        for scenario in [1, 2, 3, 4]:
-            for batch in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]:
-                data_path = f"{experiment}\scenario_{scenario}\{batch}"
-                run_exp = run(
-                    max_depth=1,
-                    n_estimators=100,
-                    subsample=0.5,
-                    max_features="sqrt",
-                    learning_rate=0.1,
-                    random_state=111,
-                    es=None,
-                    clf=clf,
-                    path_exp=data_path,
-                    scenario=scenario,
-                )
+    experiment = "28Jul_8tasks_4outliers_stumps_scenario4_only"
+    # scenarios = [1, 2, 3, 4]
+    scenarios = [4]
+    with tqdm.tqdm(total=2, desc="Classifiers", position=0, leave=True) as pbar_clf:
+        for clf in [True, False]:
+            with tqdm.tqdm(
+                total=len(scenarios),
+                desc=f"Scenario 1-4",
+                position=1,
+                leave=True,
+            ) as pbar_scenario:
+                for scenario in scenarios:
+                    with tqdm.tqdm(
+                        total=10,
+                        desc=f"Batch (clf={clf}, scenario={scenario})",
+                        position=2,
+                        leave=True,
+                    ) as pbar_batch:
+                        for batch in [
+                            "1",
+                            "2",
+                            "3",
+                            "4",
+                            "5",
+                            "6",
+                            "7",
+                            "8",
+                            "9",
+                            "10",
+                        ]:
+                            data_path = f"{experiment}\scenario_{scenario}\{batch}"
+                            run_exp = run(
+                                max_depth=1,
+                                n_estimators=100,
+                                subsample=0.5,
+                                max_features="sqrt",
+                                learning_rate=0.1,
+                                random_state=111,
+                                es=None,
+                                clf=clf,
+                                path_exp=data_path,
+                                scenario=scenario,
+                            )
 
-                path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{data_path}"
+                            path = rf"D:\Ph.D\Programming\Py\NoiseAwareBoost\Results\{data_path}"
 
-                df_train = extract_data(path, clf, scenario, True)
-                df_test = extract_data(path, clf, scenario, False)
+                            df_train = extract_data(path, clf, scenario, True)
+                            df_test = extract_data(path, clf, scenario, False)
 
-                x_train, y_train, task_train = data_pre_split(df_train)
-                x_test, y_test, task_test = data_pre_split(df_test)
+                            x_train, y_train, task_train = data_pre_split(df_train)
+                            x_test, y_test, task_test = data_pre_split(df_test)
 
-                if clf:
-                    run_exp.fit_clf(
-                        x_train=x_train,
-                        y_train=y_train,
-                        task_train=task_train,
-                        x_test=x_test,
-                        y_test=y_test,
-                        task_test=task_test,
-                        proposed_mtgb=proposed_mtgb,
-                    )
-                else:
-                    run_exp.fit_reg(
-                        x_train=x_train,
-                        y_train=y_train,
-                        task_train=task_train,
-                        x_test=x_test,
-                        y_test=y_test,
-                        task_test=task_test,
-                        proposed_mtgb=proposed_mtgb,
-                    )
+                            if clf:
+                                run_exp.fit_clf(
+                                    x_train=x_train,
+                                    y_train=y_train,
+                                    task_train=task_train,
+                                    x_test=x_test,
+                                    y_test=y_test,
+                                    task_test=task_test,
+                                    proposed_mtgb=proposed_mtgb,
+                                )
+                            else:
+                                run_exp.fit_reg(
+                                    x_train=x_train,
+                                    y_train=y_train,
+                                    task_train=task_train,
+                                    x_test=x_test,
+                                    y_test=y_test,
+                                    task_test=task_test,
+                                    proposed_mtgb=proposed_mtgb,
+                                )
+                            pbar_batch.update(1)
+                    pbar_scenario.update(1)
+            pbar_clf.update(1)
