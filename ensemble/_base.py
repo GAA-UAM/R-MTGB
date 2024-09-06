@@ -116,15 +116,54 @@ class BaseMTGB(BaseGradientBoosting):
         return neg_g_view
 
     def _task_obj_fun(self, theta, c_h, r_h, y):
-        # w_pred = (sigmoid(theta) * c_h) + ((1 - sigmoid(theta)) * r_h)
-        w_pred = (1 - sigmoid(theta) * c_h) + r_h
+        if r_h.ndim > 1 and not self.is_classifier:
+            r_h = r_h.squeeze()
+            c_h = c_h.squeeze()
+        # As fmin_l_bfgs_b flattens the input parameters into a 1D array
+        if self.is_classifier:
+            theta = theta.reshape(c_h.shape)
+        w_pred = (sigmoid(theta) * c_h) + r_h
         loss = self._aux_loss(y, w_pred, None)
-        gradient = self._aux_loss.negative_gradient(y, w_pred)
-        return loss, np.mean(gradient)
+        grad_c_h = self._aux_loss.negative_gradient(y, (sigmoid(theta) * c_h))
+        # grad_r_h = self._aux_loss.negative_gradient(y, r_h)
+        grad_theta = self._aux_loss.negative_gradient(
+            y, (r_h * sigmoid(theta) * (1 - sigmoid(theta)) * c_h)
+        )
+        """To have a gradient with respect to theta instead of w_pred, we apply the chain rule:
+            d_grad_r_h / d_theta = 0
+            d_grad_c_h / d_theta = c_h * derivative_sigmoid(theta)
+            d_grad_theta / d_theta = r_h * c_h * derivative_sigmoid(theta) * (1-2 * sigmoid(theta))
+            derivative_sigmoid(theta) = sigmoid(theta) * (1-sigmoid(theta)) 
+        """
+
+        def sigmoid_derivative(x):
+            sig_x = sigmoid(x)
+            return sig_x * (1 - sig_x)
+
+        sigma_prime_theta = sigmoid_derivative(theta)
+        gradient_wrt_theta = (
+            c_h
+            * sigma_prime_theta
+            * (grad_c_h + grad_theta * r_h * (1 - 2 * sigmoid(theta)))
+        )
+
+        # self._aux_loss.approx_grad(w_pred, y)
+        if self.is_classifier:
+            gradient_wrt_theta = gradient_wrt_theta.flatten()
+
+        # Print norms of gradients to check for vanishing issues
+        # print(f"Loss: {loss}")
+        # print(f"Grad_c_h norm: {np.linalg.norm(grad_c_h)}")
+        # print(f"Grad_theta norm: {np.linalg.norm(grad_theta)}")
+        # print(f"Sigma_prime_theta norm: {np.linalg.norm(sigma_prime_theta)}")
+        # print(f"Gradient_wrt_theta norm: {np.linalg.norm(gradient_wrt_theta)}")
+
+        return loss, gradient_wrt_theta
 
     def _opt_theta(self, c_h, r_h, y):
 
-        initial_guess = np.random.normal(np.mean(y), np.std(y))
+        # initial_guess = np.random.normal(np.mean(y), np.std(y), size=c_h.shape)
+        initial_guess = np.random.uniform(-1.0, 1.0, c_h.shape)
 
         args = (c_h, r_h, y)
         result = fmin_l_bfgs_b(
@@ -132,7 +171,9 @@ class BaseMTGB(BaseGradientBoosting):
             initial_guess,
             args=args,
             approx_grad=False,
-            maxls=1,
+            maxls=100,
+            factr=1e7,  # Convergence criterion
+            pgtol=1e-5,
         )
         optimized_theta = result[0][0]
         return optimized_theta
@@ -537,7 +578,7 @@ class BaseMTGB(BaseGradientBoosting):
                     sigma = sigmoid(theta)
                     self.sigmoid_[i, r] = sigma
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
-                        (1 - sigma) * raw_predictions_r[idx_r]
+                        raw_predictions_r[idx_r]
                     )
 
                     indices.append(idx_r)
@@ -557,8 +598,12 @@ class BaseMTGB(BaseGradientBoosting):
                 for task in range(self.T):
                     self.train_score_r[i, task] = factor * self._aux_loss(
                         y=y[indices[task]][sample_mask[indices[task]]],
-                        raw_predictions=raw_predictions_r[indices[task]][sample_mask[indices[task]]],
-                        sample_weight=sample_weight_c[indices[task]][sample_mask[indices[task]]],
+                        raw_predictions=raw_predictions_r[indices[task]][
+                            sample_mask[indices[task]]
+                        ],
+                        sample_weight=sample_weight_c[indices[task]][
+                            sample_mask[indices[task]]
+                        ],
                     )
                 self.oob_scores_[i] = factor * self._aux_loss(
                     y=y_oob_masked,

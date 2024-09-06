@@ -95,17 +95,6 @@ class MultiOutputLeastSquaresError:
     def __init__(self):
         self.K = 1
 
-    def get_init_raw_predictions(self, X, estimator):
-        predictions = estimator.predict(X)
-        target_type = type_of_target(y)
-        if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
-            predictions = predictions.reshape(-1, predictions.shape[1]).astype(
-                np.float64
-            )
-        elif target_type == "continuous":
-            predictions = predictions.reshape(-1, 1).astype(np.float64)
-        return predictions
-
     def __call__(self, y, raw_predictions, sample_weight=None):
 
         if sample_weight is None:
@@ -133,10 +122,33 @@ class MultiOutputLeastSquaresError:
     def negative_gradient(self, y, raw_predictions, **kargs):
         target_type = type_of_target(y)
         if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
-            negative_gradient = np.squeeze(y) - raw_predictions
+            negative_gradient = (2 / len(np.squeeze(y))) * (
+                raw_predictions - np.squeeze(y)
+            )
         elif target_type == "continuous":
-            negative_gradient = np.squeeze(y) - raw_predictions.ravel()
+            negative_gradient = (2 / len(np.squeeze(y))) * (
+                raw_predictions.ravel() - np.squeeze(y)
+            )
         return negative_gradient
+    
+    def approx_grad(self, predictions, y):
+        epsilon=1e-3
+        num_params = predictions.size
+        gradient_approx = np.zeros_like(predictions)
+
+        loss = MultiOutputLeastSquaresError()
+        # Compute numerical gradient for each element
+        for i in range(num_params):
+            predictions_plus_epsilon = np.copy(predictions)
+            predictions_plus_epsilon[i] += epsilon
+            
+            loss_original = loss(y, predictions)
+            loss_plus_epsilon = loss(y, predictions_plus_epsilon)
+            
+            # Approximate gradient
+            gradient_approx[i] = (loss_plus_epsilon - loss_original) / epsilon
+
+        return gradient_approx
 
     def update_terminal_regions(
         self,

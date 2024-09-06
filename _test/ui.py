@@ -319,9 +319,8 @@ def extract_data(path, clf, scenario, train):
 if __name__ == "__main__":
 
     proposed_mtgb = True
-    experiment = "28Jul_8tasks_4outliers_stumps_scenario4_only"
-    # scenarios = [1, 2, 3, 4]
-    scenarios = [4]
+    experiment = "04Sep_8tasks_4outliers_stumps_scenario4"
+    scenarios = [1, 2, 3, 4]
     with tqdm.tqdm(total=2, desc="Classifiers", position=0, leave=True) as pbar_clf:
         for clf in [True, False]:
             with tqdm.tqdm(

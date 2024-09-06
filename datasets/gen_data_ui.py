@@ -1,7 +1,7 @@
 # %%
 import os
 import numpy as np
-from func_gen2 import GenerateDataset
+from func_gen import GenerateDataset
 from sklearn.model_selection import train_test_split
 
 
