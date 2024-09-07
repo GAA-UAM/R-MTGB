@@ -35,7 +35,6 @@ class MTGBClassifier(BaseMTGB):
         validation_fraction=0.1,
         ccp_alpha=0.0,
         early_stopping=None,
-        step_size=None,
     ):
         super().__init__(
             loss=loss,
@@ -57,7 +56,6 @@ class MTGBClassifier(BaseMTGB):
             validation_fraction=validation_fraction,
             ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
-            step_size=step_size,
         )
 
     def _encode_y(self, y):
@@ -170,7 +168,6 @@ class MTGBRegressor(BaseMTGB):
         validation_fraction=0.1,
         ccp_alpha=0.0,
         early_stopping=None,
-        step_size=None,
     ):
         super().__init__(
             loss=loss,
@@ -192,7 +189,6 @@ class MTGBRegressor(BaseMTGB):
             validation_fraction=validation_fraction,
             ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
-            step_size=step_size,
         )
 
     def _encode_y(self, y=None):

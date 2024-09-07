@@ -58,7 +58,7 @@ def training_score_task_specific(model_mt, data_type, path):
 
 
 def sigmoid_plot(model_mt, title, data_type, path):
-    num_sigmoids = model_mt.sigmoid_.shape[1]
+    num_sigmoids = model_mt.sigmas_.shape[1]
     fig, axs = plt.subplots(1, num_sigmoids, figsize=(7 * num_sigmoids // 2, 3))
 
     if num_sigmoids == 1:
@@ -68,7 +68,7 @@ def sigmoid_plot(model_mt, title, data_type, path):
 
     for i in range(num_sigmoids):
         axs[i].plot(
-            model_mt.sigmoid_[:, i], label=f"sigmoid_{i}", color=colors[i % len(colors)]
+            model_mt.sigmas_[:, i], label=f"sigma_{i}", color=colors[i % len(colors)]
         )
         axs[i].set_xlabel("Boosting epochs")
         axs[i].set_ylabel("sigmoid value")
@@ -81,9 +81,9 @@ def sigmoid_plot(model_mt, title, data_type, path):
     )
     fig.suptitle(f"sigmoid Evolution")
     fig.tight_layout()
-    fig.savefig(rf"{path}\{title}_{data_type}_sigmoid_ev.png", dpi=400)
+    fig.savefig(rf"{path}\{title}_{data_type}_sigma_.png", dpi=400)
     np.savetxt(
-        rf"{path}\{title}_{data_type}_sigmoid.csv", model_mt.sigmoid_, delimiter=","
+        rf"{path}\{title}_{data_type}_sigmoid.csv", model_mt.sigmas_, delimiter=","
     )
 
 

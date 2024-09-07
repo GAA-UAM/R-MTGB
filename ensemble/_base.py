@@ -70,7 +70,6 @@ class BaseMTGB(BaseGradientBoosting):
         warm_start=False,
         validation_fraction=0.1,
         early_stopping=None,
-        step_size,
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -93,7 +92,6 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
-        self.step_size = step_size
 
     @abstractmethod
     def _encode_y(self, y=None):
@@ -103,17 +101,26 @@ class BaseMTGB(BaseGradientBoosting):
     def _get_loss(self, sample_weight: np.ndarray):
         """Get loss object from sklearn._loss.loss."""
 
-    def _neg_gradient(self, y, raw_predictions: np.ndarray):
-        neg_gradient = y - np.nan_to_num(
-            np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
+    def _neg_gradient(
+        self,
+        y: np.ndarray,
+        raw_predictions: np.ndarray,
+        task_type: str,
+        theta: np.ndarray,
+        k: int,
+        sample_weight: np.ndarray,
+    ):
+
+        if task_type == "common_task":
+            raw_predictions = (sigmoid(theta)) * raw_predictions
+        else:
+            raw_predictions = (1 - sigmoid(theta)) * raw_predictions
+
+        neg_gradient = self._aux_loss.negative_gradient(
+            y, raw_predictions, k=k, sample_weight=sample_weight
         )
 
-        if neg_gradient.ndim == 1:
-            neg_g_view = neg_gradient.reshape((-1, 1))
-        else:
-            neg_g_view = neg_gradient
-
-        return neg_g_view
+        return neg_gradient
 
     def _task_obj_fun(self, theta, c_h, r_h, y):
         if r_h.ndim > 1 and not self.is_classifier:
@@ -122,58 +129,44 @@ class BaseMTGB(BaseGradientBoosting):
         # As fmin_l_bfgs_b flattens the input parameters into a 1D array
         if self.is_classifier:
             theta = theta.reshape(c_h.shape)
-        w_pred = (sigmoid(theta) * c_h) + r_h
+        w_pred = (sigmoid(theta) * c_h) + (1 - sigmoid(theta) * r_h)
         loss = self._aux_loss(y, w_pred, None)
-        grad_c_h = self._aux_loss.negative_gradient(y, (sigmoid(theta) * c_h))
-        # grad_r_h = self._aux_loss.negative_gradient(y, r_h)
+        # Gradient of the loss w.r.t theta (using chain rule)
+        # Apply the chain rule: ∂theta = (∂L/∂w_pred) * (∂w_pred/∂theta)
+        # (∂w_pred/∂theta) = sigmoid(theta) * (1 - sigmoid(theta)) * (c_h - r_h)
         grad_theta = self._aux_loss.negative_gradient(
-            y, (r_h * sigmoid(theta) * (1 - sigmoid(theta)) * c_h)
-        )
-        """To have a gradient with respect to theta instead of w_pred, we apply the chain rule:
-            d_grad_r_h / d_theta = 0
-            d_grad_c_h / d_theta = c_h * derivative_sigmoid(theta)
-            d_grad_theta / d_theta = r_h * c_h * derivative_sigmoid(theta) * (1-2 * sigmoid(theta))
-            derivative_sigmoid(theta) = sigmoid(theta) * (1-sigmoid(theta)) 
-        """
-
-        def sigmoid_derivative(x):
-            sig_x = sigmoid(x)
-            return sig_x * (1 - sig_x)
-
-        sigma_prime_theta = sigmoid_derivative(theta)
-        gradient_wrt_theta = (
-            c_h
-            * sigma_prime_theta
-            * (grad_c_h + grad_theta * r_h * (1 - 2 * sigmoid(theta)))
+            y,
+            (
+                (sigmoid(theta) * c_h)  # ∂L/∂w_pred
+                * (1 - sigmoid(theta) * (c_h - r_h))
+            ),  # ∂w_pred/∂theta
         )
 
         # self._aux_loss.approx_grad(w_pred, y)
         if self.is_classifier:
-            gradient_wrt_theta = gradient_wrt_theta.flatten()
+            grad_theta = grad_theta.flatten()
 
-        # Print norms of gradients to check for vanishing issues
+        # Check for vanishing issues
         # print(f"Loss: {loss}")
         # print(f"Grad_c_h norm: {np.linalg.norm(grad_c_h)}")
         # print(f"Grad_theta norm: {np.linalg.norm(grad_theta)}")
         # print(f"Sigma_prime_theta norm: {np.linalg.norm(sigma_prime_theta)}")
         # print(f"Gradient_wrt_theta norm: {np.linalg.norm(gradient_wrt_theta)}")
 
-        return loss, gradient_wrt_theta
+        return loss #, grad_theta
 
     def _opt_theta(self, c_h, r_h, y):
-
-        # initial_guess = np.random.normal(np.mean(y), np.std(y), size=c_h.shape)
-        initial_guess = np.random.uniform(-1.0, 1.0, c_h.shape)
 
         args = (c_h, r_h, y)
         result = fmin_l_bfgs_b(
             self._task_obj_fun,
-            initial_guess,
+            # np.random.uniform(-1.0, 1.0, c_h.shape),
+            np.zeros_like(c_h),
             args=args,
-            approx_grad=False,
-            maxls=100,
-            factr=1e7,  # Convergence criterion
-            pgtol=1e-5,
+            approx_grad=True,
+            maxls=1,
+            # factr=1e7,  # Convergence criterion
+            # pgtol=1e-5,
         )
         optimized_theta = result[0][0]
         return optimized_theta
@@ -189,14 +182,15 @@ class BaseMTGB(BaseGradientBoosting):
         random_state,
         sample_weight,
         learning_rate,
+        theta,
+        task_type,
         X_csc=None,
         X_csr=None,
     ):
-        raw_predictions_copy = raw_predictions.copy()
         for k in range(self._aux_loss.K):
 
-            residual = self._aux_loss.negative_gradient(
-                y, raw_predictions_copy, k=k, sample_weight=sample_weight
+            neg_gradient = self._neg_gradient(
+                y, raw_predictions, task_type, theta, k, sample_weight
             )
 
             tree = DecisionTreeRegressor(
@@ -217,14 +211,14 @@ class BaseMTGB(BaseGradientBoosting):
                 sample_weight = sample_weight * sample_mask.astype(np.float64)
 
             X = X_csc if X_csc is not None else X
-            tree.fit(X, residual, sample_weight=sample_weight, check_input=False)
+            tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
 
             X_for_tree_update = X_csr if X_csr is not None else X
             rawpredictions = self._aux_loss.update_terminal_regions(
                 tree.tree_,
                 X_for_tree_update,
                 y,
-                residual,
+                neg_gradient,
                 raw_predictions,
                 sample_weight,
                 sample_mask,
@@ -233,7 +227,7 @@ class BaseMTGB(BaseGradientBoosting):
             )
 
             self.estimators_[i, r] = tree
-            self.residual_[i, r] = np.abs(residual).mean()
+            self.residual_[i, r] = np.abs(neg_gradient).mean()
 
         return rawpredictions
 
@@ -258,6 +252,9 @@ class BaseMTGB(BaseGradientBoosting):
 
         self.max_features_ = max_features
 
+    def _init_theta(self, row, col):
+        return np.zeros((self.n_estimators + 1, row, col), dtype=np.float64)
+
     def _init_state(self, y):
         self.init_ = self.init
         if self.init_ is None:
@@ -269,8 +266,15 @@ class BaseMTGB(BaseGradientBoosting):
 
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
         self.residual_ = np.zeros((self.n_estimators, self.T + 1), dtype=np.float32)
-        self.sigmoid_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
-        self._theta = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.sigmas_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        if not self.is_classifier:
+            if y.ndim < 2:
+                y = y[:, np.newaxis]
+            row, col = y.shape
+        elif self.is_classifier:
+            col = len(np.unique(y))
+            row = y.shape[0]
+        self.theta_ = self._init_theta(row, col)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         self.train_score_r = np.zeros((self.n_estimators, self.T), dtype=np.float64)
@@ -408,9 +412,9 @@ class BaseMTGB(BaseGradientBoosting):
         self._loss = self._get_loss(sample_weight=sample_weight)
 
         if self.is_classifier:
-            self._aux_loss = CondensedDeviance(len(set(y_train)))
+            self._aux_loss = CE(len(set(y_train)))
         else:
-            self._aux_loss = MultiOutputLeastSquaresError()
+            self._aux_loss = MSE()
 
         self._init_state(y)
         self._set_max_features()
@@ -445,8 +449,8 @@ class BaseMTGB(BaseGradientBoosting):
             self.estimators_ = self.estimators_[:n_stages]
             self.train_score_ = self.train_score_[:n_stages]
             self.train_score_r = self.train_score_r[:n_stages]
-            self.sigmoid_ = self.sigmoid_[:n_stages]
-            self._theta = self._theta[:n_stages]
+            self.sigmas_ = self.sigmas_[:n_stages]
+            self.theta_ = self.theta_[:n_stages]
             self.residual_ = self.residual_[:n_stages]
             self.n_estimators = n_stages
             if hasattr(self, "oob_improvement_"):
@@ -513,6 +517,9 @@ class BaseMTGB(BaseGradientBoosting):
 
         sample_weight_c = _check_sample_weight(sample_weight, X)
 
+        # Initializing theta.
+        self.theta_[0, :, :] = np.random.uniform(-1.0, 1.0, raw_predictions.shape)
+
         for i in range(0, self.n_estimators):
             # subsampling
             if do_oob:
@@ -537,6 +544,8 @@ class BaseMTGB(BaseGradientBoosting):
                 random_state,
                 sample_weight_c,
                 self.learning_rate,
+                self.theta_[i, :, :],
+                "common_task",
                 X_csc=X_csc,
                 X_csr=X_csr,
             )
@@ -562,6 +571,8 @@ class BaseMTGB(BaseGradientBoosting):
                         random_state,
                         sample_weight_r,
                         self.learning_rate,
+                        self.theta_[i, idx_r, :],
+                        "specific_task",
                         X_csc=X_csc,
                         X_csr=X_csr,
                     )
@@ -572,11 +583,9 @@ class BaseMTGB(BaseGradientBoosting):
                         y_r,
                     )
 
-                    theta = theta * self.step_size
-
-                    self._theta[i, r] = theta
+                    self.theta_[i + 1, idx_r, :] = theta
                     sigma = sigmoid(theta)
-                    self.sigmoid_[i, r] = sigma
+                    self.sigmas_[i, r] = sigma
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         raw_predictions_r[idx_r]
                     )
@@ -718,11 +727,11 @@ class BaseMTGB(BaseGradientBoosting):
                     tree = estimators_[i, r + 1]
                     idx_r = t == r_label
                     X_r = X[idx_r]
-                    sigma = sigmoid(self._theta[i, r])
                     raw_predictions_r[idx_r] = tree.predict(X_r)
-                    predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
-                        (1 - sigma) * raw_predictions_r[idx_r]
-                    )
+                    predictions[idx_r] = (
+                        self.sigmas_[i, r] * raw_predictions_c[idx_r]
+                    ) + (1 - self.sigmas_[i, r] * raw_predictions_r[idx_r])
+
                 raw_predictions += self.learning_rate * predictions
 
         # Single task learning.
@@ -766,11 +775,10 @@ class BaseMTGB(BaseGradientBoosting):
                     idx_r = t == r_label
                     X_r = X[idx_r]
 
-                    sigma = sigmoid(self._theta[i, r])
                     raw_predictions_r[idx_r] = tree.predict(X_r)
-                    predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
-                        (1 - sigma) * raw_predictions_r[idx_r]
-                    )
+                    predictions[idx_r] = (
+                        self.sigmas_[i, r] * raw_predictions_c[idx_r]
+                    ) + (1 - self.sigmas_[i, r] * raw_predictions_r[idx_r])
                 raw_predictions += self.learning_rate * predictions
 
                 yield raw_predictions.copy()

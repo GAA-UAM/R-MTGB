@@ -6,7 +6,7 @@ from sklearn.utils.multiclass import type_of_target
 TREE_LEAF = _tree.TREE_LEAF
 
 
-class CondensedDeviance:
+class CE:
     def __init__(self, n_classes_):
         self.K = 1
         self.n_classes_ = n_classes_
@@ -90,7 +90,7 @@ class CondensedDeviance:
         )
 
 
-class MultiOutputLeastSquaresError:
+class MSE:
 
     def __init__(self):
         self.K = 1
@@ -99,9 +99,9 @@ class MultiOutputLeastSquaresError:
 
         if sample_weight is None:
             try:
-                init = np.mean((y - raw_predictions.ravel()) ** 2)
+                init = 0.5 * np.sum((y - raw_predictions.ravel()) ** 2)
             except:
-                init = np.mean((y - raw_predictions) ** 2)
+                init = 0.5 * np.sum((y - raw_predictions) ** 2)
         else:
             target_type = type_of_target(y)
             if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
@@ -122,29 +122,27 @@ class MultiOutputLeastSquaresError:
     def negative_gradient(self, y, raw_predictions, **kargs):
         target_type = type_of_target(y)
         if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
-            negative_gradient = (2 / len(np.squeeze(y))) * (
-                raw_predictions - np.squeeze(y)
-            )
+            negative_gradient = raw_predictions - np.squeeze(y)
+
         elif target_type == "continuous":
-            negative_gradient = (2 / len(np.squeeze(y))) * (
-                raw_predictions.ravel() - np.squeeze(y)
-            )
+            negative_gradient = raw_predictions.ravel() - np.squeeze(y)
+
         return negative_gradient
-    
+
     def approx_grad(self, predictions, y):
-        epsilon=1e-3
+        epsilon = 1e-3
         num_params = predictions.size
         gradient_approx = np.zeros_like(predictions)
 
-        loss = MultiOutputLeastSquaresError()
+        loss = MSE()
         # Compute numerical gradient for each element
         for i in range(num_params):
             predictions_plus_epsilon = np.copy(predictions)
             predictions_plus_epsilon[i] += epsilon
-            
+
             loss_original = loss(y, predictions)
             loss_plus_epsilon = loss(y, predictions_plus_epsilon)
-            
+
             # Approximate gradient
             gradient_approx[i] = (loss_plus_epsilon - loss_original) / epsilon
 
