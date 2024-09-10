@@ -153,17 +153,17 @@ class BaseMTGB(BaseGradientBoosting):
         # print(f"Sigma_prime_theta norm: {np.linalg.norm(sigma_prime_theta)}")
         # print(f"Gradient_wrt_theta norm: {np.linalg.norm(gradient_wrt_theta)}")
 
-        return loss #, grad_theta
+        return loss, grad_theta
 
     def _opt_theta(self, c_h, r_h, y):
 
         args = (c_h, r_h, y)
         result = fmin_l_bfgs_b(
             self._task_obj_fun,
-            # np.random.uniform(-1.0, 1.0, c_h.shape),
-            np.zeros_like(c_h),
+            np.random.uniform(-1.0, 1.0, c_h.shape),
+            # np.zeros_like(c_h),
             args=args,
-            approx_grad=True,
+            approx_grad=False,
             maxls=1,
             # factr=1e7,  # Convergence criterion
             # pgtol=1e-5,
