@@ -55,7 +55,7 @@ class CE:
 
         return raw_predictions
 
-    def negative_gradient(self, y, raw_predictions, k=0, **kwargs):
+    def negative_gradient(self, y, raw_predictions, **kwargs):
 
         return y - np.nan_to_num(
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
@@ -108,12 +108,14 @@ class MSE:
                 init = (
                     1
                     / sample_weight.sum()
+                    * 0.5
                     * np.sum(sample_weight[:, None] * ((y - raw_predictions) ** 2))
                 )
             elif target_type == "continuous":
                 init = (
                     1
                     / sample_weight.sum()
+                    * 0.5
                     * np.sum(sample_weight * ((y - raw_predictions.ravel()) ** 2))
                 )
 
@@ -122,12 +124,34 @@ class MSE:
     def negative_gradient(self, y, raw_predictions, **kargs):
         target_type = type_of_target(y)
         if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
-            negative_gradient = raw_predictions - np.squeeze(y)
+            neg_gradient = np.squeeze(y) - raw_predictions
 
         elif target_type == "continuous":
-            negative_gradient = raw_predictions.ravel() - np.squeeze(y)
+            neg_gradient = np.squeeze(y) - raw_predictions.ravel()
 
-        return negative_gradient
+        return neg_gradient
+
+    def negative_gradient_thetaّ(
+        self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
+    ):
+        target_type = type_of_target(y)
+        if (
+            not target_type in ["continuous-multioutput", "multiclass-multioutput"]
+            and target_type == "continuous"
+        ):
+            raw_predictions_common, raw_predictions_common_specific = (
+                raw_predictions_common.ravel(),
+                raw_predictions_common_specific.ravel(),
+            )
+
+            neg_gradient = (
+                (np.squeeze(y) - raw_predictions_common)
+                * (sigmoid)
+                * (1 - sigmoid)
+                * (raw_predictions_common - raw_predictions_common_specific)
+            )
+
+        return neg_gradient
 
     def approx_grad(self, predictions, y):
         epsilon = 1e-3

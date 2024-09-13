@@ -63,6 +63,7 @@ class run:
                 random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
+                step_size = 0.25
             )
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)
             pred_mt = model_mt.predict(
@@ -191,6 +192,7 @@ class run:
                 random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
+                step_size = 0.25
             )
 
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)

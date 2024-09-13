@@ -70,6 +70,7 @@ class BaseMTGB(BaseGradientBoosting):
         warm_start=False,
         validation_fraction=0.1,
         early_stopping=None,
+        step_size = 1
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -92,6 +93,7 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
+        self.step_size = step_size
 
     @abstractmethod
     def _encode_y(self, y=None):
@@ -107,18 +109,26 @@ class BaseMTGB(BaseGradientBoosting):
         raw_predictions: np.ndarray,
         task_type: str,
         theta: np.ndarray,
-        k: int,
-        sample_weight: np.ndarray,
     ):
 
-        if task_type == "common_task":
-            raw_predictions = (sigmoid(theta)) * raw_predictions
-        else:
-            raw_predictions = (1 - sigmoid(theta)) * raw_predictions
-
         neg_gradient = self._aux_loss.negative_gradient(
-            y, raw_predictions, k=k, sample_weight=sample_weight
+            y,
+            raw_predictions,
         )
+
+        sigma = sigmoid(theta)
+        target_type = type_of_target(y)
+        if (
+            sigma.ndim > 1
+            and not self.is_classifier
+            and target_type not in {"continuous-multioutput", "multiclass-multioutput"}
+        ):
+            sigma = sigma.squeeze()
+
+        if task_type == "common_task":
+            neg_gradient = sigma * neg_gradient
+        else:
+            neg_gradient = (1 - sigma) * neg_gradient
 
         return neg_gradient
 
@@ -134,24 +144,10 @@ class BaseMTGB(BaseGradientBoosting):
         # Gradient of the loss w.r.t theta (using chain rule)
         # Apply the chain rule: ∂theta = (∂L/∂w_pred) * (∂w_pred/∂theta)
         # (∂w_pred/∂theta) = sigmoid(theta) * (1 - sigmoid(theta)) * (c_h - r_h)
-        grad_theta = self._aux_loss.negative_gradient(
-            y,
-            (
-                (sigmoid(theta) * c_h)  # ∂L/∂w_pred
-                * (1 - sigmoid(theta) * (c_h - r_h))
-            ),  # ∂w_pred/∂theta
-        )
+        grad_theta = self._aux_loss.negative_gradient_thetaّ(y, c_h, r_h, sigmoid(theta))
 
-        # self._aux_loss.approx_grad(w_pred, y)
         if self.is_classifier:
             grad_theta = grad_theta.flatten()
-
-        # Check for vanishing issues
-        # print(f"Loss: {loss}")
-        # print(f"Grad_c_h norm: {np.linalg.norm(grad_c_h)}")
-        # print(f"Grad_theta norm: {np.linalg.norm(grad_theta)}")
-        # print(f"Sigma_prime_theta norm: {np.linalg.norm(sigma_prime_theta)}")
-        # print(f"Gradient_wrt_theta norm: {np.linalg.norm(gradient_wrt_theta)}")
 
         return loss, grad_theta
 
@@ -161,7 +157,6 @@ class BaseMTGB(BaseGradientBoosting):
         result = fmin_l_bfgs_b(
             self._task_obj_fun,
             np.random.uniform(-1.0, 1.0, c_h.shape),
-            # np.zeros_like(c_h),
             args=args,
             approx_grad=False,
             maxls=1,
@@ -189,9 +184,7 @@ class BaseMTGB(BaseGradientBoosting):
     ):
         for k in range(self._aux_loss.K):
 
-            neg_gradient = self._neg_gradient(
-                y, raw_predictions, task_type, theta, k, sample_weight
-            )
+            neg_gradient = self._neg_gradient(y, raw_predictions, task_type, theta)
 
             tree = DecisionTreeRegressor(
                 criterion=self.criterion,
@@ -227,7 +220,7 @@ class BaseMTGB(BaseGradientBoosting):
             )
 
             self.estimators_[i, r] = tree
-            self.residual_[i, r] = np.abs(neg_gradient).mean()
+            self.residual_[i, r] = np.abs(neg_gradient).mean(axis=0)
 
         return rawpredictions
 
@@ -252,8 +245,8 @@ class BaseMTGB(BaseGradientBoosting):
 
         self.max_features_ = max_features
 
-    def _init_theta(self, row, col):
-        return np.zeros((self.n_estimators + 1, row, col), dtype=np.float64)
+    def _init_theta(self, num_rows, num_cols):
+        return np.zeros((self.n_estimators + 1, num_rows, num_cols), dtype=np.float64)
 
     def _init_state(self, y):
         self.init_ = self.init
@@ -270,11 +263,11 @@ class BaseMTGB(BaseGradientBoosting):
         if not self.is_classifier:
             if y.ndim < 2:
                 y = y[:, np.newaxis]
-            row, col = y.shape
+            num_rows, num_cols = y.shape
         elif self.is_classifier:
-            col = len(np.unique(y))
-            row = y.shape[0]
-        self.theta_ = self._init_theta(row, col)
+            num_cols = len(np.unique(y))
+            num_rows = y.shape[0]
+        self.theta_ = self._init_theta(num_rows, num_cols)
 
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         self.train_score_r = np.zeros((self.n_estimators, self.T), dtype=np.float64)
@@ -584,10 +577,10 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     self.theta_[i + 1, idx_r, :] = theta
-                    sigma = sigmoid(theta)
+                    sigma = sigmoid(theta) * self.step_size
                     self.sigmas_[i, r] = sigma
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
-                        raw_predictions_r[idx_r]
+                        (1 - sigma) * raw_predictions_r[idx_r]
                     )
 
                     indices.append(idx_r)
