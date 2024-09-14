@@ -143,25 +143,10 @@ class BaseMTGB(BaseGradientBoosting):
         w_pred = (sigmoid(theta) * c_h) + ((1 - sigmoid(theta)) * r_h)
         loss = self._aux_loss(y, w_pred, None)
 
-        # L2 regularization
-        # penalizing rapid changes between consecutive theta values.
-        # regularization_term = self.step_size * np.sum(
-        #     np.diff(theta) ** 2
-        # )  # Smoothness penalty (second-order difference)
-        # loss += regularization_term
-
         # Gradient of the loss w.r.t theta (using chain rule)
         # Apply the chain rule: ∂theta = (∂L/∂w_pred) * (∂w_pred/∂theta)
         # (∂w_pred/∂theta) = sigmoid(theta) * (1 - sigmoid(theta)) * (c_h - r_h)
         grad_theta = self._aux_loss.negative_gradient_theta(y, c_h, r_h, sigmoid(theta))
-
-        # L2 regularization
-        # grad_reg = (
-        #     -2
-        #     * self.step_size
-        #     * (np.diff(np.hstack(([0], theta))) - np.diff(np.hstack((theta, [0]))))
-        # )
-        # grad_theta += grad_reg
 
         if self.is_classifier:
             grad_theta = grad_theta.flatten()
@@ -238,7 +223,7 @@ class BaseMTGB(BaseGradientBoosting):
             )
 
             self.estimators_[i, r] = tree
-            self.residual_[i, r] = np.abs(neg_gradient).mean(axis=0)
+            # self.residual_[i, r] = np.abs(neg_gradient).mean(axis=0)
 
         return rawpredictions
 
@@ -594,7 +579,7 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     self.theta_[i + 1, idx_r, :] = theta
-                    sigma = sigmoid(theta) * 1
+                    sigma = sigmoid(theta) * self.step_size
                     self.sigmas_[i, r] = sigma
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         (1 - sigma) * raw_predictions_r[idx_r]
