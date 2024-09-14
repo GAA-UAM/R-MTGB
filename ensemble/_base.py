@@ -223,7 +223,7 @@ class BaseMTGB(BaseGradientBoosting):
             )
 
             self.estimators_[i, r] = tree
-            # self.residual_[i, r] = np.abs(neg_gradient).mean(axis=0)
+            self.residual_[i, r, :] = np.abs(neg_gradient).mean(axis=0)
 
         return rawpredictions
 
@@ -261,7 +261,6 @@ class BaseMTGB(BaseGradientBoosting):
                 self.init_ = DummyRegressor(strategy="mean")
 
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
-        self.residual_ = np.zeros((self.n_estimators, self.T + 1), dtype=np.float32)
         self.sigmas_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         if not self.is_classifier:
             if y.ndim < 2:
@@ -272,6 +271,9 @@ class BaseMTGB(BaseGradientBoosting):
             num_rows = y.shape[0]
         self.theta_ = self._init_theta(num_rows, num_cols)
 
+        self.residual_ = np.zeros(
+            (self.n_estimators, self.T + 1, num_cols), dtype=np.float32
+        )
         self.train_score_ = np.zeros((self.n_estimators,), dtype=np.float64)
         self.train_score_r = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         if self.subsample < 1.0:
@@ -411,7 +413,7 @@ class BaseMTGB(BaseGradientBoosting):
         else:
             self._aux_loss = MSE()
 
-        self._init_state(y)
+        self._init_state(y_train)
         self._set_max_features()
 
         if self.init_ == "zero":
@@ -470,6 +472,60 @@ class BaseMTGB(BaseGradientBoosting):
             return y
         return y
 
+    def _track_loss(
+        self,
+        do_oob,
+        factor,
+        i,
+        r,
+        y,
+        sample_mask,
+        sample_weight,
+        raw_predictions,
+        raw_predictions_r,
+        initial_loss,
+    ):
+        if do_oob:
+            y_oob_masked = y[~sample_mask]
+            if raw_predictions_r is None:
+                self.train_score_[i] = factor * self._aux_loss(
+                    y=y[sample_mask],
+                    raw_predictions=raw_predictions[sample_mask],
+                    sample_weight=sample_weight[sample_mask],
+                )
+
+                self.oob_scores_[i] = factor * self._aux_loss(
+                    y=y_oob_masked,
+                    raw_predictions=raw_predictions[~sample_mask],
+                    sample_weight=sample_weight[~sample_mask],
+                )
+
+                previous_loss = initial_loss if i == 0 else self.oob_scores_[i - 1]
+                self.oob_improvement_[i] = previous_loss - self.oob_scores_[i]
+                self.oob_score_ = self.oob_scores_[-1]
+
+            elif raw_predictions_r.any():
+
+                self.train_score_r[i, r] = factor * self._aux_loss(
+                    y=y[sample_mask],
+                    raw_predictions=raw_predictions_r[sample_mask],
+                    sample_weight=sample_weight[sample_mask],
+                )
+
+        else:
+            if raw_predictions_r is None:
+                self.train_score_[i] = factor * self._aux_loss(
+                    y=y,
+                    raw_predictions=raw_predictions,
+                    sample_weight=sample_weight,
+                )
+            elif raw_predictions_r.any():
+                self.train_score_r[i, r] = factor * self._aux_loss(
+                    y=y,
+                    raw_predictions=raw_predictions_r,
+                    sample_weight=sample_weight,
+                )
+
     def _fit_stages(
         self,
         X,
@@ -515,8 +571,13 @@ class BaseMTGB(BaseGradientBoosting):
         # Initializing theta.
         self.theta_[0, :, :] = np.random.uniform(-1.0, 1.0, raw_predictions.shape)
 
+        # TODO: Temporarily - Just for debugging purposes.
+        self.train_score_ch = np.zeros_like(self.train_score_r)
+        self.train_score_rh = np.zeros_like(self.train_score_r)
+        self.train_score_final = np.zeros_like(self.train_score_r)
+
         for i in range(0, self.n_estimators):
-            # subsampling
+            # subsampling.
             if do_oob:
                 sample_mask = _random_sample_mask(n_samples, n_inbag, random_state)
                 y_oob_masked = y[~sample_mask]
@@ -527,8 +588,15 @@ class BaseMTGB(BaseGradientBoosting):
                         raw_predictions=raw_predictions[~sample_mask],
                         sample_weight=sample_weight_oob_masked,
                     )
+            else:
+                if i == 0:  # storing the initial loss to compute the OOB score.
+                    initial_loss = factor * self._aux_loss(
+                        y=y,
+                        raw_predictions=raw_predictions,
+                        sample_weight=sample_weight_c,
+                    )
 
-            # Common task.
+            # Common task
             raw_predictions_c = self._fit_stage(
                 i,
                 0,
@@ -545,8 +613,20 @@ class BaseMTGB(BaseGradientBoosting):
                 X_csr=X_csr,
             )
 
-            # Task specific.
-            indices = []
+            self._track_loss(
+                do_oob,
+                factor,
+                i,
+                None,
+                y,
+                sample_mask,
+                sample_weight_c,
+                raw_predictions_c,
+                None,
+                initial_loss,
+            )
+
+            # Task specific
             if self.tasks_dic != None:
                 predictions = np.zeros_like(raw_predictions.copy())
                 raw_predictions_r = np.zeros_like(raw_predictions.copy())
@@ -585,50 +665,26 @@ class BaseMTGB(BaseGradientBoosting):
                         (1 - sigma) * raw_predictions_r[idx_r]
                     )
 
-                    indices.append(idx_r)
+                    # TODO: Temporarily - Just for debugging purposes.
+                    self.train_score_ch[i, r] = factor * self._aux_loss(
+                        y=y_r,
+                        raw_predictions=raw_predictions_c[idx_r],
+                        sample_weight=sample_weight_r,
+                    )
+                    self.train_score_rh[i, r] = factor * self._aux_loss(
+                        y=y_r,
+                        raw_predictions=raw_predictions_r[idx_r],
+                        sample_weight=sample_weight_r,
+                    )
+                    self.train_score_final[i, r] = factor * self._aux_loss(
+                        y=y_r,
+                        raw_predictions=predictions[idx_r],
+                        sample_weight=sample_weight_r,
+                    )
 
             else:
                 predictions = raw_predictions_c
             raw_predictions = predictions
-
-            # track loss
-            if do_oob:
-                self.train_score_[i] = factor * self._aux_loss(
-                    y=y[sample_mask],
-                    raw_predictions=raw_predictions[sample_mask],
-                    sample_weight=sample_weight_c[sample_mask],
-                )
-
-                for task in range(self.T):
-                    self.train_score_r[i, task] = factor * self._aux_loss(
-                        y=y[indices[task]][sample_mask[indices[task]]],
-                        raw_predictions=raw_predictions_r[indices[task]][
-                            sample_mask[indices[task]]
-                        ],
-                        sample_weight=sample_weight_c[indices[task]][
-                            sample_mask[indices[task]]
-                        ],
-                    )
-                self.oob_scores_[i] = factor * self._aux_loss(
-                    y=y_oob_masked,
-                    raw_predictions=raw_predictions[~sample_mask],
-                    sample_weight=sample_weight_c[~sample_mask],
-                )
-                previous_loss = initial_loss if i == 0 else self.oob_scores_[i - 1]
-                self.oob_improvement_[i] = previous_loss - self.oob_scores_[i]
-                self.oob_score_ = self.oob_scores_[-1]
-            else:
-                self.train_score_[i] = factor * self._aux_loss(
-                    y=y,
-                    raw_predictions=raw_predictions,
-                    sample_weight=sample_weight_c,
-                )
-                for task in range(self.T):
-                    self.train_score_r[i, task] = factor * self._aux_loss(
-                        y=y[indices[task]],
-                        raw_predictions=raw_predictions_r[indices[task]],
-                        sample_weight=sample_weight_c[indices[task]],
-                    )
 
             if self.early_stopping is not None and i > 0:
                 validation_loss = factor * self._aux_loss(
@@ -639,6 +695,20 @@ class BaseMTGB(BaseGradientBoosting):
                     loss_history[i % len(loss_history)] = validation_loss
                 else:
                     break
+
+            self._track_loss(
+                do_oob,
+                factor,
+                i,
+                r,
+                y_r,
+                sample_mask[idx_r],
+                sample_weight_r,
+                None,
+                predictions[idx_r],
+                None,
+            )
+
         return i + 1
 
     def _raw_predict_init(self, X: np.ndarray, task_info=None) -> np.ndarray:
