@@ -63,7 +63,7 @@ class run:
                 random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
-                step_size = 0.25
+                step_size=0.1,
             )
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)
             pred_mt = model_mt.predict(
@@ -192,7 +192,7 @@ class run:
                 random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
-                step_size = 0.25
+                step_size=0.1,
             )
 
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)
@@ -319,7 +319,7 @@ def extract_data(path, clf, scenario, train):
 if __name__ == "__main__":
 
     proposed_mtgb = True
-    experiment = "04Sep_8tasks_4outliers_stumps_scenario4"
+    experiment = "Dataset path"
     scenarios = [1, 2, 3, 4]
     with tqdm.tqdm(total=2, desc="Classifiers", position=0, leave=True) as pbar_clf:
         for clf in [True, False]:

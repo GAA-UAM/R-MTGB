@@ -136,15 +136,32 @@ class BaseMTGB(BaseGradientBoosting):
         if r_h.ndim > 1 and not self.is_classifier:
             r_h = r_h.squeeze()
             c_h = c_h.squeeze()
-        # As fmin_l_bfgs_b flattens the input parameters into a 1D array
+        # As fmin_l_bfgs_b flattens the input
+        # parameters into a 1D array.
         if self.is_classifier:
             theta = theta.reshape(c_h.shape)
         w_pred = (sigmoid(theta) * c_h) + ((1 - sigmoid(theta)) * r_h)
         loss = self._aux_loss(y, w_pred, None)
+
+        # L2 regularization
+        # penalizing rapid changes between consecutive theta values.
+        # regularization_term = self.step_size * np.sum(
+        #     np.diff(theta) ** 2
+        # )  # Smoothness penalty (second-order difference)
+        # loss += regularization_term
+
         # Gradient of the loss w.r.t theta (using chain rule)
         # Apply the chain rule: ∂theta = (∂L/∂w_pred) * (∂w_pred/∂theta)
         # (∂w_pred/∂theta) = sigmoid(theta) * (1 - sigmoid(theta)) * (c_h - r_h)
-        grad_theta = self._aux_loss.negative_gradient_thetaّ(y, c_h, r_h, sigmoid(theta))
+        grad_theta = self._aux_loss.negative_gradient_theta(y, c_h, r_h, sigmoid(theta))
+
+        # L2 regularization
+        # grad_reg = (
+        #     -2
+        #     * self.step_size
+        #     * (np.diff(np.hstack(([0], theta))) - np.diff(np.hstack((theta, [0]))))
+        # )
+        # grad_theta += grad_reg
 
         if self.is_classifier:
             grad_theta = grad_theta.flatten()
@@ -156,12 +173,13 @@ class BaseMTGB(BaseGradientBoosting):
         args = (c_h, r_h, y)
         result = fmin_l_bfgs_b(
             self._task_obj_fun,
-            np.random.uniform(-1.0, 1.0, c_h.shape),
+            # np.random.uniform(-1.0, 1.0, c_h.shape),
+            np.random.normal(0, 0.1, c_h.shape),
             args=args,
             approx_grad=False,
             maxls=1,
-            # factr=1e7,  # Convergence criterion
-            # pgtol=1e-5,
+            factr=1e7,  # Convergence criterion
+            pgtol=1e-5,
         )
         optimized_theta = result[0][0]
         return optimized_theta
@@ -333,7 +351,6 @@ class BaseMTGB(BaseGradientBoosting):
         )
 
         if self.is_classifier:
-
             # Check for missing classes in y_val
             unique_classes = np.unique(y)
             missing_classes = np.setdiff1d(unique_classes, np.unique(y_val))
@@ -577,7 +594,7 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     self.theta_[i + 1, idx_r, :] = theta
-                    sigma = sigmoid(theta) * self.step_size
+                    sigma = sigmoid(theta) * 1
                     self.sigmas_[i, r] = sigma
                     predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         (1 - sigma) * raw_predictions_r[idx_r]

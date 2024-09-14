@@ -64,6 +64,24 @@ class CE:
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
+    def negative_gradient_theta(
+        self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
+    ):
+        dH_dtheta = (
+            sigmoid
+            * (1 - sigmoid)
+            * (raw_predictions_common - raw_predictions_common_specific)
+        )
+        H = (
+            sigmoid * raw_predictions_common
+            + (1 - sigmoid) * raw_predictions_common_specific
+        )
+        dL_dH = y - np.nan_to_num(np.exp(H - logsumexp(H, axis=1, keepdims=True)))
+
+        neg_gradient = np.sum(dL_dH * dH_dtheta, axis=1)
+
+        return neg_gradient
+
     def _update_terminal_region(
         self,
         tree,
@@ -136,7 +154,7 @@ class MSE:
 
         return neg_gradient
 
-    def negative_gradient_thetaّ(
+    def negative_gradient_theta(
         self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
     ):
         target_type = type_of_target(y)
@@ -149,12 +167,15 @@ class MSE:
                 raw_predictions_common_specific.ravel(),
             )
 
-            neg_gradient = (
-                (np.squeeze(y) - raw_predictions_common)
-                * (sigmoid)
+            dH_dtheta = (
+                sigmoid
                 * (1 - sigmoid)
                 * (raw_predictions_common - raw_predictions_common_specific)
             )
+
+            H = np.squeeze(y) - raw_predictions_common
+
+            neg_gradient = H * dH_dtheta
 
         return neg_gradient
 
