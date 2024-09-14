@@ -70,7 +70,7 @@ class BaseMTGB(BaseGradientBoosting):
         warm_start=False,
         validation_fraction=0.1,
         early_stopping=None,
-        step_size = 1
+        step_size=1
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -139,7 +139,7 @@ class BaseMTGB(BaseGradientBoosting):
         # As fmin_l_bfgs_b flattens the input parameters into a 1D array
         if self.is_classifier:
             theta = theta.reshape(c_h.shape)
-        w_pred = (sigmoid(theta) * c_h) + (1 - sigmoid(theta) * r_h)
+        w_pred = (sigmoid(theta) * c_h) + ((1 - sigmoid(theta)) * r_h)
         loss = self._aux_loss(y, w_pred, None)
         # Gradient of the loss w.r.t theta (using chain rule)
         # Apply the chain rule: ∂theta = (∂L/∂w_pred) * (∂w_pred/∂theta)
@@ -723,7 +723,9 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions_r[idx_r] = tree.predict(X_r)
                     predictions[idx_r] = (
                         self.sigmas_[i, r] * raw_predictions_c[idx_r]
-                    ) + (1 - self.sigmas_[i, r] * raw_predictions_r[idx_r])
+                    ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
+
+                    del tree
 
                 raw_predictions += self.learning_rate * predictions
 
@@ -771,7 +773,7 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions_r[idx_r] = tree.predict(X_r)
                     predictions[idx_r] = (
                         self.sigmas_[i, r] * raw_predictions_c[idx_r]
-                    ) + (1 - self.sigmas_[i, r] * raw_predictions_r[idx_r])
+                    ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
                 raw_predictions += self.learning_rate * predictions
 
                 yield raw_predictions.copy()

@@ -7,6 +7,9 @@ TREE_LEAF = _tree.TREE_LEAF
 
 
 class CE:
+    """Cross Entropy Loss function designed
+    for binary and multiclass classification"""
+
     def __init__(self, n_classes_):
         self.K = 1
         self.n_classes_ = n_classes_
@@ -91,6 +94,8 @@ class CE:
 
 
 class MSE:
+    """Mean Squared Error function designed
+    for single and multi-output regression."""
 
     def __init__(self):
         self.K = 1
