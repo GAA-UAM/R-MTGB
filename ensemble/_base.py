@@ -126,8 +126,12 @@ class BaseMTGB(BaseGradientBoosting):
             sigma = sigma.squeeze()
 
         if task_type == "common_task":
+            # ∂L/∂c_h = (∂L/∂H).(∂pred/∂c_h)
+            # H = w_pred
             neg_gradient = sigma * neg_gradient
         else:
+            # ∂L/∂r_h= (∂L/∂H).(∂pred/∂r_h)
+            # H = w_pred
             neg_gradient = (1 - sigma) * neg_gradient
 
         return neg_gradient
@@ -136,16 +140,13 @@ class BaseMTGB(BaseGradientBoosting):
         if r_h.ndim > 1 and not self.is_classifier:
             r_h = r_h.squeeze()
             c_h = c_h.squeeze()
-        # As fmin_l_bfgs_b flattens the input
-        # parameters into a 1D array.
+        # fmin_l_bfgs_b flattens the
+        # parameter into a 1D array.
         if self.is_classifier:
             theta = theta.reshape(c_h.shape)
         w_pred = (sigmoid(theta) * c_h) + ((1 - sigmoid(theta)) * r_h)
         loss = self._aux_loss(y, w_pred, None)
 
-        # Gradient of the loss w.r.t theta (using chain rule)
-        # Apply the chain rule: ∂theta = (∂L/∂w_pred) * (∂w_pred/∂theta)
-        # (∂w_pred/∂theta) = sigmoid(theta) * (1 - sigmoid(theta)) * (c_h - r_h)
         grad_theta = self._aux_loss.negative_gradient_theta(y, c_h, r_h, sigmoid(theta))
 
         if self.is_classifier:
@@ -158,7 +159,6 @@ class BaseMTGB(BaseGradientBoosting):
         args = (c_h, r_h, y)
         result = fmin_l_bfgs_b(
             self._task_obj_fun,
-            # np.random.uniform(-1.0, 1.0, c_h.shape),
             np.random.normal(0, 0.1, c_h.shape),
             args=args,
             approx_grad=False,

@@ -67,6 +67,11 @@ class CE:
     def negative_gradient_theta(
         self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
     ):
+
+        # chain rule
+        # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
+        # H = w_pred
+
         dH_dtheta = (
             sigmoid
             * (1 - sigmoid)
@@ -78,7 +83,7 @@ class CE:
         )
         dL_dH = y - np.nan_to_num(np.exp(H - logsumexp(H, axis=1, keepdims=True)))
 
-        neg_gradient = np.sum(dL_dH * dH_dtheta, axis=1)
+        neg_gradient = dL_dH * dH_dtheta
 
         return neg_gradient
 
@@ -157,6 +162,11 @@ class MSE:
     def negative_gradient_theta(
         self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
     ):
+
+        # chain rule
+        # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
+        # H = w_pred
+
         target_type = type_of_target(y)
         if (
             not target_type in ["continuous-multioutput", "multiclass-multioutput"]
