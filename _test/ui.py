@@ -352,7 +352,7 @@ if __name__ == "__main__":
                             run_exp = run(
                                 max_depth=1,
                                 n_estimators=100,
-                                subsample=0.5,
+                                subsample=1,
                                 max_features="sqrt",
                                 learning_rate=0.1,
                                 random_state=111,

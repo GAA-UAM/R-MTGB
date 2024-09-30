@@ -167,7 +167,7 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=4
+        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=1
     ):
 
         while True:
