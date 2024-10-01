@@ -18,7 +18,6 @@ from scipy.optimize import fmin_l_bfgs_b
 from sklearn.utils import check_random_state
 from sklearn.base import _fit_context
 from sklearn.utils.validation import check_is_fitted
-from scipy.sparse import csc_matrix, csr_matrix, issparse
 from sklearn.ensemble._gradient_boosting import (
     _random_sample_mask,
 )
@@ -210,7 +209,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
 
-            raw_predictions = self._aux_loss.update_terminal_regions(
+            raw_prediction = self._aux_loss.update_terminal_regions(
                 tree.tree_,
                 X,
                 y,
@@ -225,7 +224,7 @@ class BaseMTGB(BaseGradientBoosting):
             self.estimators_[i, r] = tree
             self.residual_[i, r, :] = np.abs(neg_gradient).mean(axis=0)
 
-        return raw_predictions
+        return raw_prediction
 
     def _set_max_features(self):
         """Set self.max_features_."""
@@ -248,7 +247,9 @@ class BaseMTGB(BaseGradientBoosting):
 
         self.max_features_ = max_features
 
-    def _fit_initial_model(self, X, y):
+    def _fit_initial_model(self, X, y, r):
+        if self.init_:
+            del self.init_
         self.init_ = self.init
         if self.init_ is None:
             if self.is_classifier:
@@ -256,10 +257,12 @@ class BaseMTGB(BaseGradientBoosting):
             else:
                 self.init_ = DummyRegressor(strategy="mean")
         self.init_.fit(X, y)
+        self.inits_[r,] = copy.deepcopy(self.init_)
         return _init_raw_predictions(X, self.init_, self._loss, self.is_classifier)
 
     def _init_state(self, y):
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
+        self.inits_ = np.empty((self.T + 1,), dtype=object)
         self.sigmas_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         if not self.is_classifier:
             if y.ndim < 2:
@@ -412,20 +415,19 @@ class BaseMTGB(BaseGradientBoosting):
             unique = np.unique(self.t)
             self.T = len(unique)
             self.tasks_dic = dict(zip(unique, range(self.T)))
-            raw_predictions = self._fit_initial_model(X_train, y_train)
+            raw_predictions = self._fit_initial_model(X_train, y_train, 0)
             raw_predictions_r = np.zeros_like(raw_predictions)
 
             for r_label, r in self.tasks_dic.items():
-                del self.init_
                 idx_r = self.t == r_label
                 X_r = X_train[idx_r]
                 y_r = y_train[idx_r]
-                raw_predictions_r[idx_r] = self._fit_initial_model(X_r, y_r)
+                raw_predictions_r[idx_r] = self._fit_initial_model(X_r, y_r, r + 1)
         else:
             self.T = 0
             self.tasks_dic = None
             raw_predictions_r = None
-            raw_predictions = self._fit_initial_model(X_train, y_train)
+            raw_predictions = self._fit_initial_model(X_train, y_train, 0)
 
         self._set_max_features()
         self._init_state(y_train)
@@ -658,41 +660,52 @@ class BaseMTGB(BaseGradientBoosting):
         self._check_initialized()
         if task_info is not None:
 
-            X, t = self._split_task(X, task_info)
+            self.X_test, self.t_test = self._split_task(X, task_info)
+            t = self.t_test
             unique = np.unique(t)
+            T_test = len(unique)
+            self.tasks_dic_test = dict(zip(unique, range(T_test)))
 
             # 0_th index (common task estimator)
             X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
 
-            for r_label in unique:
+            raw_predictions = _init_raw_predictions(
+                X, self.inits_[0], self._loss, self.is_classifier
+            )
+
+            raw_predictions_r = np.zeros_like(raw_predictions)
+
+            for r_label, r in self.tasks_dic_test.items():
                 idx_r = t == r_label
-                X[idx_r] = self.estimators_[
+                X_r = self.X_test[idx_r]
+                X_r = self.estimators_[
                     0, int(self.tasks_dic[r_label]) + 1
-                ]._validate_X_predict(X[idx_r], check_input=True)
+                ]._validate_X_predict(X_r, check_input=True)
+
+                raw_predictions_r[idx_r] = _init_raw_predictions(
+                    X_r, self.inits_[r + 1], self._loss, self.is_classifier
+                )
 
         elif task_info is None:
             X = self._validate_data(
                 X, dtype=DTYPE, order="C", accept_sparse="csr", reset=False
             )
             X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
-        if self.init_ == "zero":
 
-            raw_predictions = np.zeros(
-                shape=(X.shape[0], self.n_trees_per_iteration_), dtype=np.float64
-            )
-        else:
             raw_predictions = _init_raw_predictions(
                 X, self.init_, self._loss, self.is_classifier
             )
 
-        return raw_predictions
+            raw_predictions_r = None
+
+        return raw_predictions, raw_predictions_r
 
     def _raw_predict(self, X: np.ndarray, task_info=None) -> np.ndarray:
         """Return the sum of the trees raw predictions (+ init estimator)."""
         check_is_fitted(self)
-        raw_predictions = self._raw_predict_init(X, task_info)
+        raw_predictions, raw_predictions_r = self._raw_predict_init(X, task_info)
         raw_predictions = self._predict_stages(
-            self.estimators_, X, raw_predictions, task_info
+            self.estimators_, X, raw_predictions, raw_predictions_r, task_info
         )
         return raw_predictions
 
@@ -701,29 +714,29 @@ class BaseMTGB(BaseGradientBoosting):
         estimators_: np.ndarray,
         X: np.ndarray,
         raw_predictions: np.ndarray,
+        raw_predictions_r: np.ndarray,
         task_info=None,
     ) -> np.ndarray:
 
         if not self.is_classifier:
             raw_predictions = raw_predictions.squeeze()
+            raw_predictions_r = raw_predictions_r.squeeze()
 
         # Multi task learning.
         if self.tasks_dic != None and task_info != None:
-            raw_predictions_r = np.zeros_like(raw_predictions)
-            predictions = np.zeros_like(raw_predictions)
 
-            X, t = self._split_task(X, task_info)
-            unique = np.unique(t)
-            tasks_dic = dict(zip(unique, range(len(unique))))
-
+            t = self.t_test
             for i in range(len(estimators_)):
-
-                # Common task prediction.
+                # Common task prediction
                 tree = estimators_[i, 0]
-                raw_predictions_c = tree.predict(X)
+                raw_predictions += self.learning_rate * tree.predict(X)
 
-                # Task specific prediction.
-                for r_label, r in tasks_dic.items():
+                raw_predictions = (self.sigmas_[i, :] * raw_predictions) + (
+                    (1 - self.sigmas_[i, :]) * raw_predictions_r
+                )
+
+                # Task specific prediction
+                for r_label, r in self.tasks_dic_test.items():
                     if r_label not in self.tasks_dic:
                         raise ValueError(
                             "The task {} was not present in the training set".format(
@@ -734,13 +747,8 @@ class BaseMTGB(BaseGradientBoosting):
                     idx_r = t == r_label
                     X_r = X[idx_r]
                     raw_predictions_r[idx_r] = tree.predict(X_r)
-                    predictions[idx_r] = (
-                        self.sigmas_[i, r] * raw_predictions_c[idx_r]
-                    ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
 
                     del tree
-
-                raw_predictions += self.learning_rate * predictions
 
         # Single task learning.
         else:
