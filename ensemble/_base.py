@@ -70,7 +70,6 @@ class BaseMTGB(BaseGradientBoosting):
         warm_start=False,
         validation_fraction=0.1,
         early_stopping=None,
-        step_size=1
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -93,7 +92,6 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
-        self.step_size = step_size
 
     @abstractmethod
     def _encode_y(self, y=None):
@@ -248,9 +246,13 @@ class BaseMTGB(BaseGradientBoosting):
         self.max_features_ = max_features
 
     def _fit_initial_model(self, X, y, r):
-        if self.init_:
+        if not hasattr(self, "inits_"):
+            self.inits_ = np.empty((self.T + 1,), dtype=object)
+        if not hasattr(self, "init_"):
+            self.init_ = self.init
+        else:
             del self.init_
-        self.init_ = self.init
+            self.init_ = self.init
         if self.init_ is None:
             if self.is_classifier:
                 self.init_ = DummyClassifier(strategy="prior")
@@ -260,9 +262,8 @@ class BaseMTGB(BaseGradientBoosting):
         self.inits_[r,] = copy.deepcopy(self.init_)
         return _init_raw_predictions(X, self.init_, self._loss, self.is_classifier)
 
-    def _init_state(self, y):
+    def _init_state(self, y, raw_predictions):
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
-        self.inits_ = np.empty((self.T + 1,), dtype=object)
         self.sigmas_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         if not self.is_classifier:
             if y.ndim < 2:
@@ -274,7 +275,7 @@ class BaseMTGB(BaseGradientBoosting):
         self.theta_ = np.zeros(
             (self.n_estimators + 1, num_rows, num_cols), dtype=np.float64
         )
-        self.theta_[0, :, :] = np.random.uniform(-1.0, 1.0, y.shape)
+        self.theta_[0, :, :] = np.random.uniform(-1.0, 1.0, raw_predictions.shape)
 
         self.residual_ = np.zeros(
             (self.n_estimators, self.T + 1, num_cols), dtype=np.float32
@@ -430,7 +431,7 @@ class BaseMTGB(BaseGradientBoosting):
             raw_predictions = self._fit_initial_model(X_train, y_train, 0)
 
         self._set_max_features()
-        self._init_state(y_train)
+        self._init_state(y_train, raw_predictions)
 
         self._rng = check_random_state(self.random_state)
 
@@ -522,7 +523,7 @@ class BaseMTGB(BaseGradientBoosting):
                 self.oob_improvement_[i] = previous_loss - self.oob_scores_[i]
                 self.oob_score_ = self.oob_scores_[-1]
 
-            elif self.tasks_dic != None():
+            elif self.tasks_dic is not None:
 
                 self.train_score_r[i, r] = self._aux_loss(
                     y=y[sample_mask],
@@ -601,21 +602,21 @@ class BaseMTGB(BaseGradientBoosting):
 
             # Multi-task learning
             if self.tasks_dic != None:
-                theta = self._opt_theta(
-                    raw_predictions,
-                    raw_predictions_r,
-                    y,
-                )
-                self.theta_[i + 1, :, :] = theta
-                sigma = sigmoid(theta) * self.step_size
-                raw_predictions = (sigma * raw_predictions) + (
-                    (1 - sigma) * raw_predictions_r
-                )
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
                     X_r = X[idx_r]
                     y_r = y[idx_r]
                     sample_mask = self._subsampling(X_r)
+                    theta = self._opt_theta(
+                        raw_predictions[idx_r],
+                        raw_predictions_r[idx_r],
+                        y_r,
+                    )
+                    self.theta_[i + 1, idx_r, :] = theta
+                    sigma = sigmoid(theta)
+                    raw_predictions[idx_r] = (sigma * raw_predictions[idx_r]) + (
+                        (1 - sigma) * raw_predictions_r[idx_r]
+                    )
 
                     raw_predictions_r[idx_r] = self._fit_stage(
                         i,
@@ -667,10 +668,12 @@ class BaseMTGB(BaseGradientBoosting):
             self.tasks_dic_test = dict(zip(unique, range(T_test)))
 
             # 0_th index (common task estimator)
-            X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
+            self.X_test = self.estimators_[0, 0]._validate_X_predict(
+                self.X_test, check_input=True
+            )
 
             raw_predictions = _init_raw_predictions(
-                X, self.inits_[0], self._loss, self.is_classifier
+                self.X_test, self.inits_[0], self._loss, self.is_classifier
             )
 
             raw_predictions_r = np.zeros_like(raw_predictions)
@@ -729,11 +732,7 @@ class BaseMTGB(BaseGradientBoosting):
             for i in range(len(estimators_)):
                 # Common task prediction
                 tree = estimators_[i, 0]
-                raw_predictions += self.learning_rate * tree.predict(X)
-
-                raw_predictions = (self.sigmas_[i, :] * raw_predictions) + (
-                    (1 - self.sigmas_[i, :]) * raw_predictions_r
-                )
+                raw_predictions += self.learning_rate * tree.predict(self.X_test)
 
                 # Task specific prediction
                 for r_label, r in self.tasks_dic_test.items():
@@ -743,10 +742,13 @@ class BaseMTGB(BaseGradientBoosting):
                                 r_label
                             )
                         )
+                    raw_predictions = (self.sigmas_[i, r] * raw_predictions) + (
+                        (1 - self.sigmas_[i, r]) * raw_predictions_r
+                    )
                     tree = estimators_[i, r + 1]
                     idx_r = t == r_label
-                    X_r = X[idx_r]
-                    raw_predictions_r[idx_r] = tree.predict(X_r)
+                    X_r = self.X_test[idx_r]
+                    raw_predictions_r[idx_r] += self.learning_rate * tree.predict(X_r)
 
                     del tree
 
@@ -758,16 +760,16 @@ class BaseMTGB(BaseGradientBoosting):
 
         return raw_predictions
 
-    def _staged_raw_predict(self, X: np.ndarray, task_info=None):
+    def _staged_raw_predict(self, X: np.ndarray, task_info=-1):
 
-        raw_predictions = self._raw_predict_init(X, task_info)
-        if raw_predictions.shape[1] == 1:
-            raw_predictions = np.squeeze(raw_predictions)
+        raw_predictions, raw_predictions_r = self._raw_predict_init(X, task_info)
+
+        if not self.is_classifier:
+            raw_predictions = raw_predictions.squeeze()
+            raw_predictions_r = raw_predictions_r.squeeze()
 
         # Multi task learning.
         if self.tasks_dic != None and task_info != None:
-            raw_predictions_r = np.zeros_like(raw_predictions)
-            predictions = np.zeros_like(raw_predictions)
 
             X, t = self._split_task(X, task_info)
             unique = np.unique(t)
@@ -777,7 +779,7 @@ class BaseMTGB(BaseGradientBoosting):
 
                 # Common task prediction.
                 tree = self.estimators_[i, 0]
-                raw_predictions_c = tree.predict(X)
+                raw_predictions += tree.predict(X) * self.learning_rate
 
                 # Task specific prediction.
                 for r_label, r in tasks_dic.items():
@@ -789,13 +791,13 @@ class BaseMTGB(BaseGradientBoosting):
                         )
                     tree = self.estimators_[i, r + 1]
                     idx_r = t == r_label
-                    X_r = X[idx_r]
 
-                    raw_predictions_r[idx_r] = tree.predict(X_r)
-                    predictions[idx_r] = (
-                        self.sigmas_[i, r] * raw_predictions_c[idx_r]
+                    raw_predictions[idx_r] = (
+                        self.sigmas_[i, r] * raw_predictions[idx_r]
                     ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
-                raw_predictions += self.learning_rate * predictions
+
+                    X_r = X[idx_r]
+                    raw_predictions_r[idx_r] += self.learning_rate * tree.predict(X_r)
 
                 yield raw_predictions.copy()
 
