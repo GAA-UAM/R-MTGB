@@ -574,10 +574,15 @@ class BaseMTGB(BaseGradientBoosting):
             y_val_pred_iter = self._staged_raw_predict(X_val, task_info)
             y_val = self._label_y(y_val)
 
+        # TODO: temporarily
+        self.train_score_ch = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.train_score_rh = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.train_score_final = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+
         for i in range(0, self.n_estimators):
             sample_mask = self._subsampling(X)
             # Data pooling
-            raw_predictions = self._fit_stage(
+            raw_predictions_c = self._fit_stage(
                 i,
                 0,
                 X,
@@ -607,14 +612,22 @@ class BaseMTGB(BaseGradientBoosting):
                     X_r = X[idx_r]
                     y_r = y[idx_r]
                     sample_mask = self._subsampling(X_r)
+
+                    # TODO: temporarily
+                    self.train_score_ch[i, r] = self._aux_loss(
+                        y=y_r,
+                        raw_predictions=raw_predictions_c[idx_r],
+                        sample_weight=sample_weight[idx_r],
+                    )
+
                     theta = self._opt_theta(
-                        raw_predictions[idx_r],
+                        raw_predictions_c[idx_r],
                         raw_predictions_r[idx_r],
                         y_r,
                     )
                     self.theta_[i + 1, idx_r, :] = theta
                     sigma = sigmoid(theta)
-                    raw_predictions[idx_r] = (sigma * raw_predictions[idx_r]) + (
+                    raw_predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
                         (1 - sigma) * raw_predictions_r[idx_r]
                     )
 
@@ -632,6 +645,13 @@ class BaseMTGB(BaseGradientBoosting):
                         "specific_task",
                     )
 
+                    # TODO: temporarily
+                    self.train_score_rh[i, r] = self._aux_loss(
+                        y=y_r,
+                        raw_predictions=raw_predictions_r[idx_r],
+                        sample_weight=sample_weight[idx_r],
+                    )
+
                     self._track_loss(
                         i,
                         r,
@@ -642,6 +662,17 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     self.sigmas_[i, r] = sigma
+
+                    raw_predictions[idx_r] = (sigma * raw_predictions_c[idx_r]) + (
+                        (1 - sigma) * raw_predictions_r[idx_r]
+                    )
+
+                    # TODO: temporarily
+                    self.train_score_final[i, r] = self._aux_loss(
+                        y=y_r,
+                        raw_predictions=raw_predictions[idx_r],
+                        sample_weight=sample_weight[idx_r],
+                    )
 
             if self.early_stopping is not None and i > 0:
                 validation_loss = self._aux_loss(
@@ -725,16 +756,16 @@ class BaseMTGB(BaseGradientBoosting):
             raw_predictions = raw_predictions.squeeze()
             raw_predictions_r = raw_predictions_r.squeeze()
 
-        # Multi task learning.
+        # Multi task learning
         if self.tasks_dic != None and task_info != None:
 
             t = self.t_test
             for i in range(len(estimators_)):
-                # Common task prediction
+                # Update ommon task prediction
                 tree = estimators_[i, 0]
                 raw_predictions += self.learning_rate * tree.predict(self.X_test)
 
-                # Task specific prediction
+                # Update task-specific predictions
                 for r_label, r in self.tasks_dic_test.items():
                     if r_label not in self.tasks_dic:
                         raise ValueError(
@@ -742,13 +773,20 @@ class BaseMTGB(BaseGradientBoosting):
                                 r_label
                             )
                         )
-                    raw_predictions = (self.sigmas_[i, r] * raw_predictions) + (
-                        (1 - self.sigmas_[i, r]) * raw_predictions_r
-                    )
+
                     tree = estimators_[i, r + 1]
                     idx_r = t == r_label
+
+                    raw_predictions[idx_r] = (
+                        self.sigmas_[i, r] * raw_predictions[idx_r]
+                    ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
+
                     X_r = self.X_test[idx_r]
                     raw_predictions_r[idx_r] += self.learning_rate * tree.predict(X_r)
+
+                    raw_predictions[idx_r] = (
+                        self.sigmas_[i, r] * raw_predictions[idx_r]
+                    ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
 
                     del tree
 
@@ -798,6 +836,10 @@ class BaseMTGB(BaseGradientBoosting):
 
                     X_r = X[idx_r]
                     raw_predictions_r[idx_r] += self.learning_rate * tree.predict(X_r)
+
+                    raw_predictions[idx_r] = (
+                        self.sigmas_[i, r] * raw_predictions[idx_r]
+                    ) + ((1 - self.sigmas_[i, r]) * raw_predictions_r[idx_r])
 
                 yield raw_predictions.copy()
 
