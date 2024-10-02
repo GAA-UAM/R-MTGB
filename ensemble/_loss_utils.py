@@ -64,23 +64,14 @@ class CE:
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def negative_gradient_theta(
-        self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
-    ):
+    def negative_gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
 
         # chain rule
         # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
         # H = w_pred
 
-        dH_dtheta = (
-            sigmoid
-            * (1 - sigmoid)
-            * (raw_predictions_common - raw_predictions_common_specific)
-        )
-        H = (
-            sigmoid * raw_predictions_common
-            + (1 - sigmoid) * raw_predictions_common_specific
-        )
+        dH_dtheta = sigmoid * (1 - sigmoid) * (raw_predictions_c - raw_predictions_r)
+        H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
         dL_dH = y - np.nan_to_num(np.exp(H - logsumexp(H, axis=1, keepdims=True)))
 
         neg_gradient = dL_dH * dH_dtheta
@@ -159,9 +150,7 @@ class MSE:
 
         return neg_gradient
 
-    def negative_gradient_theta(
-        self, y, raw_predictions_common, raw_predictions_common_specific, sigmoid
-    ):
+    def negative_gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
 
         # chain rule
         # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
@@ -172,20 +161,19 @@ class MSE:
             not target_type in ["continuous-multioutput", "multiclass-multioutput"]
             and target_type == "continuous"
         ):
-            raw_predictions_common, raw_predictions_common_specific = (
-                raw_predictions_common.ravel(),
-                raw_predictions_common_specific.ravel(),
+            raw_predictions_c, raw_predictions_r = (
+                raw_predictions_c.ravel(),
+                raw_predictions_r.ravel(),
             )
 
             dH_dtheta = (
-                sigmoid
-                * (1 - sigmoid)
-                * (raw_predictions_common - raw_predictions_common_specific)
+                sigmoid * (1 - sigmoid) * (raw_predictions_c - raw_predictions_r)
             )
 
-            H = np.squeeze(y) - raw_predictions_common
+            H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
+            dL_dH = np.squeeze(y) - H
 
-            neg_gradient = H * dH_dtheta
+            neg_gradient = dL_dH * dH_dtheta
 
         return neg_gradient
 
