@@ -64,7 +64,7 @@ class CE:
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def negative_gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
+    def _gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
 
         # chain rule
         # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
@@ -74,9 +74,9 @@ class CE:
         H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
         dL_dH = y - np.nan_to_num(np.exp(H - logsumexp(H, axis=1, keepdims=True)))
 
-        neg_gradient = dL_dH * dH_dtheta
+        gradient = -1 *(dL_dH * dH_dtheta)
 
-        return neg_gradient
+        return gradient
 
     def _update_terminal_region(
         self,
@@ -150,7 +150,7 @@ class MSE:
 
         return neg_gradient
 
-    def negative_gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
+    def _gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
 
         # chain rule
         # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
@@ -173,9 +173,9 @@ class MSE:
             H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
             dL_dH = np.squeeze(y) - H
 
-            neg_gradient = dL_dH * dH_dtheta
+            gradient = -1* (dL_dH * dH_dtheta)
 
-        return neg_gradient
+        return gradient
 
     def approx_grad(self, predictions, y):
         epsilon = 1e-3

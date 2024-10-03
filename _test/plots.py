@@ -35,13 +35,13 @@ def training_score(model_mt, model_st, noise_mt, data_type, path):
 def training_score_task_specific(model_mt, data_type, path):
 
     title = "Task_Specific_loss_proposed_MT"
-    np.savetxt(rf"{path}\{title}.csv", model_mt.train_score_r, delimiter=",")
+    np.savetxt(rf"{path}\{title}.csv", model_mt.train_score_, delimiter=",")
     fig, axs = plt.subplots(1, 1, figsize=(7, 3))
 
-    for task in range(model_mt.train_score_r.shape[1]):
+    for task in range(model_mt.train_score_.shape[1]):
         if task > 3:
             axs.plot(
-                model_mt.train_score_r[:, task],
+                model_mt.train_score_[:, task],
                 label=f"task {task}",
                 color=colors[task],
             )
