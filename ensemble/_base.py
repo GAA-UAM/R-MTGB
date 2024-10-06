@@ -1,6 +1,7 @@
 import copy
 import warnings
 import numpy as np
+from tqdm import trange
 from numbers import Integral
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import LabelBinarizer
@@ -107,7 +108,7 @@ class BaseMTGB(BaseGradientBoosting):
         theta: np.ndarray,
     ):
 
-        neg_gradient = self._aux_loss.negative_gradient(
+        neg_gradient = self._loss_util.negative_gradient(
             y,
             raw_predictions,
         )
@@ -135,38 +136,37 @@ class BaseMTGB(BaseGradientBoosting):
 
         return neg_gradient
 
-    def _task_obj_fun(self, theta, c_h, r_h, y):
+    def _obj_fun(self, theta, c_h, r_h, y):
+
         if r_h.ndim > 1 and not self.is_classifier:
             r_h = r_h.squeeze()
             c_h = c_h.squeeze()
-        # fmin_l_bfgs_b flattens the
-        # parameter into a 1D array.
-        if self.is_classifier:
-            theta = theta.reshape(c_h.shape)
+
         sigma = sigmoid(theta)
         w_pred = (sigma * c_h) + ((1 - sigma) * r_h)
-        loss = self._aux_loss(y, w_pred, None)
+        loss = self._loss_util(y, w_pred, None)
 
-        grad_theta = self._aux_loss._gradient_theta(y, c_h, r_h, sigma)
+        grad_theta = self._loss_util._gradient_theta(y, c_h, r_h, sigma)
 
-        if self.is_classifier:
-            grad_theta = grad_theta.flatten()
+        grad_theta = np.mean(grad_theta)
 
         return loss, grad_theta
 
     def _opt_theta(self, c_h, r_h, y, theta):
 
+        theta = np.atleast_1d(theta)
+
         args = (c_h, r_h, y)
         result = fmin_l_bfgs_b(
-            self._task_obj_fun,
+            self._obj_fun,
             theta,
             args=args,
             approx_grad=False,
             maxls=1,
-            factr=1e7,  # Convergence criterion
+            factr=1e7,
             pgtol=1e-5,
         )
-        optimized_theta = result[0][0]
+        optimized_theta = result[0]
         return optimized_theta
 
     def _fit_stage(
@@ -177,13 +177,12 @@ class BaseMTGB(BaseGradientBoosting):
         y,
         raw_predictions,
         sample_mask,
-        random_state,
         sample_weight,
         learning_rate,
-        theta,
-        task_type,
+        theta=None,
+        task_type=None,
     ):
-        for k in range(self._aux_loss.K):
+        for k in range(self._loss_util.K):
 
             neg_gradient = self._neg_gradient(y, raw_predictions, task_type, theta)
 
@@ -197,7 +196,7 @@ class BaseMTGB(BaseGradientBoosting):
                 min_impurity_decrease=self.min_impurity_decrease,
                 max_features=self.max_features,
                 max_leaf_nodes=self.max_leaf_nodes,
-                random_state=random_state,
+                random_state=self._rng,
                 ccp_alpha=self.ccp_alpha,
             )
 
@@ -206,7 +205,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
 
-            raw_prediction = self._aux_loss.update_terminal_regions(
+            raw_prediction = self._loss_util.update_terminal_regions(
                 tree.tree_,
                 X,
                 y,
@@ -271,12 +270,15 @@ class BaseMTGB(BaseGradientBoosting):
         elif self.is_classifier:
             num_cols = len(np.unique(y))
             num_rows = y.shape[0]
-        self.theta_ = np.vstack(
-            [
-                np.random.uniform(-1.0, 1.0, (1, num_rows, num_cols)),
-                np.zeros((self.n_estimators - 1, num_rows, num_cols), dtype=np.float64),
-            ]
-        )
+        # self.theta_ = np.vstack(
+        #     [
+        #         np.random.uniform(-1.0, 1.0, (1, num_rows, num_cols)),
+        #         np.zeros((self.n_estimators - 1, num_rows, num_cols), dtype=np.float64),
+        #     ]
+        # )
+        self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+
+        # self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
 
         self.residual_ = np.zeros(
             (self.n_estimators, self.T + 1, num_cols), dtype=np.float32
@@ -406,9 +408,9 @@ class BaseMTGB(BaseGradientBoosting):
         self._loss = self._get_loss(sample_weight=sample_weight)
 
         if self.is_classifier:
-            self._aux_loss = CE(len(set(y_train)))
+            self._loss_util = CE(len(set(y_train)))
         else:
-            self._aux_loss = MSE()
+            self._loss_util = MSE()
 
         if task_info is not None:
             # Multi-task learning
@@ -498,7 +500,7 @@ class BaseMTGB(BaseGradientBoosting):
             y_oob_masked = y[~sample_mask]
             sample_weight_oob_masked = sample_weight[~sample_mask]
             if i == 0:  # store the initial loss to compute the OOB score
-                initial_loss = self._aux_loss(
+                initial_loss = self._loss_util(
                     y=y_oob_masked,
                     raw_predictions=raw_predictions[~sample_mask],
                     sample_weight=sample_weight_oob_masked,
@@ -506,13 +508,13 @@ class BaseMTGB(BaseGradientBoosting):
 
             y_oob_masked = y[~sample_mask]
             if self.tasks_dic is None:
-                self.train_score_[i,] = self._aux_loss(
+                self.train_score_[i,] = self._loss_util(
                     y=y[sample_mask],
                     raw_predictions=raw_predictions[sample_mask],
                     sample_weight=sample_weight[sample_mask],
                 )
 
-                self.oob_scores_[i] = self._aux_loss(
+                self.oob_scores_[i] = self._loss_util(
                     y=y_oob_masked,
                     raw_predictions=raw_predictions[~sample_mask],
                     sample_weight=sample_weight[~sample_mask],
@@ -524,7 +526,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             elif self.tasks_dic is not None:
 
-                self.train_score_[i, r] = self._aux_loss(
+                self.train_score_[i, r] = self._loss_util(
                     y=y[sample_mask],
                     raw_predictions=raw_predictions[sample_mask],
                     sample_weight=sample_weight[sample_mask],
@@ -532,20 +534,20 @@ class BaseMTGB(BaseGradientBoosting):
 
         else:
             if i == 0:  # storing the initial loss to compute the OOB score.
-                initial_loss = self._aux_loss(
+                initial_loss = self._loss_util(
                     y=y,
                     raw_predictions=raw_predictions,
                     sample_weight=sample_weight,
                 )
 
             if self.tasks_dic is None:
-                self.train_score_[i,] = self._aux_loss(
+                self.train_score_[i,] = self._loss_util(
                     y=y,
                     raw_predictions=raw_predictions,
                     sample_weight=sample_weight,
                 )
             elif self.tasks_dic != None:
-                self.train_score_[i, r] = self._aux_loss(
+                self.train_score_[i, r] = self._loss_util(
                     y=y,
                     raw_predictions=raw_predictions,
                     sample_weight=sample_weight,
@@ -570,7 +572,7 @@ class BaseMTGB(BaseGradientBoosting):
         y = self._label_y(y)
         raw_predictions = (
             self._update_prediction(
-                raw_predictions_c, raw_predictions_r, self.theta_[0, :, :]
+                raw_predictions_c, raw_predictions_r, self.theta_[0, 0]
             )
             if task_info
             else raw_predictions_c
@@ -583,27 +585,20 @@ class BaseMTGB(BaseGradientBoosting):
             y_val_pred_iter = self._staged_raw_predict(X_val, task_info)
             y_val = self._label_y(y_val)
 
+        boosting_bar = trange(
+            0,
+            self.n_estimators,
+            leave=True,
+            desc="Boosting epochs",
+            dynamic_ncols=True,
+        )
+
         # TODO: temporarily
         self.train_score_ch = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         self.train_score_rh = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         self.train_score_final = np.zeros((self.n_estimators, self.T), dtype=np.float64)
 
-        for i in range(0, self.n_estimators):
-            sample_mask = self._subsampling(X)
-            # Data pooling
-            raw_predictions_c = self._fit_stage(
-                i,
-                0,
-                X,
-                y,
-                raw_predictions,
-                sample_mask,
-                self._rng,
-                sample_weight,
-                self.learning_rate,
-                self.theta_[i, :, :],
-                "data_pooling",
-            )
+        for i in boosting_bar:
 
             # Multi-task learning
             if self.tasks_dic != None:
@@ -612,14 +607,10 @@ class BaseMTGB(BaseGradientBoosting):
                     idx_r = self.t == r_label
                     X_r = X[idx_r]
                     y_r = y[idx_r]
-                    sample_mask = self._subsampling(X_r)
 
                     # Taking previously optimized theta as the init value of optimization
-                    prev_theta = (
-                        self.theta_[i, idx_r, :]
-                        if i == 0
-                        else self.theta_[i - 1, idx_r, :]
-                    )
+                    prev_theta = self.theta_[i, r] if i == 0 else self.theta_[i - 1, r]
+
                     theta = self._opt_theta(
                         raw_predictions_c[idx_r],
                         raw_predictions_r[idx_r],
@@ -627,8 +618,8 @@ class BaseMTGB(BaseGradientBoosting):
                         prev_theta,
                     )
 
+                    self.theta_[i, r] = theta[0]
                     self.sigmas_[i, r] = sigmoid(theta)
-                    self.theta_[i, idx_r, :] = theta
 
                     raw_predictions[idx_r] = self._update_prediction(
                         raw_predictions_c[idx_r],
@@ -636,40 +627,31 @@ class BaseMTGB(BaseGradientBoosting):
                         self.sigmas_[i, r],
                     )
 
+                # Data pooling
+                raw_predictions_c = self._fit_stage(
+                    i,
+                    0,
+                    X,
+                    y,
+                    raw_predictions,
+                    self._subsampling(X),
+                    sample_weight,
+                    self.learning_rate,
+                    np.sum(self.theta_[i, :]),
+                    "data_pooling",
+                )
+
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
                     X_r = X[idx_r]
                     y_r = y[idx_r]
                     sample_mask = self._subsampling(X_r)
-
                     # TODO: temporarily
-                    self.train_score_ch[i, r] = self._aux_loss(
+                    self.train_score_ch[i, r] = self._loss_util(
                         y=y_r,
                         raw_predictions=raw_predictions_c[idx_r],
                         sample_weight=sample_weight[idx_r],
                     )
-
-                    # # Taking previously optimized theta as the init value of optimization
-                    # prev_theta = (
-                    #     self.theta_[0, idx_r, :]
-                    #     if i == 0
-                    #     else self.theta_[i - 1, idx_r, :]
-                    # )
-                    # theta = self._opt_theta(
-                    #     raw_predictions_c[idx_r],
-                    #     raw_predictions_r[idx_r],
-                    #     y_r,
-                    #     prev_theta,
-                    # )
-
-                    # self.sigmas_[i, r] = sigmoid(theta)
-                    # self.theta_[i, idx_r, :] = theta
-
-                    # raw_predictions[idx_r] = self._update_prediction(
-                    #     raw_predictions_c[idx_r],
-                    #     raw_predictions_r[idx_r],
-                    #     self.sigmas_[i, r],
-                    # )
 
                     raw_predictions_r[idx_r] = self._fit_stage(
                         i,
@@ -678,15 +660,14 @@ class BaseMTGB(BaseGradientBoosting):
                         y_r,
                         raw_predictions[idx_r],
                         sample_mask,
-                        self._rng,
                         sample_weight[idx_r],
                         self.learning_rate,
-                        self.theta_[i, idx_r, :],
+                        self.theta_[i, r],
                         "specific_task",
                     )
 
                     # TODO: temporarily
-                    self.train_score_rh[i, r] = self._aux_loss(
+                    self.train_score_rh[i, r] = self._loss_util(
                         y=y_r,
                         raw_predictions=raw_predictions_r[idx_r],
                         sample_weight=sample_weight[idx_r],
@@ -699,7 +680,7 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     # TODO: temporarily
-                    self.train_score_final[i, r] = self._aux_loss(
+                    self.train_score_final[i, r] = self._loss_util(
                         y=y_r,
                         raw_predictions=raw_predictions_c[idx_r],
                         sample_weight=sample_weight[idx_r],
@@ -714,7 +695,16 @@ class BaseMTGB(BaseGradientBoosting):
                         raw_predictions[idx_r],
                     )
             else:
-                raw_predictions = raw_predictions_c
+                raw_predictions = self._fit_stage(
+                    i,
+                    0,
+                    X,
+                    y,
+                    raw_predictions,
+                    sample_mask,
+                    sample_weight,
+                    self.learning_rate,
+                )
                 self._track_loss(
                     i,
                     None,
@@ -724,8 +714,13 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions,
                 )
 
+            if self.verbose > 1:
+                boosting_bar.set_description(
+                    f"Loss: {self.train_score_[i]:.4f}", refresh=True
+                )
+
             if self.early_stopping is not None and i > 0:
-                validation_loss = self._aux_loss(
+                validation_loss = self._loss_util(
                     y_val, next(y_val_pred_iter), sample_weight_val
                 )
 
