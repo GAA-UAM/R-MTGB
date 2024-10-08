@@ -148,9 +148,7 @@ class BaseMTGB(BaseGradientBoosting):
 
         grad_theta = self._loss_util._gradient_theta(y, c_h, r_h, sigma)
 
-        grad_theta = np.mean(grad_theta)
-
-        return loss, grad_theta
+        return loss, np.sum(grad_theta)
 
     def _opt_theta(self, c_h, r_h, y, theta):
 
@@ -162,7 +160,7 @@ class BaseMTGB(BaseGradientBoosting):
             theta,
             args=args,
             approx_grad=False,
-            maxls=1,
+            maxls=100,
             factr=1e7,
             pgtol=1e-5,
         )
@@ -260,25 +258,17 @@ class BaseMTGB(BaseGradientBoosting):
         self.inits_[r,] = copy.deepcopy(self.init_)
         return _init_raw_predictions(X, self.init_, self._loss, self.is_classifier)
 
-    def _init_state(self, y, raw_predictions):
+    def _init_state(self, y):
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
-        self.sigmas_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         if not self.is_classifier:
             if y.ndim < 2:
                 y = y[:, np.newaxis]
-            num_rows, num_cols = y.shape
+            num_cols = y.shape[1]
         elif self.is_classifier:
             num_cols = len(np.unique(y))
-            num_rows = y.shape[0]
-        # self.theta_ = np.vstack(
-        #     [
-        #         np.random.uniform(-1.0, 1.0, (1, num_rows, num_cols)),
-        #         np.zeros((self.n_estimators - 1, num_rows, num_cols), dtype=np.float64),
-        #     ]
-        # )
-        self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
 
-        # self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
+        self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
 
         self.residual_ = np.zeros(
             (self.n_estimators, self.T + 1, num_cols), dtype=np.float32
@@ -433,7 +423,7 @@ class BaseMTGB(BaseGradientBoosting):
             raw_predictions_c = self._fit_initial_model(X_train, y_train, 0)
 
         self._set_max_features()
-        self._init_state(y_train, raw_predictions_c)
+        self._init_state(y_train)
 
         self._rng = check_random_state(self.random_state)
 
@@ -609,7 +599,12 @@ class BaseMTGB(BaseGradientBoosting):
                     y_r = y[idx_r]
 
                     # Taking previously optimized theta as the init value of optimization
-                    prev_theta = self.theta_[i, r] if i == 0 else self.theta_[i - 1, r]
+                    # Adding random perturbation to Differentiate Initialization
+                    prev_theta = (
+                        self.theta_[i, r]
+                        if i == 0
+                        else self.theta_[i - 1, r] + np.random.normal(scale=0.1)
+                    )
 
                     theta = self._opt_theta(
                         raw_predictions_c[idx_r],

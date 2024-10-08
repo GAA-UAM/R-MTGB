@@ -16,7 +16,7 @@ class data_gen:
 
 if __name__ == "__main__":
 
-    base_dir = "30sep_8tasks_1outliers"
+    base_dir = "8tasks_1outliers"
 
     if os.path.exists(base_dir):
         print("a")
@@ -26,6 +26,7 @@ if __name__ == "__main__":
     original_dir = os.getcwd()
 
     for scenario in [1, 2, 3, 4]:
+    # for scenario in [4]:
         for i, subdir in enumerate(range(1, 10 + 1)):
             scenario_name = "scenario_" + str(scenario)
             dir_path = os.path.join(base_dir, scenario_name, str(subdir))
@@ -34,6 +35,7 @@ if __name__ == "__main__":
             os.mkdir("clf")
             os.mkdir("reg")
             for regression in [True, False]:
+            # for regression in [True]:
                 gen_data2 = data_gen(scenario)
                 df = gen_data2(regression)
                 train_df, test_df = train_test_split(
@@ -48,3 +50,5 @@ if __name__ == "__main__":
                 test_df.to_csv(f"test_{'reg' if regression else 'clf'}_{scenario}.csv")
             os.chdir(original_dir)
         os.chdir(original_dir)
+
+# %%

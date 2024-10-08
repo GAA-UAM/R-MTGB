@@ -20,21 +20,6 @@ class FuncGen:
         self.alpha = alpha
         self.l = length_scale * num_dims  # Smoother functions in higher dimensions
 
-        # Generate a 2D grid of points
-        x1 = np.linspace(-5, 5, 100)
-        x2 = np.linspace(-5, 5, 100)
-        x1, x2 = np.meshgrid(x1, x2)
-        points = np.c_[x1.ravel(), x2.ravel()]
-
-        # z = self.evaluate_function(points).reshape(x1.shape)
-        # plt.figure(figsize=(10, 8))
-        # plt.contourf(x1, x2, z, levels=50, cmap="viridis")
-        # plt.colorbar(label="Function Value")
-        # plt.title("Contour plot of the random function")
-        # plt.xlabel("x1")
-        # plt.ylabel("x2")
-        # plt.show()
-
     def evaluate_function(self, x):
         output = np.apply_along_axis(
             lambda x: np.sum(
@@ -45,7 +30,6 @@ class FuncGen:
             1,
             x,
         )
-
         return output
 
 
@@ -170,32 +154,31 @@ class GenerateDataset:
         self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=1
     ):
 
-        while True:
-            common_funcgen = FuncGen(num_dims)
-            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-            y = common_funcgen.evaluate_function(x)
-            y = self._classify_output(y)
-            if self._valid_class_prop(y, 0.1):
-                break
-
         valid = False
+        X, Y = [], []
         while not valid:
-            X, Y = [], []
+
+            common_funcgen = FuncGen(num_dims)
 
             for i in range(num_tasks):
 
                 specific_funcgen = FuncGen(num_dims)
-
                 x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
-                if i >= num_tasks - num_outlier_tasks:
-                    y = specific_funcgen.evaluate_function(x)  # No common part
-                else:
+                # if i >= num_tasks - num_outlier_tasks:
+                if i < num_tasks - num_outlier_tasks:
+                    # y = specific_funcgen.evaluate_function(x)  # No common part
+                    # y = common_funcgen.evaluate_function(x)
                     y = common_funcgen.evaluate_function(
                         x
-                    ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                        x
-                    )  # Higher weight to the common part
+                    ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(x)
+                else:
+                    # y = common_funcgen.evaluate_function(
+                    #     x
+                    # ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
+                    #     x
+                    # )  # Higher weight to the common part
+                    y = specific_funcgen.evaluate_function(x)
 
                 if self.regression is False:
                     y = self._classify_output(y)
