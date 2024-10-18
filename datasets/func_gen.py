@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 
 class FuncGen:
@@ -10,6 +9,7 @@ class FuncGen:
         num_random_features=500,
         alpha=5.0,
         length_scale=3,
+        random_state=111,
     ):
 
         self.N = num_random_features
@@ -19,6 +19,8 @@ class FuncGen:
         self.theta = np.random.randn(self.N)
         self.alpha = alpha
         self.l = length_scale * num_dims  # Smoother functions in higher dimensions
+
+        np.random.seed(random_state)
 
     def evaluate_function(self, x):
         output = np.apply_along_axis(
@@ -41,6 +43,7 @@ class GenerateDataset:
 
     def __init__(self, scenario):
         self.scenario = scenario
+        np.random.seed(np.random.choice(range(1, 100), 1, replace=False)[0])
 
     def _valid_class_prop(self, y, alpha):
         unique, counts = np.unique(y, return_counts=True)
@@ -57,9 +60,10 @@ class GenerateDataset:
 
         valid = False
         while not valid:
+            random_states = np.random.choice(range(1, 100), 1, replace=False)
 
             X, Y = [], []
-            funcgen = FuncGen(num_dims)
+            funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
 
             for _ in range(num_tasks):
                 x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
@@ -88,8 +92,8 @@ class GenerateDataset:
         Y = list()
 
         for _ in range(num_tasks):
-
-            funcgen = FuncGen(num_dims)
+            random_states = np.random.choice(range(1, 100), 1, replace=False)
+            funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
 
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
             y = funcgen.evaluate_function(x)
@@ -100,7 +104,8 @@ class GenerateDataset:
             if not self.regression and not self._valid_class_prop(y, 0.1):
 
                 while not self._valid_class_prop(y, 0.1):
-                    funcgen = FuncGen(num_dims)
+                    random_states = np.random.choice(range(1, 100), 1, replace=False)
+                    funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
 
                     x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
                     y = funcgen.evaluate_function(x)
@@ -119,19 +124,20 @@ class GenerateDataset:
         valid = False
         while not valid:
             X, Y = [], []
-            common_funcgen = FuncGen(num_dims)
+            random_states = np.random.choice(range(1, 10000), 1, replace=False)
+            common_funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
 
             for _ in range(num_tasks):
 
-                specific_funcgen = FuncGen(num_dims)
+                specific_funcgen = FuncGen(
+                    num_dims=num_dims, random_state=random_states[0]
+                )
 
                 x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
                 y = common_funcgen.evaluate_function(
                     x
-                ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                    x
-                )  # Higher weight to the common part
+                ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(x)
 
                 if self.regression is False:
                     y = self._classify_output(y)
@@ -157,32 +163,26 @@ class GenerateDataset:
         valid = False
         X, Y = [], []
         while not valid:
-
-            common_funcgen = FuncGen(num_dims)
+            random_states = np.random.choice(range(1, 10000), 1, replace=False)
+            common_funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
 
             for i in range(num_tasks):
 
-                specific_funcgen = FuncGen(num_dims)
+                specific_funcgen = FuncGen(
+                    num_dims=num_dims, random_state=random_states[0]
+                )
                 x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
-                # if i >= num_tasks - num_outlier_tasks:
                 if i < num_tasks - num_outlier_tasks:
-                    # y = specific_funcgen.evaluate_function(x)  # No common part
-                    # y = common_funcgen.evaluate_function(x)
                     y = common_funcgen.evaluate_function(
                         x
                     ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(x)
                 else:
-                    # y = common_funcgen.evaluate_function(
-                    #     x
-                    # ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(
-                    #     x
-                    # )  # Higher weight to the common part
                     y = specific_funcgen.evaluate_function(x)
 
                 if self.regression is False:
                     y = self._classify_output(y)
-                    if not self._valid_class_prop(y, 0.05):
+                    if not self._valid_class_prop(y, 0.03):
                         valid = False
                         break
                     else:
@@ -214,7 +214,7 @@ class GenerateDataset:
             return df
 
         if self.scenario in scenario_methods:
-            x_list, y_list = scenario_methods[self.scenario](num_instances=1500)
+            x_list, y_list = scenario_methods[self.scenario](num_instances=2500)
 
         ranges = []
         for x, y in zip(x_list, y_list):

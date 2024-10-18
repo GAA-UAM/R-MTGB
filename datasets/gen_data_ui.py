@@ -34,8 +34,8 @@ if __name__ == "__main__":
             os.chdir(dir_path)
             os.mkdir("clf")
             os.mkdir("reg")
-            for regression in [True, False]:
-            # for regression in [True]:
+            # for regression in [True, False]:
+            for regression in [True]:
                 gen_data2 = data_gen(scenario)
                 df = gen_data2(regression)
                 train_df, test_df = train_test_split(
