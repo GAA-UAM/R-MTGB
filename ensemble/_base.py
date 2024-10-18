@@ -147,10 +147,10 @@ class BaseMTGB(BaseGradientBoosting):
         return loss, np.sum(grad_theta)
 
     def _opt_theta(self, c_h, r_h, y, theta):
+    
         theta = np.atleast_1d(theta)
         args = (c_h, r_h, y)
 
-        # Define a wrapper function to return both the loss and gradient
         def obj_and_grad(theta, c_h, r_h, y):
             loss, grad = self._obj_fun(theta, c_h, r_h, y)
             return loss, grad  # SciPy expects the gradient to be returned separately
@@ -160,7 +160,7 @@ class BaseMTGB(BaseGradientBoosting):
             x0=theta,
             args=args,
             jac=True,
-            method="BFGS",
+            method="Newton-CG",
             options={"maxiter": 1, "disp": False},
         )
 
@@ -629,14 +629,14 @@ class BaseMTGB(BaseGradientBoosting):
                     sample_mask_c,
                     sample_weight,
                     self.learning_rate,
-                    self.theta_[i, :],
+                    self.theta_[i, :] if i == 0 else self.theta_[i - 1, :],
                     "data_pooling",
                 )
 
                 raw_predictions = self._update_prediction(
                     raw_predictions_c,
                     raw_predictions_r,
-                    self.sigmas_[i, :],
+                    self.sigmas_[i, :] if i == 0 else self.sigmas_[i - 1, :],
                 )
 
                 for r_label, r in self.tasks_dic.items():
@@ -654,32 +654,6 @@ class BaseMTGB(BaseGradientBoosting):
                     self.theta_[i, r] = theta[0]
                     self.sigmas_[i, r] = sigmoid(theta)
 
-                raw_predictions = self._update_prediction(
-                    raw_predictions_c,
-                    raw_predictions_r,
-                    self.sigmas_[i, :],
-                )
-
-                # Data pooling
-                raw_predictions_c = self._fit_stage(
-                    i,
-                    0,
-                    X,
-                    y,
-                    raw_predictions,
-                    sample_mask_c,
-                    sample_weight,
-                    self.learning_rate,
-                    self.theta_[i, :],
-                    "data_pooling",
-                )
-
-                raw_predictions = self._update_prediction(
-                    raw_predictions_c,
-                    raw_predictions_r,
-                    self.sigmas_[i, :],
-                )
-
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
                     X_r = X[idx_r]
@@ -695,14 +669,14 @@ class BaseMTGB(BaseGradientBoosting):
                         sample_mask_r,
                         sample_weight[idx_r],
                         self.learning_rate,
-                        self.theta_[i, r],
+                        self.theta_[i, r] if i == 0 else self.theta_[i - 1, r],
                         "specific_task",
                     )
 
                 raw_predictions = self._update_prediction(
                     raw_predictions_c,
                     raw_predictions_r,
-                    self.sigmas_[i, :],
+                    self.sigmas_[i, :] if i == 0 else self.sigmas_[i - 1, :],
                 )
 
                 # Taking previously optimized theta as the init value of optimization
