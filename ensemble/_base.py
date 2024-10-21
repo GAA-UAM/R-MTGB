@@ -147,25 +147,28 @@ class BaseMTGB(BaseGradientBoosting):
         return loss, np.sum(grad_theta)
 
     def _opt_theta(self, c_h, r_h, y, theta):
-    
+
         theta = np.atleast_1d(theta)
         args = (c_h, r_h, y)
 
         def obj_and_grad(theta, c_h, r_h, y):
             loss, grad = self._obj_fun(theta, c_h, r_h, y)
             return loss, grad  # SciPy expects the gradient to be returned separately
+        
+        loss, grad = obj_and_grad(theta, c_h, r_h, y)
 
-        result = minimize(
-            fun=obj_and_grad,
-            x0=theta,
-            args=args,
-            jac=True,
-            method="Newton-CG",
-            options={"maxiter": 1, "disp": False},
-        )
+        # result = minimize(
+        #     fun=obj_and_grad,
+        #     x0=theta,
+        #     args=args,
+        #     jac=True,
+        #     method="Newton-CG",
+        #     options={"maxiter": 1, "disp": False},
+        # )
 
-        optimized_theta = result.x
-        return optimized_theta
+        # optimized_theta = result.x
+        # return optimized_theta
+        return theta - (self.learning_rate * grad)
 
     # def _opt_theta(self, c_h, r_h, y, theta):
 
@@ -648,11 +651,17 @@ class BaseMTGB(BaseGradientBoosting):
                         raw_predictions_c[idx_r],
                         raw_predictions_r[idx_r],
                         y_r,
-                        prev_theta[r],
+                        self.theta_[i, r],
                     )
 
                     self.theta_[i, r] = theta[0]
                     self.sigmas_[i, r] = sigmoid(theta)
+
+                raw_predictions = self._update_prediction(
+                    raw_predictions_c,
+                    raw_predictions_r,
+                    self.sigmas_[i, :],
+                )
 
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
@@ -669,18 +678,16 @@ class BaseMTGB(BaseGradientBoosting):
                         sample_mask_r,
                         sample_weight[idx_r],
                         self.learning_rate,
-                        self.theta_[i, r] if i == 0 else self.theta_[i - 1, r],
+                        self.theta_[i, r],
                         "specific_task",
                     )
 
                 raw_predictions = self._update_prediction(
                     raw_predictions_c,
                     raw_predictions_r,
-                    self.sigmas_[i, :] if i == 0 else self.sigmas_[i - 1, :],
+                    self.sigmas_[i, :],
                 )
 
-                # Taking previously optimized theta as the init value of optimization
-                prev_theta = self.theta_[i - 1, :] + np.random.normal(scale=0.05)
 
             else:
                 raw_predictions = self._fit_stage(
