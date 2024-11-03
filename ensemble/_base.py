@@ -639,7 +639,7 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     self.theta_[i, r] = theta[0]
-                    self.sigmas_[i, r] = sigmoid(theta)
+                    self.sigmas_[i, r] = sigmoid(theta[0])
 
                 raw_predictions = self._update_prediction(
                     raw_predictions_c,
