@@ -154,37 +154,21 @@ class BaseMTGB(BaseGradientBoosting):
         def obj_and_grad(theta, c_h, r_h, y):
             loss, grad = self._obj_fun(theta, c_h, r_h, y)
             return loss, grad  # SciPy expects the gradient to be returned separately
-        
-        loss, grad = obj_and_grad(theta, c_h, r_h, y)
 
-        # result = minimize(
-        #     fun=obj_and_grad,
-        #     x0=theta,
-        #     args=args,
-        #     jac=True,
-        #     method="Newton-CG",
-        #     options={"maxiter": 1, "disp": False},
-        # )
+        # loss, grad = obj_and_grad(theta, c_h, r_h, y)
 
-        # optimized_theta = result.x
-        # return optimized_theta
-        return theta - (self.learning_rate * grad)
+        result = minimize(
+            fun=obj_and_grad,
+            x0=theta,
+            args=args,
+            jac=True,
+            method="Newton-CG",
+            options={"maxiter": 1, "disp": False},
+        )
 
-    # def _opt_theta(self, c_h, r_h, y, theta):
-
-    #     theta = np.atleast_1d(theta)
-    #     args = (c_h, r_h, y)
-    #     result = fmin_l_bfgs_b(
-    #         self._obj_fun,
-    #         theta,
-    #         args=args,
-    #         approx_grad=False,
-    #         maxls=1,
-    #         # factr=1e7,
-    #         # pgtol=1e-5,
-    #     )
-    #     optimized_theta = result[0]
-    #     return optimized_theta
+        optimized_theta = result.x
+        return optimized_theta
+        # return theta - (self.learning_rate * grad)
 
     def _fit_stage(
         self,
@@ -687,7 +671,6 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions_r,
                     self.sigmas_[i, :],
                 )
-
 
             else:
                 raw_predictions = self._fit_stage(

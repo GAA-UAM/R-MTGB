@@ -74,7 +74,7 @@ class CE:
         H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
         dL_dH = y - np.nan_to_num(np.exp(H - logsumexp(H, axis=1, keepdims=True)))
 
-        gradient = -1 *(dL_dH * dH_dtheta)
+        gradient = -1 * (dL_dH * dH_dtheta)
 
         return gradient
 
@@ -173,7 +173,7 @@ class MSE:
             H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
             dL_dH = np.squeeze(y) - H
 
-            gradient = -1* (dL_dH * dH_dtheta)
+            gradient = -1 * (dL_dH * dH_dtheta)
 
         return gradient
 
