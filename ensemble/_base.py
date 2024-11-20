@@ -127,6 +127,16 @@ class BaseMTGB(BaseGradientBoosting):
                 # H = w_pred
                 neg_gradient *= 1 - self.sigmas_[i, r]
 
+            # Finite difference approximation
+            epsilon = 1e-3
+            loss_plus = self._loss_util(y, raw_predictions + epsilon, None)
+            loss = self._loss_util(y, raw_predictions, None)
+            grad_approx = (loss_plus - loss) / epsilon
+
+            assert np.allclose( 
+                np.sum(neg_gradient), grad_approx, rtol=1e-3, atol=1e-4
+            ), f"Gradient mismatch detected. Analytic: {np.sum(neg_gradient)}, Approx: {grad_approx}"
+
         return neg_gradient
 
     def _obj_fun(self, theta, c_h, r_h, y):
@@ -138,8 +148,20 @@ class BaseMTGB(BaseGradientBoosting):
         sigma = sigmoid(theta)
         w_pred = (sigma * c_h) + ((1 - sigma) * r_h)
         loss = self._loss_util(y, w_pred, None)
-
         grad_theta = self._loss_util._gradient_theta(y, c_h, r_h, sigma)
+
+        # Finite difference approximation
+        epsilon = 1e-3
+        theta_plus = theta.copy()
+        theta_plus += epsilon
+        w_pred_plus = (sigmoid(theta_plus) * c_h) + ((1 - sigmoid(theta_plus)) * r_h)
+        loss_plus = self._loss_util(y, w_pred_plus, None)
+
+        grad_approx = (loss_plus - loss) / epsilon
+
+        assert np.allclose(
+            np.sum(grad_theta), grad_approx, rtol=1e-3, atol=1e-4
+        ), f"Gradient mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
 
         return loss, np.sum(grad_theta)
 
@@ -152,7 +174,7 @@ class BaseMTGB(BaseGradientBoosting):
             loss, grad = self._obj_fun(theta, c_h, r_h, y)
             return loss, grad  # SciPy expects the gradient to be returned separately
 
-        loss, grad = obj_and_grad(theta, c_h, r_h, y)
+        _, grad = obj_and_grad(theta, c_h, r_h, y)
 
         result = minimize(
             fun=obj_and_grad,
