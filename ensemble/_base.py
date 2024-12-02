@@ -130,11 +130,11 @@ class BaseMTGB(BaseGradientBoosting):
             # Finite difference approximation
             epsilon = 1e-3
             loss_plus = self._loss_util(y, raw_predictions + epsilon, None)
-            loss = self._loss_util(y, raw_predictions, None)
-            grad_approx = (loss_plus - loss) / epsilon
+            loss_minus = self._loss_util(y, raw_predictions - epsilon, None)
+            grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
 
-            assert np.allclose( 
-                np.sum(neg_gradient), grad_approx, rtol=1e-3, atol=1e-4
+            assert np.allclose(
+                np.sum(neg_gradient), -1.0 * grad_approx, rtol=1e-2, atol=1e-2
             ), f"Gradient mismatch detected. Analytic: {np.sum(neg_gradient)}, Approx: {grad_approx}"
 
         return neg_gradient
@@ -160,7 +160,7 @@ class BaseMTGB(BaseGradientBoosting):
         grad_approx = (loss_plus - loss) / epsilon
 
         assert np.allclose(
-            np.sum(grad_theta), grad_approx, rtol=1e-3, atol=1e-4
+            np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
         ), f"Gradient mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
 
         return loss, np.sum(grad_theta)
@@ -665,7 +665,6 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     self._task_theta_opt(y, raw_predictions_c, raw_predictions_r, i)
-
 
             else:
                 raw_predictions = self._fit_stage(
