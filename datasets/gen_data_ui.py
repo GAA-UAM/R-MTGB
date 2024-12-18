@@ -25,8 +25,8 @@ if __name__ == "__main__":
 
     original_dir = os.getcwd()
 
-    for scenario in [1, 2, 3, 4]:
-    # for scenario in [4]:
+    # for scenario in [1, 2, 3, 4]:
+    for scenario in [4]:
         for i, subdir in enumerate(range(1, 10 + 1)):
             scenario_name = "scenario_" + str(scenario)
             dir_path = os.path.join(base_dir, scenario_name, str(subdir))

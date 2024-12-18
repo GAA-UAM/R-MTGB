@@ -138,7 +138,6 @@ class BaseMTGB(BaseGradientBoosting):
             # ), f"Gradient (w.r.t y_hat) mismatch detected. Analytic: {np.sum(neg_gradient)}, Approx: {grad_approx}"
 
         return neg_gradient
-    
 
     def _obj_fun(self, theta, c_h, r_h, y):
 
@@ -155,10 +154,15 @@ class BaseMTGB(BaseGradientBoosting):
         epsilon = 1e-3
         theta_plus = theta.copy()
         theta_plus += epsilon
+        theta_minus = theta.copy()
+        theta_minus -= epsilon
         w_pred_plus = (sigmoid(theta_plus) * c_h) + ((1 - sigmoid(theta_plus)) * r_h)
+        w_pred_minus = (sigmoid(theta_minus) * c_h) + ((1 - sigmoid(theta_minus)) * r_h)
         loss_plus = self._loss_util(y, w_pred_plus, None)
+        loss_minus = self._loss_util(y, w_pred_minus, None)
 
-        grad_approx = (loss_plus - loss) / epsilon
+        # grad_approx = (loss_plus - loss) / epsilon
+        grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
 
         assert np.allclose(
             np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
@@ -621,8 +625,7 @@ class BaseMTGB(BaseGradientBoosting):
                         raw_predictions_c,
                         self._subsampling(X),
                         sample_weight,
-                        "data_pooling"
-
+                        "data_pooling",
                     )
 
                     self._track_loss(

@@ -176,7 +176,7 @@ class GenerateDataset:
                 if i < num_tasks - num_outlier_tasks:
                     y = common_funcgen.evaluate_function(
                         x
-                    ) * 0.9 + 0.1 * specific_funcgen.evaluate_function(x)
+                    ) * 1.0 + 0.0 * specific_funcgen.evaluate_function(x)
                 else:
                     y = specific_funcgen.evaluate_function(x)
 
