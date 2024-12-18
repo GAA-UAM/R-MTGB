@@ -1,4 +1,5 @@
 import numpy as np
+from ._utils import *
 from sklearn.tree import _tree
 from scipy.special import logsumexp
 from sklearn.utils.multiclass import type_of_target
@@ -64,17 +65,19 @@ class CE:
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def _gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
+    def gradient_theta(self, y, ch, rh, sigmoid):
 
-        # chain rule
-        # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
-        # H = w_pred
+        # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
-        dH_dtheta = sigmoid * (1 - sigmoid) * (raw_predictions_c - raw_predictions_r)
-        H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
-        dL_dH = y - np.nan_to_num(np.exp(H - logsumexp(H, axis=1, keepdims=True)))
+        dH_dtheta = sigmoid * (1 - sigmoid) * ch
+        dL_dH = y - np.nan_to_num(
+            np.exp(
+                obj(sigmoid, ch, rh)
+                - logsumexp(obj(sigmoid, ch, rh), axis=1, keepdims=True)
+            )
+        )
 
-        gradient = -1 * (dL_dH * dH_dtheta)
+        gradient = dL_dH * dH_dtheta
 
         return gradient
 
@@ -150,51 +153,27 @@ class MSE:
 
         return neg_gradient
 
-    def _gradient_theta(self, y, raw_predictions_c, raw_predictions_r, sigmoid):
+    def gradient_theta(self, y, ch, rh, sigmoid):
 
-        # chain rule
-        # ∂L/∂theta = (∂L/∂H).(∂H/∂theta)
-        # H = w_pred
+        # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
         target_type = type_of_target(y)
         if (
             not target_type in ["continuous-multioutput", "multiclass-multioutput"]
             and target_type == "continuous"
         ):
-            raw_predictions_c, raw_predictions_r = (
-                raw_predictions_c.ravel(),
-                raw_predictions_r.ravel(),
+            ch, rh = (
+                ch.ravel(),
+                rh.ravel(),
             )
 
-            dH_dtheta = (
-                sigmoid * (1 - sigmoid) * (raw_predictions_c - raw_predictions_r)
-            )
+            dH_dtheta = sigmoid * (1 - sigmoid) * ch
 
-            H = sigmoid * raw_predictions_c + (1 - sigmoid) * raw_predictions_r
-            dL_dH = np.squeeze(y) - H
+            dL_dH = np.squeeze(y) - obj(sigmoid, ch, rh)
 
-            gradient = -1 * (dL_dH * dH_dtheta)
+            gradient = dL_dH * dH_dtheta
 
         return gradient
-
-    def approx_grad(self, predictions, y):
-        epsilon = 1e-3
-        num_params = predictions.size
-        gradient_approx = np.zeros_like(predictions)
-
-        loss = MSE()
-        # Compute numerical gradient for each element
-        for i in range(num_params):
-            predictions_plus_epsilon = np.copy(predictions)
-            predictions_plus_epsilon[i] += epsilon
-
-            loss_original = loss(y, predictions)
-            loss_plus_epsilon = loss(y, predictions_plus_epsilon)
-
-            # Approximate gradient
-            gradient_approx[i] = (loss_plus_epsilon - loss_original) / epsilon
-
-        return gradient_approx
 
     def update_terminal_regions(
         self,
