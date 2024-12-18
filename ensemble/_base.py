@@ -245,6 +245,7 @@ class BaseMTGB(BaseGradientBoosting):
                 self.init_ = DummyClassifier(strategy="prior")
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
+                
         self.init_.fit(X, y)
         self.inits_[r,] = copy.deepcopy(self.init_)
         return _init_raw_predictions(X, self.init_, self._loss, self.is_classifier)
