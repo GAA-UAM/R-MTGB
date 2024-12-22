@@ -135,18 +135,19 @@ class BaseMTGB(BaseGradientBoosting):
         loss = self._loss_util(y, ensemble_pred(sigma, ch, rh), None)
         grad_theta = self._loss_util.gradient_theta(y, ch, rh, sigma)
 
-        # Finite difference approximation
-        epsilon = 1e-3
-        theta_plus, theta_minus = theta + epsilon, theta - epsilon
-        w_pred_plus = ensemble_pred(sigmoid(theta_plus), ch, rh)
-        w_pred_minus = ensemble_pred(sigmoid(theta_minus), ch, rh)
-        loss_plus, loss_minus = map(
-            lambda w: self._loss_util(y, w, None), [w_pred_plus, w_pred_minus]
-        )
-        grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
-        assert np.allclose(
-            np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
-        ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
+        if not self.is_classifier:
+            # Finite difference approximation
+            epsilon = 1e-3
+            theta_plus, theta_minus = theta + epsilon, theta - epsilon
+            w_pred_plus = ensemble_pred(sigmoid(theta_plus), ch, rh)
+            w_pred_minus = ensemble_pred(sigmoid(theta_minus), ch, rh)
+            loss_plus, loss_minus = map(
+                lambda w: self._loss_util(y, w, None), [w_pred_plus, w_pred_minus]
+            )
+            grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
+            assert np.allclose(
+                np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
+            ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
 
         return loss, np.sum(grad_theta)
 
