@@ -94,7 +94,6 @@ class BaseMTGB(BaseGradientBoosting):
         self.is_classifier = False
         self.early_stopping = early_stopping
 
-        self.eta = 0.0001
         np.random.seed(self.random_state)
 
     @abstractmethod
@@ -200,7 +199,7 @@ class BaseMTGB(BaseGradientBoosting):
                 raw_predictions,
                 sample_weight,
                 sample_mask,
-                learning_rate=self.learning_rate if task_type == "data_pooling" else self.eta,
+                learning_rate=self.learning_rate,
                 k=k,
             )
 
@@ -785,8 +784,7 @@ class BaseMTGB(BaseGradientBoosting):
                         idx_r = t == r_label
 
                         X_r = self.X_test[idx_r]
-                        # rh[idx_r] += self.learning_rate * tree.predict(X_r)
-                        rh[idx_r] += self.eta * tree.predict(X_r)
+                        rh[idx_r] += self.learning_rate * tree.predict(X_r)
 
                         ch[idx_r] = ensemble_pred(
                             (self.sigmas_[i, r]),
