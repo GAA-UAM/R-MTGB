@@ -139,7 +139,9 @@ class BaseMTGB(BaseGradientBoosting):
         sigma = sigmoid(theta)
         grad_theta = self._loss_util.gradient_theta(y, ch, rh, sigma)
 
-        assert np.all(np.isfinite(grad_theta)), "Gradient with respect to theta contains NaN or Inf."
+        assert np.all(
+            np.isfinite(grad_theta)
+        ), "Gradient with respect to theta contains NaN or Inf."
         assert not np.all(grad_theta == 0), "Gradient with respect to theta is zero."
 
         if not self.is_classifier:
@@ -162,7 +164,11 @@ class BaseMTGB(BaseGradientBoosting):
 
         theta = np.atleast_1d(theta)
         grad = self._obj_fun(theta, ch, rh, y)
-        return theta - (self.learning_rate * grad)
+
+        for iteration in range(100):
+            grad = self._obj_fun(theta, ch, rh, y)
+            theta = theta - self.learning_rate * (grad)
+        return theta
 
     def _fit_stage(
         self,
@@ -179,7 +185,9 @@ class BaseMTGB(BaseGradientBoosting):
 
             neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i, r)
             assert neg_gradient.shape == y.shape, "Negative gradient shape mismatch."
-            assert np.all(np.isfinite(neg_gradient)), "Negative gradient contains NaN or Inf."
+            assert np.all(
+                np.isfinite(neg_gradient)
+            ), "Negative gradient contains NaN or Inf."
             assert not np.all(neg_gradient == 0), "Negative gradient is zero."
             raw_prediction_ = raw_predictions.copy()
 
@@ -214,9 +222,12 @@ class BaseMTGB(BaseGradientBoosting):
                 k=k,
             )
 
-            assert np.all(np.isfinite(raw_prediction)), "Raw predictions contain NaN or Inf."
-            assert not np.all(raw_prediction_ == raw_predictions), "Raw predictions did not change."
-
+            assert np.all(
+                np.isfinite(raw_prediction)
+            ), "Raw predictions contain NaN or Inf."
+            assert not np.all(
+                raw_prediction_ == raw_predictions
+            ), "Raw predictions did not change."
 
             # Shift the index for specific tasks, leaving the common task at index 0
             r = r + 1 if task_type == "specific_task" else r

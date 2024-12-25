@@ -157,27 +157,36 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=1
+        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=3
     ):
 
         valid = False
         X, Y = [], []
         while not valid:
-            random_states = np.random.choice(range(1, 10000), 1, replace=False)
-            common_funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
+            random_states_common = np.random.choice(range(1, 10000), 1, replace=False)
+            random_states_task_specific = np.random.choice(
+                range(10000, 20000), 1, replace=False
+            )
+            common_funcgen = FuncGen(
+                num_dims=num_dims, random_state=random_states_common[0]
+            )
 
             for i in range(num_tasks):
 
                 specific_funcgen = FuncGen(
-                    num_dims=num_dims, random_state=random_states[0]
+                    num_dims=num_dims, random_state=random_states_task_specific[0]
                 )
                 x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
 
                 if i < num_tasks - num_outlier_tasks:
+                    # non-outlier tasks
+                    common_weight = np.random.uniform(0.7, 0.9)  
+                    specific_weight = 1 - common_weight
                     y = common_funcgen.evaluate_function(
                         x
-                    ) * 1.0 + 0.0 * specific_funcgen.evaluate_function(x)
+                    ) * common_weight + specific_weight * specific_funcgen.evaluate_function(x)
                 else:
+                    # outlier tasks
                     y = specific_funcgen.evaluate_function(x)
 
                 if self.regression is False:
