@@ -11,7 +11,6 @@ from sklearn.utils.multiclass import type_of_target
 from sklearn.model_selection import train_test_split
 from abc import abstractmethod
 from scipy.special import expit as sigmoid
-from scipy.optimize import fmin_l_bfgs_b
 from sklearn.utils import check_random_state
 from sklearn.base import _fit_context
 from sklearn.utils.validation import check_is_fitted
@@ -20,15 +19,11 @@ from sklearn.ensemble._gradient_boosting import (
 )
 from ._utils import obj as ensemble_pred
 from sklearn.tree._tree import DTYPE
-from scipy.special import logsumexp
 from ._loss_utils import *
 from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
 )
-
-from scipy.optimize import minimize
-
 
 def _init_raw_predictions(X, estimator, loss, is_classifier):
     if is_classifier:
@@ -113,6 +108,16 @@ class BaseMTGB(BaseGradientBoosting):
             raw_predictions,
         )
 
+        assert np.all(
+            np.isfinite(neg_gradient)
+        ), "Negative gradient contains NaN or Inf values."
+        assert not np.all(
+            neg_gradient == 0
+        ), "Negative gradient is zero for all samples."
+        assert (
+            np.min(neg_gradient) >= -1e5 and np.max(neg_gradient) <= 1e5
+        ), "Negative gradient values are outside the expected range."
+
         if self.tasks_dic != None:
             # Multi-task learning
             if task_type == "data_pooling":
@@ -132,8 +137,10 @@ class BaseMTGB(BaseGradientBoosting):
             ch = ch.squeeze()
 
         sigma = sigmoid(theta)
-        loss = self._loss_util(y, ensemble_pred(sigma, ch, rh), None)
         grad_theta = self._loss_util.gradient_theta(y, ch, rh, sigma)
+
+        assert np.all(np.isfinite(grad_theta)), "Gradient with respect to theta contains NaN or Inf."
+        assert not np.all(grad_theta == 0), "Gradient with respect to theta is zero."
 
         if not self.is_classifier:
             # Finite difference approximation
@@ -171,6 +178,10 @@ class BaseMTGB(BaseGradientBoosting):
         for k in range(self._loss_util.K):
 
             neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i, r)
+            assert neg_gradient.shape == y.shape, "Negative gradient shape mismatch."
+            assert np.all(np.isfinite(neg_gradient)), "Negative gradient contains NaN or Inf."
+            assert not np.all(neg_gradient == 0), "Negative gradient is zero."
+            raw_prediction_ = raw_predictions.copy()
 
             tree = DecisionTreeRegressor(
                 criterion=self.criterion,
@@ -202,6 +213,10 @@ class BaseMTGB(BaseGradientBoosting):
                 learning_rate=self.learning_rate,
                 k=k,
             )
+
+            assert np.all(np.isfinite(raw_prediction)), "Raw predictions contain NaN or Inf."
+            assert not np.all(raw_prediction_ == raw_predictions), "Raw predictions did not change."
+
 
             # Shift the index for specific tasks, leaving the common task at index 0
             r = r + 1 if task_type == "specific_task" else r
@@ -246,6 +261,7 @@ class BaseMTGB(BaseGradientBoosting):
                 self.init_ = DummyClassifier(strategy="prior")
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
+                # self.init_ = DummyRegressor(strategy="mean")
 
         self.init_.fit(X, y)
         self.inits_[r,] = copy.deepcopy(self.init_)
@@ -622,8 +638,6 @@ class BaseMTGB(BaseGradientBoosting):
                             sample_weight[idx_r],
                             "specific_task",
                         )
-
-                    self._task_theta_opt(y, ch, rh, i)
 
                     raw_predictions = self._update_prediction(
                         ch,

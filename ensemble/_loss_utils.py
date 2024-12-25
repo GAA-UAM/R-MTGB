@@ -173,6 +173,13 @@ class MSE:
 
             gradient = dL_dH * dH_dtheta
 
+            assert gradient.shape == dH_dtheta.shape, "Gradient shape mismatch."
+            assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
+            assert not np.all(gradient == 0), "Gradient is zero for all samples."
+            assert (
+                np.min(gradient) >= -1e5 and np.max(gradient) <= 1e5
+            ), "Gradient values are outside expected range."
+
         return gradient
 
     def update_terminal_regions(
