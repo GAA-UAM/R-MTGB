@@ -1,6 +1,6 @@
 import numpy as np
 from ensemble._base import BaseMTGB
-from sklearn.tree._tree import DTYPE, DOUBLE
+from sklearn.tree._tree import DOUBLE
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
@@ -129,7 +129,7 @@ class MTGBClassifier(BaseMTGB):
 
     def predict_proba(self, X):
         raw_predictions = self.decision_function(X)
-        return self._loss.predict_proba(raw_predictions)
+        return self._loss_util.predict_proba(raw_predictions)
 
     def predict_log_proba(self, X):
         proba = self.predict_proba(X)
@@ -138,7 +138,7 @@ class MTGBClassifier(BaseMTGB):
     def staged_predict_proba(self, X):
         try:
             for raw_predictions in self._staged_raw_predict(X):
-                yield self._loss.predict_proba(raw_predictions)
+                yield self._loss_util.predict_proba(raw_predictions)
         except NotFittedError:
             raise
         except AttributeError as e:

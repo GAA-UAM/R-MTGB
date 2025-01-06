@@ -157,7 +157,7 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=3
+        self, num_dims=2, num_tasks=8, num_instances=500, num_outlier_tasks=1
     ):
 
         valid = False
@@ -180,7 +180,7 @@ class GenerateDataset:
 
                 if i < num_tasks - num_outlier_tasks:
                     # non-outlier tasks
-                    common_weight = np.random.uniform(0.7, 0.9)  
+                    common_weight = 0.9
                     specific_weight = 1 - common_weight
                     y = common_funcgen.evaluate_function(
                         x

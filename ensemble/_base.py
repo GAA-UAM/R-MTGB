@@ -7,7 +7,6 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.ensemble._gb import BaseGradientBoosting
 from sklearn.dummy import DummyClassifier, DummyRegressor
-from sklearn.utils.multiclass import type_of_target
 from sklearn.model_selection import train_test_split
 from abc import abstractmethod
 from scipy.special import expit as sigmoid
@@ -19,11 +18,12 @@ from sklearn.ensemble._gradient_boosting import (
 )
 from ._utils import obj as ensemble_pred
 from sklearn.tree._tree import DTYPE
-from ._loss_utils import *
+from ._losses import *
 from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
 )
+
 
 def _init_raw_predictions(X, estimator, loss, is_classifier):
     if is_classifier:
@@ -103,7 +103,7 @@ class BaseMTGB(BaseGradientBoosting):
         self, y: np.ndarray, raw_predictions: np.ndarray, task_type: str, i: int, r: int
     ):
 
-        neg_gradient = self._loss_util.negative_gradient(
+        neg_gradient = self._loss.negative_gradient(
             y,
             raw_predictions,
         )
@@ -137,7 +137,7 @@ class BaseMTGB(BaseGradientBoosting):
             ch = ch.squeeze()
 
         sigma = sigmoid(theta)
-        grad_theta = self._loss_util.gradient_theta(y, ch, rh, sigma)
+        grad_theta = self._loss.gradient_theta(y, ch, rh, sigma)
 
         assert np.all(
             np.isfinite(grad_theta)
@@ -151,7 +151,7 @@ class BaseMTGB(BaseGradientBoosting):
             w_pred_plus = ensemble_pred(sigmoid(theta_plus), ch, rh)
             w_pred_minus = ensemble_pred(sigmoid(theta_minus), ch, rh)
             loss_plus, loss_minus = map(
-                lambda w: self._loss_util(y, w, None), [w_pred_plus, w_pred_minus]
+                lambda w: self._loss(y, w, None), [w_pred_plus, w_pred_minus]
             )
             grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
             assert np.allclose(
@@ -165,10 +165,7 @@ class BaseMTGB(BaseGradientBoosting):
         theta = np.atleast_1d(theta)
         grad = self._obj_fun(theta, ch, rh, y)
 
-        for iteration in range(100):
-            grad = self._obj_fun(theta, ch, rh, y)
-            theta = theta - self.learning_rate * (grad)
-        return theta
+        return theta - (self.learning_rate * (grad))
 
     def _fit_stage(
         self,
@@ -181,7 +178,7 @@ class BaseMTGB(BaseGradientBoosting):
         sample_weight,
         task_type=None,
     ):
-        for k in range(self._loss_util.K):
+        for k in range(self._loss.K):
 
             neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i, r)
             assert neg_gradient.shape == y.shape, "Negative gradient shape mismatch."
@@ -210,7 +207,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
 
-            raw_prediction = self._loss_util.update_terminal_regions(
+            raw_prediction = self._loss.update_terminal_regions(
                 tree.tree_,
                 X,
                 y,
@@ -272,11 +269,9 @@ class BaseMTGB(BaseGradientBoosting):
                 self.init_ = DummyClassifier(strategy="prior")
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
-                # self.init_ = DummyRegressor(strategy="mean")
-
         self.init_.fit(X, y)
         self.inits_[r,] = copy.deepcopy(self.init_)
-        return _init_raw_predictions(X, self.init_, self._loss, self.is_classifier)
+        return _init_raw_predictions(X, self.init_, self._loss_util, self.is_classifier)
 
     def _init_state(self, y):
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
@@ -285,7 +280,7 @@ class BaseMTGB(BaseGradientBoosting):
                 y = y[:, np.newaxis]
             num_cols = y.shape[1]
         elif self.is_classifier:
-            num_cols = len(np.unique(y))
+            num_cols = self._loss.n_classes_
 
         self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
@@ -409,12 +404,13 @@ class BaseMTGB(BaseGradientBoosting):
             X_train, y_train, sample_weight_train = X, y, sample_weight
             X_val = y_val = sample_weight_val = None
 
-        self._loss = self._get_loss(sample_weight=sample_weight)
+        self._loss_util = self._get_loss(sample_weight=sample_weight)
 
         if self.is_classifier:
-            self._loss_util = CE(len(set(y_train)))
+            self._loss = CE(len(set(y_train)))
+
         else:
-            self._loss_util = MSE()
+            self._loss = MSE()
 
         if task_info is not None:
             # Multi-task learning
@@ -465,17 +461,17 @@ class BaseMTGB(BaseGradientBoosting):
         return self
 
     def _label_y(self, y: np.ndarray):
-        if self._loss.is_multiclass:
-            y = LabelBinarizer().fit_transform(y)
-        elif type_of_target(y) == "binary":
-            Y = np.zeros((y.shape[0], 2), dtype=np.float64)
-            if y.ndim == 2:
-                y = y.squeeze()
-            for k in range(2):
-                Y[:, k] = y == k
-            y = Y
-        elif not self.is_classifier:
-            return y
+        if self.is_classifier:
+            if self._loss.n_classes_ != 2:
+                y = LabelBinarizer().fit_transform(y)
+            else:
+
+                y_transformed = np.zeros((y.shape[0], 2), dtype=np.float64)
+                if y.ndim == 2:
+                    y = y.squeeze()
+                for k in range(2):
+                    y_transformed[:, k] = y == k
+                y = y_transformed
         return y
 
     def _subsampling(self, X):
@@ -499,7 +495,7 @@ class BaseMTGB(BaseGradientBoosting):
         if self.subsample < 1.0:
             if self.tasks_dic is None:
                 sample_mask = self._subsampling(X)
-                self.train_score_[i,] = self._loss_util(
+                self.train_score_[i,] = self._loss(
                     y=y[sample_mask],
                     raw_predictions=raw_predictions[sample_mask],
                     sample_weight=sample_weight[sample_mask],
@@ -510,7 +506,7 @@ class BaseMTGB(BaseGradientBoosting):
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
                     sample_mask = self._subsampling(X[idx_r])
-                    self.train_score_[i, r] = self._loss_util(
+                    self.train_score_[i, r] = self._loss(
                         y=y[idx_r][sample_mask],
                         raw_predictions=raw_predictions[idx_r][sample_mask],
                         sample_weight=sample_weight[idx_r][sample_mask],
@@ -518,7 +514,7 @@ class BaseMTGB(BaseGradientBoosting):
 
         else:
             if self.tasks_dic is None:
-                self.train_score_[i,] = self._loss_util(
+                self.train_score_[i,] = self._loss(
                     y=y,
                     raw_predictions=raw_predictions,
                     sample_weight=sample_weight,
@@ -526,7 +522,7 @@ class BaseMTGB(BaseGradientBoosting):
             elif self.tasks_dic != None:
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
-                    self.train_score_[i, r] = self._loss_util(
+                    self.train_score_[i, r] = self._loss(
                         y=y[idx_r],
                         raw_predictions=raw_predictions[idx_r],
                         sample_weight=sample_weight[idx_r],
@@ -689,7 +685,7 @@ class BaseMTGB(BaseGradientBoosting):
                 )
 
             if self.early_stopping is not None and i > 0:
-                validation_loss = self._loss_util(
+                validation_loss = self._loss(
                     y_val, next(y_val_pred_iter), sample_weight_val
                 )
 
@@ -718,7 +714,7 @@ class BaseMTGB(BaseGradientBoosting):
             )
 
             ch = _init_raw_predictions(
-                self.X_test, self.inits_[0], self._loss, self.is_classifier
+                self.X_test, self.inits_[0], self._loss_util, self.is_classifier
             )
 
             rh = np.zeros_like(ch)
@@ -731,7 +727,7 @@ class BaseMTGB(BaseGradientBoosting):
                 ]._validate_X_predict(X_r, check_input=True)
 
                 rh[idx_r] = _init_raw_predictions(
-                    X_r, self.inits_[r + 1], self._loss, self.is_classifier
+                    X_r, self.inits_[r + 1], self._loss_util, self.is_classifier
                 )
 
         elif task_info is None:
@@ -740,7 +736,9 @@ class BaseMTGB(BaseGradientBoosting):
             )
             X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
 
-            ch = _init_raw_predictions(X, self.init_, self._loss, self.is_classifier)
+            ch = _init_raw_predictions(
+                X, self.init_, self._loss_util, self.is_classifier
+            )
 
             rh = None
 
