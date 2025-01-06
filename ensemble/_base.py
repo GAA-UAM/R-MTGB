@@ -1,3 +1,5 @@
+import os
+import glob
 import copy
 import warnings
 import numpy as np
@@ -23,7 +25,7 @@ from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
 )
-
+from libs._logging import FileHandler, StreamHandler
 from scipy.optimize import minimize
 
 
@@ -90,6 +92,15 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
+
+        self.log_fh = FileHandler()
+        self.log_sh = StreamHandler()
+
+        logs = glob.glob("*log")
+        if os.path.getsize(logs[0]) > 0:
+            f = open(logs[0], "r+")
+            f.truncate()
+            self.log_fh.warning("The previously saved log file has been truncated!")
 
         np.random.seed(self.random_state)
 
@@ -294,8 +305,7 @@ class BaseMTGB(BaseGradientBoosting):
         elif self.is_classifier:
             num_cols = self._loss.n_classes_
 
-        # self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
-        self.theta_ = np.random.normal(0, 1, (self.n_estimators, self.T))
+        self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
         self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
 
         shape = (
@@ -304,8 +314,17 @@ class BaseMTGB(BaseGradientBoosting):
             else (self.n_estimators, num_cols)
         )
         self.residual_ = np.zeros(shape, dtype=np.float32)
-
         self.train_score_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+
+        if self.verbose >= 1:
+            try:
+                os.mkdir("logs")
+            except:
+                self.log_sh.warning("/logs already exists")
+                self.log_sh.warning("previous records have been deleted")
+                for dirname, _, filenames in os.walk("logs"):
+                    for log in filenames:
+                        os.remove(os.path.join(dirname, log))
 
     def _clear_state(self):
         """Clear the state of the gradient boosting model."""
@@ -613,13 +632,19 @@ class BaseMTGB(BaseGradientBoosting):
                 if i < self.n_common_estimators:
                     # Common tasks
 
-                    # Measure loss of the outlier task before updating ch
-                    outlier_task_loss_before = self._loss(
-                        y[self.t == 7],
-                        raw_predictions[self.t == 7],
-                        sample_weight[self.t == 7],
-                    )
-                    print(f"Outlier task loss before updating ch at stage {i}: {outlier_task_loss_before}")
+                    if self.verbose > 1:
+
+                        self.log_fh.info("\n")
+
+                        outlier_task_loss_before = self._loss(
+                            y[self.t == 7],
+                            raw_predictions[self.t == 7],
+                            sample_weight[self.t == 7],
+                        )
+                        if outlier_task_loss_before is not None:
+                            self.log_fh.info(
+                                f"Outlier task loss before updating ch at stage{i}: {outlier_task_loss_before:.4f}"
+                            )
 
                     ch = self._fit_stage(
                         i,
@@ -648,13 +673,16 @@ class BaseMTGB(BaseGradientBoosting):
                         raw_predictions,
                     )
 
-                    # Measure loss of the outlier task after updating ch
-                    outlier_task_loss_after = self._loss(
-                        y[self.t == 7],
-                        raw_predictions[self.t == 7],
-                        sample_weight[self.t == 7],
-                    )
-                    print(f"Outlier task loss after updating ch at stage {i}: {outlier_task_loss_after}")
+                    if self.verbose > 1:
+                        outlier_task_loss_after = self._loss(
+                            y[self.t == 7],
+                            raw_predictions[self.t == 7],
+                            sample_weight[self.t == 7],
+                        )
+
+                        self.log_fh.info(
+                            f"Outlier task loss after updating ch at stage{i}: {outlier_task_loss_after:.4f}"
+                        )
 
                 else:
 
@@ -710,10 +738,10 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions,
                 )
 
-            if self.verbose > 1:
-                boosting_bar.set_description(
-                    f"Loss: {self.train_score_[i]:.4f}", refresh=True
-                )
+                if self.verbose > 1:
+                    boosting_bar.set_description(
+                        f"Loss: {self.train_score_[i]:.4f}", refresh=True
+                    )
 
             if self.early_stopping is not None and i > 0:
                 validation_loss = self._loss(
