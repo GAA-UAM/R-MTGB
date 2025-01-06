@@ -167,18 +167,18 @@ class MSE:
                 rh.ravel(),
             )
 
-            dH_dtheta = sigmoid * (1 - sigmoid) * ch
+        dH_dtheta = sigmoid * (1 - sigmoid) * ch
 
-            dL_dH = np.squeeze(y) - obj(sigmoid, ch, rh)
+        dL_dH = np.squeeze(y) - obj(sigmoid, ch, rh)
 
-            gradient = dL_dH * dH_dtheta
+        gradient = dL_dH * dH_dtheta
 
-            assert gradient.shape == dH_dtheta.shape, "Gradient shape mismatch."
-            assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
-            assert not np.all(gradient == 0), "Gradient is zero for all samples."
-            assert (
-                np.min(gradient) >= -1e5 and np.max(gradient) <= 1e5
-            ), "Gradient values are outside expected range."
+        assert gradient.shape == dH_dtheta.shape, "Gradient shape mismatch."
+        assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
+        assert not np.all(gradient == 0), "Gradient is zero for all samples."
+        assert (
+            np.min(gradient) >= -1e5 and np.max(gradient) <= 1e5
+        ), "Gradient values are outside expected range."
 
         return gradient
 

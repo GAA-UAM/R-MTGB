@@ -24,6 +24,8 @@ from sklearn.utils.validation import (
     _check_sample_weight,
 )
 
+from scipy.optimize import minimize
+
 
 def _init_raw_predictions(X, estimator, loss, is_classifier):
     if is_classifier:
@@ -167,6 +169,17 @@ class BaseMTGB(BaseGradientBoosting):
 
         return theta - (self.learning_rate * (grad))
 
+    # def _opt_theta(self, ch, rh, y, theta):
+
+    #     theta = np.atleast_1d(theta)
+
+    #     def obj_to_minimize(theta):
+    #         return np.sum(self._obj_fun(theta, ch, rh, y))
+
+    #     result = minimize(obj_to_minimize, theta, method="BFGS")
+
+    #     return result.x
+
     def _fit_stage(
         self,
         i,
@@ -221,10 +234,10 @@ class BaseMTGB(BaseGradientBoosting):
 
             assert np.all(
                 np.isfinite(raw_prediction)
-            ), "Raw predictions contain NaN or Inf."
+            ), f"Raw predictions contain NaN or Inf in stage {i}."
             assert not np.all(
                 raw_prediction_ == raw_predictions
-            ), "Raw predictions did not change."
+            ), f"Raw predictions did not change in stage {i}."
 
             # Shift the index for specific tasks, leaving the common task at index 0
             r = r + 1 if task_type == "specific_task" else r
@@ -645,6 +658,8 @@ class BaseMTGB(BaseGradientBoosting):
                             sample_weight[idx_r],
                             "specific_task",
                         )
+
+                    self._task_theta_opt(y, ch, rh, i)
 
                     raw_predictions = self._update_prediction(
                         ch,
