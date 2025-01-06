@@ -157,7 +157,7 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims=2, num_tasks=8, num_instances=500, num_outlier_tasks=1
+        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=1
     ):
 
         valid = False
@@ -182,9 +182,9 @@ class GenerateDataset:
                     # non-outlier tasks
                     common_weight = 0.9
                     specific_weight = 1 - common_weight
-                    y = common_funcgen.evaluate_function(
-                        x
-                    ) * common_weight + specific_weight * specific_funcgen.evaluate_function(x)
+                    y = (common_funcgen.evaluate_function(x) * common_weight) + (
+                        specific_weight * specific_funcgen.evaluate_function(x)
+                    )
                 else:
                     # outlier tasks
                     y = specific_funcgen.evaluate_function(x)
@@ -223,7 +223,7 @@ class GenerateDataset:
             return df
 
         if self.scenario in scenario_methods:
-            x_list, y_list = scenario_methods[self.scenario](num_instances=2500)
+            x_list, y_list = scenario_methods[self.scenario](num_instances=100)
 
         ranges = []
         for x, y in zip(x_list, y_list):

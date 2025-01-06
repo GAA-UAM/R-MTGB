@@ -2,6 +2,7 @@ import numpy as np
 from ._utils import *
 from sklearn.tree import _tree
 from scipy.special import logsumexp
+from scipy.special import expit as sigmoid
 from sklearn.utils.multiclass import type_of_target
 
 TREE_LEAF = _tree.TREE_LEAF
@@ -65,15 +66,17 @@ class CE:
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def gradient_theta(self, y, ch, rh, sigmoid):
+    def gradient_theta(self, y, ch, rh, theta):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
-        dH_dtheta = sigmoid * (1 - sigmoid) * ch
+        sigma = sigmoid(theta)
+
+        dH_dtheta = sigma * (1 - sigma) * ch
         dL_dH = y - np.nan_to_num(
             np.exp(
-                obj(sigmoid, ch, rh)
-                - logsumexp(obj(sigmoid, ch, rh), axis=1, keepdims=True)
+                obj(sigma, ch, rh)
+                - logsumexp(obj(sigma, ch, rh), axis=1, keepdims=True)
             )
         )
 
@@ -153,7 +156,7 @@ class MSE:
 
         return neg_gradient
 
-    def gradient_theta(self, y, ch, rh, sigmoid):
+    def gradient_theta(self, y, ch, rh, theta):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
@@ -167,9 +170,11 @@ class MSE:
                 rh.ravel(),
             )
 
-        dH_dtheta = sigmoid * (1 - sigmoid) * ch
+        sigma = sigmoid(theta)
 
-        dL_dH = np.squeeze(y) - obj(sigmoid, ch, rh)
+        dH_dtheta = sigma * (1 - sigma) * ch
+
+        dL_dH = np.squeeze(y) - obj(sigma, ch, rh)
 
         gradient = dL_dH * dH_dtheta
 

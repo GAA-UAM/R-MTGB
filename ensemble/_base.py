@@ -138,8 +138,7 @@ class BaseMTGB(BaseGradientBoosting):
             rh = rh.squeeze()
             ch = ch.squeeze()
 
-        sigma = sigmoid(theta)
-        grad_theta = self._loss.gradient_theta(y, ch, rh, sigma)
+        grad_theta = self._loss.gradient_theta(y, ch, rh, theta)
 
         assert np.all(
             np.isfinite(grad_theta)
@@ -295,7 +294,8 @@ class BaseMTGB(BaseGradientBoosting):
         elif self.is_classifier:
             num_cols = self._loss.n_classes_
 
-        self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        # self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.theta_ = np.random.normal(0, 1, (self.n_estimators, self.T))
         self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
 
         shape = (
@@ -613,6 +613,14 @@ class BaseMTGB(BaseGradientBoosting):
                 if i < self.n_common_estimators:
                     # Common tasks
 
+                    # Measure loss of the outlier task before updating ch
+                    outlier_task_loss_before = self._loss(
+                        y[self.t == 7],
+                        raw_predictions[self.t == 7],
+                        sample_weight[self.t == 7],
+                    )
+                    print(f"Outlier task loss before updating ch at stage {i}: {outlier_task_loss_before}")
+
                     ch = self._fit_stage(
                         i,
                         0,
@@ -639,6 +647,14 @@ class BaseMTGB(BaseGradientBoosting):
                         sample_weight,
                         raw_predictions,
                     )
+
+                    # Measure loss of the outlier task after updating ch
+                    outlier_task_loss_after = self._loss(
+                        y[self.t == 7],
+                        raw_predictions[self.t == 7],
+                        sample_weight[self.t == 7],
+                    )
+                    print(f"Outlier task loss after updating ch at stage {i}: {outlier_task_loss_after}")
 
                 else:
 
@@ -715,7 +731,7 @@ class BaseMTGB(BaseGradientBoosting):
         """Check input and compute raw predictions of the init estimator."""
 
         self._check_initialized()
-        if task_info is not None:
+        if (task_info is not None) and (self.tasks_dic is not None):
 
             self.X_test, self.t_test = self._split_task(X, task_info)
             t = self.t_test
