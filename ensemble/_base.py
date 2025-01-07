@@ -607,7 +607,7 @@ class BaseMTGB(BaseGradientBoosting):
                     if self.verbose > 1:
 
                         self.log_fh.info(
-                            f"sigma(theta) at stage {i}: {self.sigmas_[i if i==0 else i-1, 7]}"
+                            f"sigma(theta) at stage {i}: {self.sigmas_[i, 7]:.5f}"
                         )
 
                         outlier_task_loss_before = self._loss(
@@ -644,7 +644,7 @@ class BaseMTGB(BaseGradientBoosting):
                         X,
                         y,
                         sample_weight,
-                        raw_predictions,
+                        ch,
                     )
 
                     if self.verbose > 1:
@@ -690,7 +690,7 @@ class BaseMTGB(BaseGradientBoosting):
                         X,
                         y,
                         sample_weight,
-                        raw_predictions,
+                        rh,
                     )
 
             else:
