@@ -26,7 +26,6 @@ from sklearn.utils.validation import (
     _check_sample_weight,
 )
 from libs._logging import FileHandler, StreamHandler
-from scipy.optimize import minimize
 
 
 def _init_raw_predictions(X, estimator, loss, is_classifier):
@@ -95,12 +94,6 @@ class BaseMTGB(BaseGradientBoosting):
 
         self.log_fh = FileHandler()
         self.log_sh = StreamHandler()
-
-        logs = glob.glob("*log")
-        if os.path.getsize(logs[0]) > 0:
-            f = open(logs[0], "r+")
-            f.truncate()
-            self.log_fh.warning("The previously saved log file has been truncated!")
 
         np.random.seed(self.random_state)
 
@@ -178,17 +171,6 @@ class BaseMTGB(BaseGradientBoosting):
         grad = self._obj_fun(theta, ch, rh, y)
 
         return theta - (self.learning_rate * (grad))
-
-    # def _opt_theta(self, ch, rh, y, theta):
-
-    #     theta = np.atleast_1d(theta)
-
-    #     def obj_to_minimize(theta):
-    #         return np.sum(self._obj_fun(theta, ch, rh, y))
-
-    #     result = minimize(obj_to_minimize, theta, method="BFGS")
-
-    #     return result.x
 
     def _fit_stage(
         self,
@@ -315,16 +297,6 @@ class BaseMTGB(BaseGradientBoosting):
         )
         self.residual_ = np.zeros(shape, dtype=np.float32)
         self.train_score_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
-
-        if self.verbose >= 1:
-            try:
-                os.mkdir("logs")
-            except:
-                self.log_sh.warning("/logs already exists")
-                self.log_sh.warning("previous records have been deleted")
-                for dirname, _, filenames in os.walk("logs"):
-                    for log in filenames:
-                        os.remove(os.path.join(dirname, log))
 
     def _clear_state(self):
         """Clear the state of the gradient boosting model."""
@@ -635,7 +607,7 @@ class BaseMTGB(BaseGradientBoosting):
                     if self.verbose > 1:
 
                         self.log_fh.info(
-                            f"sigma(theta) at stage {i if i==0 else i-1}: {self.sigmas_[i if i==0 else i-1, 7]}"
+                            f"sigma(theta) at stage {i}: {self.sigmas_[i if i==0 else i-1, 7]}"
                         )
 
                         outlier_task_loss_before = self._loss(
@@ -645,7 +617,7 @@ class BaseMTGB(BaseGradientBoosting):
                         )
                         if outlier_task_loss_before is not None:
                             self.log_fh.info(
-                                f"Outlier task loss before updating ch at stage{i}: {outlier_task_loss_before:.4f}"
+                                f"Outlier task loss before updating ch at stage {i}: {outlier_task_loss_before:.4f}"
                             )
 
                     ch = self._fit_stage(
@@ -683,7 +655,7 @@ class BaseMTGB(BaseGradientBoosting):
                         )
 
                         self.log_fh.info(
-                            f"Outlier task loss after updating ch at stage{i}: {outlier_task_loss_after:.4f} \n"
+                            f"Outlier task loss after updating ch at stage {i}: {outlier_task_loss_after:.4f} \n"
                         )
 
                 else:

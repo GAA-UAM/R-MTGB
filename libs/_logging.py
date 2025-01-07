@@ -1,12 +1,29 @@
-import logging
+import os
 import sys
+import logging
+
 
 class FileHandler:
-    logger = logging.getLogger('Monitor')
+    log_dir = "log"
+
+    try:
+        os.mkdir(log_dir)
+    except:
+        for dirname, _, filenames in os.walk("logs"):
+            for log in filenames:
+                os.remove(os.path.join(dirname, log))
+    log_file = os.path.join("log", "log.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[
+            logging.FileHandler(log_file, "a", "utf-8"),
+            # logging.StreamHandler(sys.stdout),
+        ],
+    )
+    logger = logging.getLogger("Monitor")
     logger.setLevel(logging.DEBUG)
-    fh = logging.FileHandler('%s.log' % 'log', 'a')
-    formatter = logging.Formatter(
-        '%(asctime)s  - %(levelname)s: %(message)s')
+    fh = logging.FileHandler("%s.log" % "log", "a")
+    formatter = logging.Formatter("%(asctime)s  - %(levelname)s: %(message)s")
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
@@ -36,11 +53,12 @@ class StreamHandler:
     handler.setLevel(logging.INFO)
 
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     handler.setFormatter(formatter)
 
     logger.addHandler(handler)
-    logger.info('This is a log message!')
+    logger.info("This is a log message!")
 
     @classmethod
     def info(cls, msg):
