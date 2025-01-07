@@ -191,7 +191,7 @@ class BaseMTGB(BaseGradientBoosting):
                 np.isfinite(neg_gradient)
             ), "Negative gradient contains NaN or Inf."
             assert not np.all(neg_gradient == 0), "Negative gradient is zero."
-            raw_prediction_ = raw_predictions.copy()
+            raw_predictions_ = raw_predictions.copy()
 
             tree = DecisionTreeRegressor(
                 criterion=self.criterion,
@@ -212,7 +212,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
 
-            raw_prediction = self._loss.update_terminal_regions(
+            raw_predictions = self._loss.update_terminal_regions(
                 tree.tree_,
                 X,
                 y,
@@ -221,14 +221,14 @@ class BaseMTGB(BaseGradientBoosting):
                 sample_weight,
                 sample_mask,
                 learning_rate=self.learning_rate,
-                k=k,
+                t=self.t,
             )
 
             assert np.all(
-                np.isfinite(raw_prediction)
+                np.isfinite(raw_predictions)
             ), f"Raw predictions contain NaN or Inf in stage {i}."
             assert not np.all(
-                raw_prediction_ == raw_predictions
+                raw_predictions_ == raw_predictions
             ), f"Raw predictions did not change in stage {i}."
 
             # Shift the index for specific tasks, leaving the common task at index 0
@@ -238,7 +238,7 @@ class BaseMTGB(BaseGradientBoosting):
                 self.residual_[i, :] = np.abs(neg_gradient).mean(axis=0)
             else:
                 self.residual_[i, r, :] = np.abs(neg_gradient).mean(axis=0)
-        return raw_prediction
+        return raw_predictions
 
     def _set_max_features(self):
         """Set self.max_features_."""
@@ -606,14 +606,10 @@ class BaseMTGB(BaseGradientBoosting):
 
                     if self.verbose > 1:
 
-                        self.log_fh.info(
-                            f"sigma(theta) at stage {i}: {self.sigmas_[i, 7]:.5f}"
-                        )
-
                         outlier_task_loss_before = self._loss(
-                            y,
-                            raw_predictions,
-                            sample_weight,
+                            y[self.t == 7],
+                            raw_predictions[self.t == 7],
+                            sample_weight[self.t == 7],
                         )
                         if outlier_task_loss_before is not None:
                             self.log_fh.info(
@@ -655,7 +651,11 @@ class BaseMTGB(BaseGradientBoosting):
                         )
 
                         self.log_fh.info(
-                            f"Outlier task loss after updating ch at stage {i}: {outlier_task_loss_after:.4f} \n"
+                            f"Outlier task loss after updating ch at stage {i}: {outlier_task_loss_after:.4f} "
+                        )
+
+                        self.log_fh.info(
+                            f"sigma(theta) at stage {i}: {self.sigmas_[i, 7]:.5f} \n ------\n"
                         )
 
                 else:
@@ -677,7 +677,7 @@ class BaseMTGB(BaseGradientBoosting):
                             "specific_task",
                         )
 
-                    self._task_theta_opt(y, ch, rh, i)
+                    # self._task_theta_opt(y, ch, rh, i)
 
                     raw_predictions = self._update_prediction(
                         ch,

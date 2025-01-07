@@ -6,14 +6,21 @@ from scipy.special import expit as sigmoid
 from sklearn.utils.multiclass import type_of_target
 
 TREE_LEAF = _tree.TREE_LEAF
+from libs._logging import FileHandler, StreamHandler
 
 
-class CE:
+class LossFunction:
+    def __init__(self):
+        self.K = 1
+        self.log_fh = FileHandler()
+        self.log_sh = StreamHandler()
+
+
+class CE(LossFunction):
     """Cross Entropy Loss function designed
     for binary and multiclass classification"""
 
     def __init__(self, n_classes_):
-        self.K = 1
         self.n_classes_ = n_classes_
 
     def __call__(self, y, raw_predictions, sample_weight=None):
@@ -33,7 +40,7 @@ class CE:
         sample_weight,
         sample_mask,
         learning_rate,
-        k=0,
+        t,
     ):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
@@ -113,12 +120,12 @@ class CE:
         )
 
 
-class MSE:
+class MSE(LossFunction):
     """Mean Squared Error function designed
     for single and multi-output regression."""
 
     def __init__(self):
-        self.K = 1
+        super().__init__()
 
     def __call__(self, y, raw_predictions, sample_weight=None):
 
@@ -196,8 +203,8 @@ class MSE:
         raw_predictions,
         sample_weight,
         sample_mask,
-        learning_rate=0.1,
-        k=0,
+        learning_rate,
+        t,
     ):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
@@ -206,5 +213,19 @@ class MSE:
             for i in range(y.shape[1]):
                 raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]
         elif target_type == "continuous":
-            raw_predictions[:, k] += learning_rate * tree.predict(X).ravel()
+            raw_predictions[:, 0] += learning_rate * tree.predict(X).ravel()
+        
+        print(raw_predictions.shape)
+        
+        try:
+            # Add logging to check updates for the outlier task
+            outlier_task_updates = (learning_rate * tree.predict(X).ravel()).take(
+                np.where(t == 7)[0], axis=0
+            )
+            self.log_fh.info(f"Outlier task updates: {outlier_task_updates}")
+        except:
+            pass
+        
+
+
         return raw_predictions
