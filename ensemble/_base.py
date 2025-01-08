@@ -220,8 +220,7 @@ class BaseMTGB(BaseGradientBoosting):
                 raw_predictions,
                 sample_weight,
                 sample_mask,
-                learning_rate=self.learning_rate,
-                t=self.t,
+                self.learning_rate,
             )
 
             assert np.all(

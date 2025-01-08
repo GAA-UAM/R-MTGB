@@ -40,7 +40,6 @@ class CE(LossFunction):
         sample_weight,
         sample_mask,
         learning_rate,
-        t,
     ):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
@@ -204,7 +203,6 @@ class MSE(LossFunction):
         sample_weight,
         sample_mask,
         learning_rate,
-        t,
     ):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
@@ -214,18 +212,5 @@ class MSE(LossFunction):
                 raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]
         elif target_type == "continuous":
             raw_predictions[:, 0] += learning_rate * tree.predict(X).ravel()
-        
-        print(raw_predictions.shape)
-        
-        try:
-            # Add logging to check updates for the outlier task
-            outlier_task_updates = (learning_rate * tree.predict(X).ravel()).take(
-                np.where(t == 7)[0], axis=0
-            )
-            self.log_fh.info(f"Outlier task updates: {outlier_task_updates}")
-        except:
-            pass
-        
-
 
         return raw_predictions
