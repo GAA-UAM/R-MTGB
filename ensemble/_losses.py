@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import numpy as np
 from ._utils import *
 from sklearn.tree import _tree
@@ -6,13 +7,33 @@ from scipy.special import expit as sigmoid
 from sklearn.utils.multiclass import type_of_target
 
 TREE_LEAF = _tree.TREE_LEAF
-from libs._logging import FileHandler, StreamHandler
 
 
 class LossFunction:
     def __init__(self):
-        self.log_fh = FileHandler()
-        self.log_sh = StreamHandler()
+        pass
+
+    @abstractmethod
+    def update_terminal_regions(
+        self,
+        tree,
+        X,
+        y,
+        residual,
+        raw_predictions,
+        sample_weight,
+        sample_mask,
+        learning_rate,
+    ):
+        """Update the terminal regions (=leaves) of the given tree and the prediction"""
+
+    @abstractmethod
+    def negative_gradient(self, y, raw_predictions, **kwargs):
+        """Compute the negative gradient"""
+
+    @abstractmethod
+    def gradient_theta(self, y, ch, rh, theta):
+        """Compute the gradient of the loss function with respect to theta"""
 
 
 class CE(LossFunction):

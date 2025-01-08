@@ -297,7 +297,7 @@ class BaseMTGB(BaseGradientBoosting):
             else (self.n_estimators, num_cols)
         )
         self.residual_ = np.zeros(shape, dtype=np.float32)
-        self.train_score_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.train_score_ = np.zeros((self.n_estimators, self.T + 1), dtype=np.float64)
 
     def _clear_state(self):
         """Clear the state of the gradient boosting model."""
@@ -501,7 +501,7 @@ class BaseMTGB(BaseGradientBoosting):
         if self.subsample < 1.0:
             if self.tasks_dic is None:
                 sample_mask = self._subsampling(X)
-                self.train_score_[i,] = self._loss(
+                self.train_score_[i, 0] = self._loss(
                     y=y[sample_mask],
                     raw_predictions=raw_predictions[sample_mask],
                     sample_weight=sample_weight[sample_mask],
@@ -512,7 +512,7 @@ class BaseMTGB(BaseGradientBoosting):
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
                     sample_mask = self._subsampling(X[idx_r])
-                    self.train_score_[i, r] = self._loss(
+                    self.train_score_[i, r + 1] = self._loss(
                         y=y[idx_r][sample_mask],
                         raw_predictions=raw_predictions[idx_r][sample_mask],
                         sample_weight=sample_weight[idx_r][sample_mask],
@@ -520,7 +520,7 @@ class BaseMTGB(BaseGradientBoosting):
 
         else:
             if self.tasks_dic is None:
-                self.train_score_[i,] = self._loss(
+                self.train_score_[i, 0] = self._loss(
                     y=y,
                     raw_predictions=raw_predictions,
                     sample_weight=sample_weight,
@@ -528,7 +528,7 @@ class BaseMTGB(BaseGradientBoosting):
             elif self.tasks_dic != None:
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
-                    self.train_score_[i, r] = self._loss(
+                    self.train_score_[i, r + 1] = self._loss(
                         y=y[idx_r],
                         raw_predictions=raw_predictions[idx_r],
                         sample_weight=sample_weight[idx_r],
@@ -716,7 +716,7 @@ class BaseMTGB(BaseGradientBoosting):
 
                 if self.verbose > 1:
                     boosting_bar.set_description(
-                        f"Loss: {self.train_score_[i]:.4f}", refresh=True
+                        f"Loss: {self.train_score_[i, 0]:.4f}", refresh=True
                     )
 
             if self.early_stopping is not None and i > 0:

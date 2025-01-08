@@ -7,9 +7,12 @@ class FileHandler:
     log_dir = "log"
 
     if os.path.exists(os.path.join(os.getcwd(), log_dir)):
-        for dirname, _, filenames in os.walk(os.path.join(os.getcwd(), log_dir)):
-            for log in filenames:
-                os.remove(os.path.join(dirname, log))
+        try:
+            for dirname, _, filenames in os.walk(os.path.join(os.getcwd(), log_dir)):
+                for log in filenames:
+                    os.remove(os.path.join(dirname, log))
+        except:
+            pass
     else:
         os.mkdir(log_dir)
 
