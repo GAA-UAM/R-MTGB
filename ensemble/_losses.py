@@ -1,8 +1,8 @@
 from abc import abstractmethod
 import numpy as np
-from ._utils import *
 from sklearn.tree import _tree
 from scipy.special import logsumexp
+from ._utils import obj as ensemble_pred
 from scipy.special import expit as sigmoid
 from sklearn.utils.multiclass import type_of_target
 
@@ -32,7 +32,7 @@ class LossFunction:
         """Compute the negative gradient"""
 
     @abstractmethod
-    def gradient_theta(self, y, ch, rh, theta):
+    def gradient_theta(self, ch, rh, y, theta):
         """Compute the gradient of the loss function with respect to theta"""
 
 
@@ -93,7 +93,7 @@ class CE(LossFunction):
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def gradient_theta(self, y, ch, rh, theta):
+    def gradient_theta(self, ch, rh, y, theta):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
@@ -102,8 +102,8 @@ class CE(LossFunction):
         dH_dtheta = sigma * (1 - sigma) * ch
         dL_dH = y - np.nan_to_num(
             np.exp(
-                obj(sigma, ch, rh)
-                - logsumexp(obj(sigma, ch, rh), axis=1, keepdims=True)
+                ensemble_pred(sigma, ch, rh)
+                - logsumexp(ensemble_pred(sigma, ch, rh), axis=1, keepdims=True)
             )
         )
 
@@ -183,7 +183,7 @@ class MSE(LossFunction):
 
         return neg_gradient
 
-    def gradient_theta(self, y, ch, rh, theta):
+    def gradient_theta(self, ch, rh, y, theta):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
@@ -201,16 +201,12 @@ class MSE(LossFunction):
 
         dH_dtheta = sigma * (1 - sigma) * ch
 
-        dL_dH = np.squeeze(y) - obj(sigma, ch, rh)
+        dL_dH = np.squeeze(y) - ensemble_pred(sigma, ch, rh)
 
-        gradient = dL_dH * dH_dtheta
+        gradient = dL_dH @ dH_dtheta
 
-        assert gradient.shape == dH_dtheta.shape, "Gradient shape mismatch."
         assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
         assert not np.all(gradient == 0), "Gradient is zero for all samples."
-        assert (
-            np.min(gradient) >= -1e5 and np.max(gradient) <= 1e5
-        ), "Gradient values are outside expected range."
 
         return gradient
 

@@ -252,7 +252,7 @@ class BaseMTGB(BaseGradientBoosting):
         elif self.is_classifier:
             num_cols = self._loss.n_classes_
 
-        self.theta_ = np.zeros((self.n_estimators, self.T), dtype=np.float64)
+        self.theta_ = np.zeros((self.n_common_estimators, self.T), dtype=np.float64)
         self.sigmas_ = np.zeros_like(self.theta_, dtype=np.float64)
 
         shape = (
@@ -514,7 +514,7 @@ class BaseMTGB(BaseGradientBoosting):
             rh = rh.squeeze()
             ch = ch.squeeze()
 
-        grad_theta = self._loss.gradient_theta(y, ch, rh, theta)
+        grad_theta = self._loss.gradient_theta(ch, rh, y, theta)
 
         assert np.all(
             np.isfinite(grad_theta)
@@ -532,10 +532,10 @@ class BaseMTGB(BaseGradientBoosting):
             )
             grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
             assert np.allclose(
-                np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
+                grad_theta, grad_approx, rtol=1e-2, atol=1e-2
             ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
 
-        return theta - (self.learning_rate * np.sum(grad_theta))
+        return theta - (self.learning_rate * grad_theta)
 
     def _task_theta_opt(self, y, ch, rh, i):
 
@@ -674,12 +674,10 @@ class BaseMTGB(BaseGradientBoosting):
                             "specific_task",
                         )
 
-                    # self._task_theta_opt(y, ch, rh, i)
-
                     raw_predictions = self._update_prediction(
                         ch,
                         rh,
-                        self.sigmas_[i, :],
+                        self.sigmas_[self.n_common_estimators - 1, :],
                     )
 
                     self._track_loss(
@@ -840,7 +838,7 @@ class BaseMTGB(BaseGradientBoosting):
                         rh[idx_r] += self.learning_rate * tree.predict(X_r)
 
                         ch[idx_r] = ensemble_pred(
-                            (self.sigmas_[i, r]),
+                            (self.sigmas_[self.n_common_estimators - 1, r]),
                             ch[idx_r],
                             rh[idx_r],
                         )
@@ -909,7 +907,7 @@ class BaseMTGB(BaseGradientBoosting):
                         rh[idx_r] += self.learning_rate * tree.predict(X_r)
 
                         ch[idx_r] = ensemble_pred(
-                            (self.sigmas_[i, r]),
+                            (self.sigmas_[self.n_common_estimators - 1, r]),
                             ch[idx_r],
                             rh[idx_r],
                         )
