@@ -6,12 +6,13 @@ import logging
 class FileHandler:
     log_dir = "log"
 
-    try:
-        os.mkdir(log_dir)
-    except:
-        for dirname, _, filenames in os.walk("logs"):
+    if os.path.exists(os.path.join(os.getcwd(), log_dir)):
+        for dirname, _, filenames in os.walk(os.path.join(os.getcwd(), log_dir)):
             for log in filenames:
                 os.remove(os.path.join(dirname, log))
+    else:
+        os.mkdir(log_dir)
+
     log_file = os.path.join("log", "log.log")
     logging.basicConfig(
         level=logging.INFO,

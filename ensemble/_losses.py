@@ -11,7 +11,6 @@ from libs._logging import FileHandler, StreamHandler
 
 class LossFunction:
     def __init__(self):
-        self.K = 1
         self.log_fh = FileHandler()
         self.log_sh = StreamHandler()
 
@@ -21,6 +20,7 @@ class CE(LossFunction):
     for binary and multiclass classification"""
 
     def __init__(self, n_classes_):
+        super().__init__()
         self.n_classes_ = n_classes_
 
     def __call__(self, y, raw_predictions, sample_weight=None):

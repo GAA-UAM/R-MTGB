@@ -183,60 +183,60 @@ class BaseMTGB(BaseGradientBoosting):
         sample_weight,
         task_type=None,
     ):
-        for k in range(self._loss.K):
 
-            neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i, r)
-            assert neg_gradient.shape == y.shape, "Negative gradient shape mismatch."
-            assert np.all(
-                np.isfinite(neg_gradient)
-            ), "Negative gradient contains NaN or Inf."
-            assert not np.all(neg_gradient == 0), "Negative gradient is zero."
-            raw_predictions_ = raw_predictions.copy()
+        neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i, r)
+        assert neg_gradient.shape == y.shape, "Negative gradient shape mismatch."
+        assert np.all(
+            np.isfinite(neg_gradient)
+        ), "Negative gradient contains NaN or Inf."
+        assert not np.all(neg_gradient == 0), "Negative gradient is zero."
+        raw_predictions_ = raw_predictions.copy()
 
-            tree = DecisionTreeRegressor(
-                criterion=self.criterion,
-                splitter="best",
-                max_depth=self.max_depth,
-                min_samples_split=2,
-                min_samples_leaf=1,
-                min_weight_fraction_leaf=0.0,
-                min_impurity_decrease=0.0,
-                max_features=self.max_features,
-                max_leaf_nodes=2,
-                random_state=self._rng,
-                ccp_alpha=0.0,
-            )
+        tree = DecisionTreeRegressor(
+            criterion=self.criterion,
+            splitter="best",
+            max_depth=self.max_depth,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            min_weight_fraction_leaf=0.0,
+            min_impurity_decrease=0.0,
+            max_features=self.max_features,
+            max_leaf_nodes=2,
+            random_state=self._rng,
+            ccp_alpha=0.0,
+        )
 
-            if self.subsample < 1.0:
-                sample_weight = sample_weight * sample_mask.astype(np.float64)
+        if self.subsample < 1.0:
+            sample_weight = sample_weight * sample_mask.astype(np.float64)
 
-            tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
+        tree.fit(X, neg_gradient, sample_weight=sample_weight, check_input=False)
 
-            raw_predictions = self._loss.update_terminal_regions(
-                tree.tree_,
-                X,
-                y,
-                neg_gradient,
-                raw_predictions,
-                sample_weight,
-                sample_mask,
-                self.learning_rate,
-            )
+        raw_predictions = self._loss.update_terminal_regions(
+            tree.tree_,
+            X,
+            y,
+            neg_gradient,
+            raw_predictions,
+            sample_weight,
+            sample_mask,
+            self.learning_rate,
+        )
 
-            assert np.all(
-                np.isfinite(raw_predictions)
-            ), f"Raw predictions contain NaN or Inf in stage {i}."
-            assert not np.all(
-                raw_predictions_ == raw_predictions
-            ), f"Raw predictions did not change in stage {i}."
+        assert np.all(
+            np.isfinite(raw_predictions)
+        ), f"Raw predictions contain NaN or Inf in stage {i}."
+        assert not np.all(
+            raw_predictions_ == raw_predictions
+        ), f"Raw predictions did not change in stage {i}."
 
-            # Shift the index for specific tasks, leaving the common task at index 0
-            r = r + 1 if task_type == "specific_task" else r
-            self.estimators_[i, r] = tree
-            if self.tasks_dic is None:
-                self.residual_[i, :] = np.abs(neg_gradient).mean(axis=0)
-            else:
-                self.residual_[i, r, :] = np.abs(neg_gradient).mean(axis=0)
+        # Shift the index for specific tasks, leaving the common task at index 0
+        r = r + 1 if task_type == "specific_task" else r
+        self.estimators_[i, r] = tree
+        if self.tasks_dic is None:
+            self.residual_[i, :] = np.abs(neg_gradient).mean(axis=0)
+        else:
+            self.residual_[i, r, :] = np.abs(neg_gradient).mean(axis=0)
+
         return raw_predictions
 
     def _set_max_features(self):
@@ -273,9 +273,11 @@ class BaseMTGB(BaseGradientBoosting):
                 self.init_ = DummyClassifier(strategy="prior")
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
-        self.init_.fit(X, y)
         self.inits_[r,] = copy.deepcopy(self.init_)
-        return _init_raw_predictions(X, self.init_, self._loss_util, self.is_classifier)
+        self.inits_[r,].fit(X, y)
+        return _init_raw_predictions(
+            X, self.inits_[r,], self._loss_util, self.is_classifier
+        )
 
     def _init_state(self, y):
         self.estimators_ = np.empty((self.n_estimators, self.T + 1), dtype=object)
@@ -305,6 +307,7 @@ class BaseMTGB(BaseGradientBoosting):
             del self.train_score_
         if hasattr(self, "init_"):
             del self.init_
+            del self.inits_
         if hasattr(self, "_rng"):
             del self._rng
 
@@ -504,7 +507,7 @@ class BaseMTGB(BaseGradientBoosting):
                     sample_weight=sample_weight[sample_mask],
                 )
 
-            elif self.tasks_dic is not None:
+            elif self.tasks_dic != None:
 
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
@@ -769,7 +772,7 @@ class BaseMTGB(BaseGradientBoosting):
             X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
 
             ch = _init_raw_predictions(
-                X, self.init_, self._loss_util, self.is_classifier
+                X, self.inits_[0], self._loss_util, self.is_classifier
             )
 
             rh = None
