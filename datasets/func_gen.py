@@ -164,14 +164,16 @@ class GenerateDataset:
         X, Y = [], []
         while not valid:
             random_states_common = np.random.choice(range(1, 10000), 1, replace=False)
-            random_states_task_specific = np.random.choice(
-                range(10000, 20000), 1, replace=False
-            )
+
             common_funcgen = FuncGen(
                 num_dims=num_dims, random_state=random_states_common[0]
             )
 
             for i in range(num_tasks):
+
+                random_states_task_specific = np.random.choice(
+                    range(10000, 20000), 1, replace=False
+                )
 
                 specific_funcgen = FuncGen(
                     num_dims=num_dims, random_state=random_states_task_specific[0]

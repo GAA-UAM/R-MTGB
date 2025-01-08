@@ -136,42 +136,6 @@ class BaseMTGB(BaseGradientBoosting):
                 return neg_gradient
         return neg_gradient
 
-    def _obj_fun(self, theta, ch, rh, y):
-
-        if rh.ndim > 1 and not self.is_classifier:
-            rh = rh.squeeze()
-            ch = ch.squeeze()
-
-        grad_theta = self._loss.gradient_theta(y, ch, rh, theta)
-
-        assert np.all(
-            np.isfinite(grad_theta)
-        ), "Gradient with respect to theta contains NaN or Inf."
-        assert not np.all(grad_theta == 0), "Gradient with respect to theta is zero."
-
-        if not self.is_classifier:
-            # Finite difference approximation
-            epsilon = 1e-3
-            theta_plus, theta_minus = theta + epsilon, theta - epsilon
-            w_pred_plus = ensemble_pred(sigmoid(theta_plus), ch, rh)
-            w_pred_minus = ensemble_pred(sigmoid(theta_minus), ch, rh)
-            loss_plus, loss_minus = map(
-                lambda w: self._loss(y, w, None), [w_pred_plus, w_pred_minus]
-            )
-            grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
-            assert np.allclose(
-                np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
-            ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
-
-        return np.sum(grad_theta)
-
-    def _opt_theta(self, ch, rh, y, theta):
-
-        theta = np.atleast_1d(theta)
-        grad = self._obj_fun(theta, ch, rh, y)
-
-        return theta - (self.learning_rate * (grad))
-
     def _fit_stage(
         self,
         i,
@@ -541,6 +505,37 @@ class BaseMTGB(BaseGradientBoosting):
             idx_r = self.t == r_label
             raw_predictions[idx_r] = ensemble_pred(sigma[r], ch[idx_r], rh[idx_r])
         return raw_predictions
+
+    def _opt_theta(self, ch, rh, y, theta):
+
+        theta = np.atleast_1d(theta)
+
+        if rh.ndim > 1 and not self.is_classifier:
+            rh = rh.squeeze()
+            ch = ch.squeeze()
+
+        grad_theta = self._loss.gradient_theta(y, ch, rh, theta)
+
+        assert np.all(
+            np.isfinite(grad_theta)
+        ), "Gradient with respect to theta contains NaN or Inf."
+        assert not np.all(grad_theta == 0), "Gradient with respect to theta is zero."
+
+        if not self.is_classifier:
+            # Finite difference approximation
+            epsilon = 1e-3
+            theta_plus, theta_minus = theta + epsilon, theta - epsilon
+            w_pred_plus = ensemble_pred(sigmoid(theta_plus), ch, rh)
+            w_pred_minus = ensemble_pred(sigmoid(theta_minus), ch, rh)
+            loss_plus, loss_minus = map(
+                lambda w: self._loss(y, w, None), [w_pred_plus, w_pred_minus]
+            )
+            grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
+            assert np.allclose(
+                np.sum(grad_theta), grad_approx, rtol=1e-2, atol=1e-2
+            ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {np.sum(grad_theta)}, Approx: {grad_approx}"
+
+        return theta - (self.learning_rate * np.sum(grad_theta))
 
     def _task_theta_opt(self, y, ch, rh, i):
 
