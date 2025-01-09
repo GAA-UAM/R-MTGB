@@ -550,8 +550,8 @@ class BaseMTGB(BaseGradientBoosting):
                 self.theta_[i, r],
             )
 
-            self.theta_[i, r] = theta[0]
-            self.sigmas_[i, r] = sigmoid(theta[0])
+            self.theta_[i, r] = theta
+            self.sigmas_[i, r] = sigmoid(theta)
 
     def _fit_stages(
         self,
