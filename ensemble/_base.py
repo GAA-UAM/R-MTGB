@@ -516,6 +516,7 @@ class BaseMTGB(BaseGradientBoosting):
 
     def _task_theta_opt(self, ch, rh, y, theta_init, i):
 
+        theta_out = np.zeros_like(theta_init, dtype=np.float64)
         for r_label, r in self.tasks_dic.items():
             idx_r = self.t == r_label
             y_r = y[idx_r]
@@ -524,12 +525,13 @@ class BaseMTGB(BaseGradientBoosting):
                 ch[idx_r],
                 rh[idx_r],
                 y_r,
-                theta_init,
+                theta_init[r],
             )
 
-            self.sigmas_[i+1, r] = sigmoid(theta)
+            self.sigmas_[i + 1, r] = sigmoid(theta[0])
+            theta_out[r] = theta[0]
 
-        return theta
+        return theta_out
 
     def _fit_stages(
         self,
@@ -549,7 +551,7 @@ class BaseMTGB(BaseGradientBoosting):
         raw_predictions = (
             self._update_prediction(ch, rh, self.sigmas_[0, :]) if task_info else ch
         )
-        theta = np.zeros_like((self.T,))
+        theta = np.zeros((self.T,), dtype=np.float64)
 
         if self.early_stopping is not None:
             loss_history = np.full(self.early_stopping, np.inf)
