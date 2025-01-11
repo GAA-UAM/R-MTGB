@@ -109,7 +109,7 @@ class CE(LossFunction):
 
         gradient = dL_dH * dH_dtheta
 
-        return gradient
+        return np.sum(gradient, axis=0)
 
     def _update_terminal_region(
         self,
@@ -138,6 +138,13 @@ class CE(LossFunction):
         tree.value[leaf, :, 0] = np.where(
             abs(denominator) < 1e-150, 0.0, numerator / (denominator + epsilon)
         )
+
+    def get_init_raw_predictions(self, X, estimator):
+        probas = estimator.predict_proba(X)
+        eps = np.finfo(np.float32).eps
+        probas = np.clip(probas, eps, 1 - eps)
+        raw_predictions = np.log(probas).astype(np.float64)
+        return raw_predictions
 
 
 class MSE(LossFunction):
@@ -221,6 +228,7 @@ class MSE(LossFunction):
         sample_mask,
         learning_rate,
     ):
+        
         if X.dtype != np.float32:
             X = X.astype(np.float32)
         target_type = type_of_target(y)
@@ -231,3 +239,19 @@ class MSE(LossFunction):
             raw_predictions[:, 0] += learning_rate * tree.predict(X).ravel()
 
         return raw_predictions
+
+    def get_init_raw_predictions(self, X, estimator):
+        predictions = estimator.predict(X)
+        if (
+            type_of_target(predictions) == "continuous-multioutput"
+            or "multiclass-multioutput"
+        ):
+            try:
+                predictions = predictions.reshape(-1, predictions.shape[1]).astype(
+                    np.float64
+                )
+            except:
+                predictions = predictions.reshape(-1, 1).astype(np.float64)
+        else:
+            predictions = predictions.reshape(-1, 1).astype(np.float64)
+        return predictions
