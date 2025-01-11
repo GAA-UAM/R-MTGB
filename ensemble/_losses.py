@@ -162,15 +162,14 @@ class MSE(LossFunction):
             except:
                 init = 0.5 * np.sum((y - raw_predictions) ** 2)
         else:
-            target_type = type_of_target(y)
-            if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
+            if y.ndim > 1:
                 init = (
                     1
                     / sample_weight.sum()
                     * 0.5
                     * np.sum(sample_weight[:, None] * ((y - raw_predictions) ** 2))
                 )
-            elif target_type == "continuous":
+            else:
                 init = (
                     1
                     / sample_weight.sum()
@@ -181,11 +180,9 @@ class MSE(LossFunction):
         return init
 
     def negative_gradient(self, y, raw_predictions, **kargs):
-        target_type = type_of_target(y)
-        if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
+        if y.ndim > 1:
             neg_gradient = np.squeeze(y) - raw_predictions
-
-        elif target_type == "continuous":
+        else:
             neg_gradient = np.squeeze(y) - raw_predictions.ravel()
 
         return neg_gradient
@@ -194,11 +191,7 @@ class MSE(LossFunction):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
-        target_type = type_of_target(y)
-        if (
-            not target_type in ["continuous-multioutput", "multiclass-multioutput"]
-            and target_type == "continuous"
-        ):
+        if y.ndim == 1:
             ch, rh = (
                 ch.ravel(),
                 rh.ravel(),
@@ -228,14 +221,14 @@ class MSE(LossFunction):
         sample_mask,
         learning_rate,
     ):
-        
+
         if X.dtype != np.float32:
             X = X.astype(np.float32)
-        target_type = type_of_target(y)
-        if target_type in ["continuous-multioutput", "multiclass-multioutput"]:
+
+        if y.ndim > 1:
             for i in range(y.shape[1]):
                 raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]
-        elif target_type == "continuous":
+        else:
             raw_predictions[:, 0] += learning_rate * tree.predict(X).ravel()
 
         return raw_predictions
