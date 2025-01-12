@@ -4,14 +4,13 @@ from sklearn.tree import _tree
 from scipy.special import logsumexp
 from ._utils import obj as ensemble_pred
 from scipy.special import expit as sigmoid
-from sklearn.utils.multiclass import type_of_target
 
 TREE_LEAF = _tree.TREE_LEAF
 
 
 class LossFunction:
-    def __init__(self):
-        pass
+    def __init__(self, n_class):
+        self.n_class = n_class
 
     @abstractmethod
     def update_terminal_regions(
@@ -40,9 +39,8 @@ class CE(LossFunction):
     """Cross Entropy Loss function designed
     for binary and multiclass classification"""
 
-    def __init__(self, n_classes_):
-        super().__init__()
-        self.n_classes_ = n_classes_
+    def __init__(self, n_class):
+        super().__init__(n_class)
 
     def __call__(self, y, raw_predictions, sample_weight=None):
 
@@ -122,7 +120,7 @@ class CE(LossFunction):
         raw_predictions,
         sample_weight,
     ):
-        n_classes = self.n_classes_
+        n_classes = self.n_class
         terminal_region = np.where(terminal_regions == leaf)[0]
         residual = residual.take(terminal_region, axis=0)
         y = y.take(terminal_region, axis=0)
@@ -151,8 +149,8 @@ class MSE(LossFunction):
     """Mean Squared Error function designed
     for single and multi-output regression."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, n_class):
+        super().__init__(n_class)
 
     def __call__(self, y, raw_predictions, sample_weight=None):
 
@@ -162,7 +160,7 @@ class MSE(LossFunction):
             except:
                 init = 0.5 * np.sum((y - raw_predictions) ** 2)
         else:
-            if y.ndim > 1:
+            if self.n_class > 1:
                 init = (
                     1
                     / sample_weight.sum()
@@ -180,7 +178,7 @@ class MSE(LossFunction):
         return init
 
     def negative_gradient(self, y, raw_predictions, **kargs):
-        if y.ndim > 1:
+        if self.n_class > 1:
             neg_gradient = np.squeeze(y) - raw_predictions
         else:
             neg_gradient = np.squeeze(y) - raw_predictions.ravel()
@@ -191,7 +189,7 @@ class MSE(LossFunction):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
-        if y.ndim == 1:
+        if self.n_class == 1:
             ch, rh = (
                 ch.ravel(),
                 rh.ravel(),
@@ -225,7 +223,7 @@ class MSE(LossFunction):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
 
-        if y.ndim > 1:
+        if self.n_class > 1:
             for i in range(y.shape[1]):
                 raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]
         else:
@@ -235,16 +233,7 @@ class MSE(LossFunction):
 
     def get_init_raw_predictions(self, X, estimator):
         predictions = estimator.predict(X)
-        if (
-            type_of_target(predictions) == "continuous-multioutput"
-            or "multiclass-multioutput"
-        ):
-            try:
-                predictions = predictions.reshape(-1, predictions.shape[1]).astype(
-                    np.float64
-                )
-            except:
-                predictions = predictions.reshape(-1, 1).astype(np.float64)
+        if self.n_class > 1:
+            return predictions.reshape(-1, predictions.shape[1]).astype(np.float64)
         else:
-            predictions = predictions.reshape(-1, 1).astype(np.float64)
-        return predictions
+            return predictions.reshape(-1, 1).astype(np.float64)
