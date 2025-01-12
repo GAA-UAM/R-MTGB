@@ -233,7 +233,10 @@ class BaseMTGB(BaseGradientBoosting):
             num_cols = self._loss.n_class
 
         self.sigmas_ = sigmoid(
-            np.zeros((self.n_common_estimators + 1, self.T, self._loss.n_class), dtype=np.float64)
+            np.zeros(
+                (self.n_common_estimators + 1, self.T, self._loss.n_class),
+                dtype=np.float64,
+            )
         )
 
         shape = (
@@ -545,7 +548,7 @@ class BaseMTGB(BaseGradientBoosting):
 
         raw_predictions = None if task_info else ch
         theta = np.zeros(
-            (self.T, 0 if not self.is_classifier else self._loss.n_class),
+            (self.T, self._loss.n_class),
             dtype=np.float64,
         )
 

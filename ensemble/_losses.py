@@ -201,12 +201,12 @@ class MSE(LossFunction):
 
         dL_dH = np.squeeze(y) - ensemble_pred(sigma, ch, rh)
 
-        gradient = dL_dH @ dH_dtheta
+        gradient = dL_dH * dH_dtheta
 
         assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
         assert not np.all(gradient == 0), "Gradient is zero for all samples."
 
-        return gradient
+        return np.sum(gradient, axis=0)
 
     def update_terminal_regions(
         self,
