@@ -114,7 +114,7 @@ class BaseMTGB(BaseGradientBoosting):
                 # ∂L/∂ch = (∂L/∂obj()).(∂obj()/∂ch)
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
-                    neg_gradient[idx_r] *= 1 - self.sigmas_[i, r]
+                    neg_gradient[idx_r] *= 1 - self.sigmas_[i, r, :]
             else:
                 # ∂L/∂r_h= (∂L/∂obj()).(∂obj()/∂rh)
                 return neg_gradient
@@ -233,7 +233,7 @@ class BaseMTGB(BaseGradientBoosting):
             num_cols = self._loss.n_class
 
         self.sigmas_ = sigmoid(
-            np.zeros((self.n_common_estimators + 1, self.T), dtype=np.float64)
+            np.zeros((self.n_common_estimators + 1, self.T, self._loss.n_class), dtype=np.float64)
         )
 
         shape = (
@@ -523,8 +523,8 @@ class BaseMTGB(BaseGradientBoosting):
                 theta_init[r],
             )
 
-            self.sigmas_[i + 1, r] = sigmoid(theta[0])
-            theta_out[r] = theta[0]
+            self.sigmas_[i + 1, r, :] = sigmoid(theta)
+            theta_out[r] = theta
 
         return theta_out
 
@@ -544,7 +544,10 @@ class BaseMTGB(BaseGradientBoosting):
         y = self._label_y(y)
 
         raw_predictions = None if task_info else ch
-        theta = np.zeros((self.T,), dtype=np.float64)
+        theta = np.zeros(
+            (self.T, 0 if not self.is_classifier else self._loss.n_class),
+            dtype=np.float64,
+        )
 
         if self.early_stopping is not None:
             loss_history = np.full(self.early_stopping, np.inf)
@@ -572,7 +575,7 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions = self._update_prediction(
                         ch,
                         rh,
-                        self.sigmas_[i, :],
+                        self.sigmas_[i, :, :],
                     )
 
                     ch = self._fit_stage(
@@ -599,7 +602,10 @@ class BaseMTGB(BaseGradientBoosting):
                     raw_predictions = self._update_prediction(
                         ch,
                         rh,
-                        self.sigmas_[-1, :],
+                        self.sigmas_[-1, :, :],
+                    )
+                    np.savetxt(
+                        "raw_predictions_new.csv", raw_predictions, delimiter=","
                     )
 
                     for r_label, r in self.tasks_dic.items():
@@ -692,7 +698,7 @@ class BaseMTGB(BaseGradientBoosting):
                     )
                 idx_r = t == r_label
                 ch[idx_r] = ensemble_pred(
-                    (self.sigmas_[0, r]),
+                    (self.sigmas_[0, r, :]),
                     ch[idx_r],
                     rh[idx_r],
                 )
@@ -707,7 +713,7 @@ class BaseMTGB(BaseGradientBoosting):
                 rh[idx_r] = self._loss.get_init_raw_predictions(X_r, self.inits_[r + 1])
 
                 ch[idx_r] = ensemble_pred(
-                    (self.sigmas_[0, r]),
+                    (self.sigmas_[0, r, :]),
                     ch[idx_r],
                     rh[idx_r],
                 )
@@ -758,7 +764,7 @@ class BaseMTGB(BaseGradientBoosting):
                     for r_label, r in self.tasks_dic_test.items():
                         idx_r = t == r_label
                         ch[idx_r] = ensemble_pred(
-                            (self.sigmas_[-1, r]), ch[idx_r], rh[idx_r]
+                            (self.sigmas_[-1, r, :]), ch[idx_r], rh[idx_r]
                         )
 
                     del tree
@@ -772,7 +778,7 @@ class BaseMTGB(BaseGradientBoosting):
                         rh[idx_r] += self.learning_rate * tree.predict(X_r)
 
                         ch[idx_r] = ensemble_pred(
-                            (self.sigmas_[-1, r]),
+                            (self.sigmas_[-1, r, :]),
                             ch[idx_r],
                             rh[idx_r],
                         )
@@ -820,7 +826,7 @@ class BaseMTGB(BaseGradientBoosting):
                         idx_r = t == r_label
 
                         ch[idx_r] = ensemble_pred(
-                            (self.sigmas_[-1, r]),
+                            (self.sigmas_[-1, r, :]),
                             ch[idx_r],
                             rh[idx_r],
                         )
@@ -841,7 +847,7 @@ class BaseMTGB(BaseGradientBoosting):
                         rh[idx_r] += self.learning_rate * tree.predict(X_r)
 
                         ch[idx_r] = ensemble_pred(
-                            (self.sigmas_[-1, r]),
+                            (self.sigmas_[-1, r, :]),
                             ch[idx_r],
                             rh[idx_r],
                         )
