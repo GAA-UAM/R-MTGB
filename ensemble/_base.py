@@ -115,7 +115,7 @@ class BaseMTGB(BaseGradientBoosting):
                 for r_label, r in self.tasks_dic.items():
                     idx_r = self.t == r_label
                     neg_gradient[idx_r] *= (
-                        1 - self.sigmoid_thetas_[i if i == 0 else i - 1, r, :]
+                        1 - self.sigmoid_thetas_[i, r, :]
                     )
             else:
                 # ∂L/∂r_h= (∂L/∂obj()).(∂obj()/∂rh)
@@ -544,7 +544,7 @@ class BaseMTGB(BaseGradientBoosting):
                 theta[r],
             )
 
-            self.sigmoid_thetas_[i, r, :] = sigmoid(optimized_theta)
+            self.sigmoid_thetas_[i+1, r, :] = sigmoid(optimized_theta)
             theta_out[r] = optimized_theta
 
         return theta_out
@@ -620,7 +620,7 @@ class BaseMTGB(BaseGradientBoosting):
                     ensemble_prediction = self._update_prediction(
                         common_prediction,
                         tasks_prediction,
-                        self.sigmoid_thetas_[i, :, :],
+                        self.sigmoid_thetas_[i+1, :, :],
                     )
 
                     self._track_loss(
