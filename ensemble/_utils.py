@@ -1,2 +1,2 @@
-def obj(sigmoid, ch, rh):
-    return (1 - sigmoid) * ch + rh
+def _ensemble_pred(sigma_theta, common_prediction, tasks_prediction):
+    return (1 - sigma_theta) * common_prediction + tasks_prediction

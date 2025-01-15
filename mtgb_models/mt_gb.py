@@ -4,12 +4,6 @@ from sklearn.tree._tree import DOUBLE
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn._loss.loss import (
-    _LOSSES,
-    ExponentialLoss,
-    HalfBinomialLoss,
-    HalfMultinomialLoss,
-)
 
 
 class MTGBClassifier(BaseMTGB):
@@ -87,26 +81,14 @@ class MTGBClassifier(BaseMTGB):
         return encoded_y
 
     def _get_loss(self, sample_weight):
-        if self.loss == "log_loss":
-            if self.n_classes_ == 2:
-                return HalfBinomialLoss(sample_weight=sample_weight)
-            else:
-                return HalfMultinomialLoss(
-                    sample_weight=sample_weight, n_classes=self.n_classes_
-                )
-        elif self.loss == "exponential":
-            if self.n_classes_ > 2:
-                raise ValueError(
-                    f"loss='{self.loss}' is only suitable for a binary classification "
-                    f"problem, you have n_classes={self.n_classes_}. "
-                    "Please use loss='log_loss' instead."
-                )
-            else:
-                return ExponentialLoss(sample_weight=sample_weight)
+        pass
 
     def decision_function(self, X, task_info=None):
 
-        raw_predictions = self._raw_predict(X, task_info)
+        raw_predictions = self._raw_predict(
+            X,
+            task_info,
+        )
         if raw_predictions.shape[1] == 1:
             return raw_predictions.ravel()
         return raw_predictions
@@ -115,24 +97,27 @@ class MTGBClassifier(BaseMTGB):
         yield from self._staged_raw_predict(X)
 
     def predict(self, X, task_info=None):
-        raw_predictions = self.decision_function(X, task_info)
+        raw_predictions = self.decision_function(
+            X,
+            task_info,
+        )
         if raw_predictions.ndim == 1:  # decision_function already squeezed it
             encoded_classes = (raw_predictions >= 0).astype(int)
         else:
             encoded_classes = np.argmax(raw_predictions, axis=1)
         return self.classes_[encoded_classes]
 
-    def staged_predict(self, X, task_info):
+    def staged_predict(self, X, task_info=None):
         for raw_predictions in self._staged_raw_predict(X, task_info):
             encoded_classes = np.argmax(raw_predictions, axis=1)
             yield self.classes_.take(encoded_classes, axis=0)
 
-    def predict_proba(self, X):
-        raw_predictions = self.decision_function(X)
+    def predict_proba(self, X, task_info=None):
+        raw_predictions = self.decision_function(X, task_info=None)
         return self._loss_util.predict_proba(raw_predictions)
 
-    def predict_log_proba(self, X):
-        proba = self.predict_proba(X)
+    def predict_log_proba(self, X, task_info=None):
+        proba = self.predict_proba(X, task_info=None)
         return np.log(proba)
 
     def staged_predict_proba(self, X):
@@ -202,15 +187,12 @@ class MTGBRegressor(BaseMTGB):
         return y
 
     def _get_loss(self, sample_weight):
-        if self.loss in ("quantile", "huber"):
-            return _LOSSES[self.loss](sample_weight=sample_weight, quantile=self.alpha)
-        else:
-            return _LOSSES[self.loss](sample_weight=sample_weight)
+        pass
 
     def predict(self, X, task_info=None):
         return self._raw_predict(X, task_info)
 
-    def staged_predict(self, X, task_info):
+    def staged_predict(self, X, task_info=None):
 
         for raw_predictions in self._staged_raw_predict(X, task_info):
             yield raw_predictions.ravel()

@@ -2,7 +2,7 @@ from abc import abstractmethod
 import numpy as np
 from sklearn.tree import _tree
 from scipy.special import logsumexp
-from ._utils import obj as ensemble_pred
+from ._utils import _ensemble_pred
 from scipy.special import expit as sigmoid
 
 TREE_LEAF = _tree.TREE_LEAF
@@ -31,7 +31,7 @@ class LossFunction:
         """Compute the negative gradient"""
 
     @abstractmethod
-    def gradient_theta(self, ch, rh, y, theta):
+    def gradient_theta(self, common_prediction, tasks_prediction, y, theta):
         """Compute the gradient of the loss function with respect to theta"""
 
 
@@ -91,17 +91,21 @@ class CE(LossFunction):
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def gradient_theta(self, ch, rh, y, theta):
+    def gradient_theta(self, common_prediction, tasks_prediction, y, theta):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
-        sigma = sigmoid(theta)
+        sigmoid_theta = sigmoid(theta)
 
-        dH_dtheta = sigma * (1 - sigma) * ch
+        dH_dtheta = sigmoid_theta * (1 - sigmoid_theta) * common_prediction
         dL_dH = y - np.nan_to_num(
             np.exp(
-                ensemble_pred(sigma, ch, rh)
-                - logsumexp(ensemble_pred(sigma, ch, rh), axis=1, keepdims=True)
+                _ensemble_pred(sigmoid_theta, common_prediction, tasks_prediction)
+                - logsumexp(
+                    _ensemble_pred(sigmoid_theta, common_prediction, tasks_prediction),
+                    axis=1,
+                    keepdims=True,
+                )
             )
         )
 
@@ -185,21 +189,23 @@ class MSE(LossFunction):
 
         return neg_gradient
 
-    def gradient_theta(self, ch, rh, y, theta):
+    def gradient_theta(self, common_prediction, tasks_prediction, y, theta):
 
         # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
 
         if self.n_class == 1:
-            ch, rh = (
-                ch.ravel(),
-                rh.ravel(),
+            common_prediction, tasks_prediction = (
+                common_prediction.ravel(),
+                tasks_prediction.ravel(),
             )
 
-        sigma = sigmoid(theta)
+        sigmoid_theta = sigmoid(theta)
 
-        dH_dtheta = sigma * (1 - sigma) * ch
+        dH_dtheta = sigmoid_theta * (1 - sigmoid_theta) * common_prediction
 
-        dL_dH = np.squeeze(y) - ensemble_pred(sigma, ch, rh)
+        dL_dH = np.squeeze(y) - _ensemble_pred(
+            sigmoid_theta, common_prediction, tasks_prediction
+        )
 
         gradient = dL_dH * dH_dtheta
 
