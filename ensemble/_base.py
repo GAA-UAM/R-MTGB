@@ -75,7 +75,6 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
-
         self.log_fh = FileHandler()
         self.log_sh = StreamHandler()
 
@@ -591,8 +590,6 @@ class BaseMTGB(BaseGradientBoosting):
         loss_history = None
         if self.early_stopping is not None:
             loss_history = np.full(self.early_stopping, np.inf)
-            # creating a generator to get the predictions for X_val after
-            # the addition of each successive stage
             y_val_pred_iter = self._staged_raw_predict(
                 X_val, common_prediction, tasks_prediction, task_info
             )
@@ -636,11 +633,7 @@ class BaseMTGB(BaseGradientBoosting):
                         common_prediction,
                     )
 
-                    if loss_history is not None:
-                        if self._early_stopping(
-                            i, y_val_pred_iter, y_val, sample_weight_val, loss_history
-                        ):
-                            break
+                # FIXME: Early stopping for multi task learning
                 else:
                     # Task-specific predictions
                     for r_label, r in self.tasks_dic.items():
@@ -693,11 +686,12 @@ class BaseMTGB(BaseGradientBoosting):
                     ensemble_prediction,
                 )
 
-                if loss_history is not None:
-                    if self._early_stopping(
-                        i, y_val_pred_iter, y_val, sample_weight_val, loss_history
-                    ):
-                        break
+                # FIXME: Early stopping for single task learning
+                # if loss_history is not None:
+                #     if self._early_stopping(
+                #         i, y_val_pred_iter, y_val, sample_weight_val, loss_history
+                #     ):
+                #         break
 
         return i + 1
 

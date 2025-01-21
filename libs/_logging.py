@@ -4,26 +4,7 @@ import logging
 
 
 class FileHandler:
-    log_dir = "log"
 
-    if os.path.exists(os.path.join(os.getcwd(), log_dir)):
-        try:
-            for dirname, _, filenames in os.walk(os.path.join(os.getcwd(), log_dir)):
-                for log in filenames:
-                    os.remove(os.path.join(dirname, log))
-        except:
-            pass
-    else:
-        os.mkdir(log_dir)
-
-    log_file = os.path.join("log", "log.log")
-    logging.basicConfig(
-        level=logging.INFO,
-        handlers=[
-            logging.FileHandler(log_file, "a", "utf-8"),
-            # logging.StreamHandler(sys.stdout),
-        ],
-    )
     logger = logging.getLogger("Monitor")
     logger.setLevel(logging.DEBUG)
     fh = logging.FileHandler("%s.log" % "log", "a")
