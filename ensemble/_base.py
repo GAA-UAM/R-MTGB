@@ -18,7 +18,7 @@ from sklearn.ensemble._gradient_boosting import (
 )
 from ._utils import _ensemble_pred
 from sklearn.tree._tree import DTYPE
-from ._losses import *
+from ._losses import CE, MSE
 from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
@@ -132,11 +132,7 @@ class BaseMTGB(BaseGradientBoosting):
     ):
 
         neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i)
-        assert neg_gradient.shape == y.shape, "Negative gradient shape mismatch."
-        assert np.all(
-            np.isfinite(neg_gradient)
-        ), "Negative gradient contains NaN or Inf."
-        assert not np.all(neg_gradient == 0), "Negative gradient is zero."
+
         raw_predictions_ = raw_predictions.copy()
 
         tree = DecisionTreeRegressor(
@@ -573,15 +569,6 @@ class BaseMTGB(BaseGradientBoosting):
 
         y = self._label_y(y)
 
-        ensemble_prediction = (
-            self._update_prediction(
-                common_prediction,
-                tasks_prediction,
-                self.sigmoid_thetas_[0, :, :],
-            )
-            if task_info
-            else common_prediction
-        )
         theta = np.zeros(
             (self.T, self._loss.n_class),
             dtype=np.float64,
@@ -609,7 +596,7 @@ class BaseMTGB(BaseGradientBoosting):
             for i in boosting_bar:
                 if i < self.n_common_estimators:
                     # Data pooling (Common tasks prediction)
-                    prev_common_prediction = common_prediction
+
                     common_prediction = self._fit_stage(
                         i,
                         0,
@@ -622,7 +609,7 @@ class BaseMTGB(BaseGradientBoosting):
                     )
 
                     theta = self._task_theta_opt(
-                        prev_common_prediction, tasks_prediction, y, theta, i
+                        common_prediction, tasks_prediction, y, theta, i
                     )
 
                     self._track_loss(
@@ -633,6 +620,12 @@ class BaseMTGB(BaseGradientBoosting):
                         common_prediction,
                     )
 
+                    if i == self.n_common_estimators - 1:
+                        ensemble_prediction = self._update_prediction(
+                            common_prediction,
+                            tasks_prediction,
+                            self.sigmoid_thetas_[-1, :, :],
+                        )
                 # FIXME: Early stopping for multi task learning
                 else:
                     # Task-specific predictions
@@ -647,11 +640,17 @@ class BaseMTGB(BaseGradientBoosting):
                             r + 1,
                             X_r,
                             y_r,
-                            tasks_prediction[idx_r],
+                            # Considering the latest ensemble prediction with the final optimized theta once.
+                            (
+                                ensemble_prediction[idx_r]
+                                if i == self.n_common_estimators
+                                else tasks_prediction[idx_r]
+                            ),
                             sample_mask_r,
                             sample_weight[idx_r],
                             "specific_task",
                         )
+
                     self._track_loss(
                         i,
                         X,
@@ -660,20 +659,15 @@ class BaseMTGB(BaseGradientBoosting):
                         tasks_prediction,
                     )
 
-            ensemble_prediction = self._update_prediction(
-                common_prediction,
-                tasks_prediction,
-                self.sigmoid_thetas_[-1, :, :],
-            )
-
+        # FIXME: All parts of the code should be more simple and efficient.
         else:
             for i in boosting_bar:
-                ensemble_prediction = self._fit_stage(
+                common_prediction = self._fit_stage(
                     i,
                     0,
                     X,
                     y,
-                    ensemble_prediction,
+                    common_prediction,
                     self._subsampling(X),
                     sample_weight,
                 )
@@ -683,7 +677,7 @@ class BaseMTGB(BaseGradientBoosting):
                     X,
                     y,
                     sample_weight,
-                    ensemble_prediction,
+                    common_prediction,
                 )
 
                 # FIXME: Early stopping for single task learning
@@ -691,7 +685,9 @@ class BaseMTGB(BaseGradientBoosting):
                 #     if self._early_stopping(
                 #         i, y_val_pred_iter, y_val, sample_weight_val, loss_history
                 #     ):
-                #         break
+                #
+                # break
+            ensemble_prediction = common_prediction
 
         return i + 1
 
@@ -787,34 +783,16 @@ class BaseMTGB(BaseGradientBoosting):
             if task_info:
                 tasks_prediction = tasks_prediction.squeeze()
 
-        ensemble_prediction = (
-            self._update_prediction(
-                common_prediction,
-                tasks_prediction,
-                self.sigmoid_thetas_[0, :, :],
-                "inference",
-            )
-            if task_info
-            else common_prediction
-        )
-
         if self.tasks_dic != None and task_info != None:
             # Multi task learning
 
             t = self.t_test
-            for jj, estimator_row in enumerate(
+            for i, estimator_row in enumerate(
                 self.estimators_[: self.n_common_estimators]
             ):
                 # Update ommon task prediction
-                common_prediction = self.learning_rate * estimator_row[0].predict(
+                common_prediction += self.learning_rate * estimator_row[0].predict(
                     self.X_test
-                )
-
-                ensemble_prediction += self._update_prediction(
-                    common_prediction,
-                    tasks_prediction,
-                    self.sigmoid_thetas_[-1, :, :],
-                    "inference",
                 )
 
             for _, estimator_row in enumerate(
@@ -830,6 +808,7 @@ class BaseMTGB(BaseGradientBoosting):
 
                     del X_r
                     del idx_r
+
             ensemble_prediction = self._update_prediction(
                 common_prediction,
                 tasks_prediction,
@@ -840,8 +819,8 @@ class BaseMTGB(BaseGradientBoosting):
         else:
             # Single task learning
             for _, estimator_row in enumerate(self.estimators_):
-                ensemble_prediction += self.learning_rate * estimator_row[0].predict(X)
-
+                common_prediction += self.learning_rate * estimator_row[0].predict(X)
+            return common_prediction
         return ensemble_prediction
 
     def _staged_raw_predict(

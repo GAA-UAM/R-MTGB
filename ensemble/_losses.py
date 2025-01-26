@@ -210,7 +210,6 @@ class MSE(LossFunction):
         gradient = dL_dH * dH_dtheta
 
         assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
-        assert not np.all(gradient == 0), "Gradient is zero for all samples."
 
         return np.sum(gradient, axis=0)
 

@@ -64,7 +64,7 @@ def model_to_fit(model_name, problem, data_pooling, all_features=None):
     return x, y, task, preds
 
 
-model_name = "GB"
+model_name = "proposed_MTGB"
 x, y, task, preds = model_to_fit(
     model_name=model_name, problem="regression", data_pooling=False, all_features=False
 )
