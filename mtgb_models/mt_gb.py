@@ -85,7 +85,7 @@ class MTGBClassifier(BaseMTGB):
 
     def decision_function(self, X, task_info=None):
 
-        raw_predictions = self._raw_predict(
+        raw_predictions = self._predict(
             X,
             task_info,
         )
@@ -107,11 +107,6 @@ class MTGBClassifier(BaseMTGB):
             encoded_classes = np.argmax(raw_predictions, axis=1)
         return self.classes_[encoded_classes]
 
-    def staged_predict(self, X, task_info=None):
-        for raw_predictions in self._staged_raw_predict(X, task_info):
-            encoded_classes = np.argmax(raw_predictions, axis=1)
-            yield self.classes_.take(encoded_classes, axis=0)
-
     def predict_proba(self, X, task_info=None):
         raw_predictions = self.decision_function(X, task_info=None)
         return self._loss_util.predict_proba(raw_predictions)
@@ -120,16 +115,6 @@ class MTGBClassifier(BaseMTGB):
         proba = self.predict_proba(X, task_info=None)
         return np.log(proba)
 
-    def staged_predict_proba(self, X):
-        try:
-            for raw_predictions in self._staged_raw_predict(X):
-                yield self._loss_util.predict_proba(raw_predictions)
-        except NotFittedError:
-            raise
-        except AttributeError as e:
-            raise AttributeError(
-                "loss=%r does not support predict_proba" % self.loss
-            ) from e
 
 
 class MTGBRegressor(BaseMTGB):
@@ -190,9 +175,5 @@ class MTGBRegressor(BaseMTGB):
         pass
 
     def predict(self, X, task_info=None):
-        return self._raw_predict(X, task_info)
+        return self._predict(X, task_info)
 
-    def staged_predict(self, X, task_info=None):
-
-        for raw_predictions in self._staged_raw_predict(X, task_info):
-            yield raw_predictions.ravel()

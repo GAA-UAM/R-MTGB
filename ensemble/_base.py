@@ -25,6 +25,7 @@ from sklearn.utils.validation import (
 )
 from libs._logging import FileHandler, StreamHandler
 
+
 class BaseMTGB(BaseGradientBoosting):
     @abstractmethod
     def __init__(
@@ -554,7 +555,6 @@ class BaseMTGB(BaseGradientBoosting):
 
         return theta_out
 
-    
     def _fit_stages(
         self,
         X,
@@ -575,15 +575,13 @@ class BaseMTGB(BaseGradientBoosting):
             dtype=np.float64,
         )
 
-        loss_history = None
-        if self.early_stopping is not None:
-            loss_history = np.full(self.early_stopping, np.inf)
-            y_val_pred_iter = self._staged_raw_predict(
-                X_val, common_prediction, tasks_prediction, task_info
-            )
-            y_val = self._label_y(y_val)
+        # loss_history = None
+        # if self.early_stopping is not None:
+        #     loss_history = np.full(self.early_stopping, np.inf)
+        #     y_val_pred_iter = self._predict(X_val, task_info)
+        #     y_val = self._label_y(y_val)
 
-            loss_history = np.full(self.early_stopping, np.inf)
+        #     loss_history = np.full(self.early_stopping, np.inf)
 
         boosting_bar = trange(
             0,
@@ -631,7 +629,7 @@ class BaseMTGB(BaseGradientBoosting):
                         )
                 # FIXME: Early stopping for multi task learning
                 else:
-                    # First training block (Specific tasks)
+                    # Second training block (Specific tasks)
                     for r_label, r in self.tasks_dic.items():
                         idx_r = self.t == r_label
                         X_r = X[idx_r]
@@ -658,7 +656,6 @@ class BaseMTGB(BaseGradientBoosting):
                         del y_r
                         del sample_mask_r
 
-
                     self._track_loss(
                         i,
                         X,
@@ -667,7 +664,14 @@ class BaseMTGB(BaseGradientBoosting):
                         tasks_prediction,
                     )
 
-        # FIXME: All parts of the code should be more simple and efficient.
+                    # FIXME: Early stoppings
+                    # if loss_history is not None:
+                    #     if self._early_stopping(
+                    #         i, y_val_pred_iter, y_val, sample_weight_val, loss_history
+                    #     ):
+
+                    #         break
+
         else:
             for i in boosting_bar:
                 common_prediction = self._fit_stage(
@@ -689,12 +693,6 @@ class BaseMTGB(BaseGradientBoosting):
                 )
 
                 # FIXME: Early stopping for single task learning
-                # if loss_history is not None:
-                #     if self._early_stopping(
-                #         i, y_val_pred_iter, y_val, sample_weight_val, loss_history
-                #     ):
-                #
-                # break
             ensemble_prediction = common_prediction
 
         return i + 1
@@ -719,21 +717,11 @@ class BaseMTGB(BaseGradientBoosting):
             )
             init_tasks_prediction = np.zeros_like(init_common_prediction)
 
-            for r_label, r in self.tasks_dic_test.items():
+            for r_label, r in self.tasks_dic.items():
                 if r_label not in self.tasks_dic:
                     raise ValueError(
-                        "The task {} was not present in the training set".format(
-                            r_label
-                        )
+                        "Task {} not found in the training set".format(r_label)
                     )
-                idx_r = t == r_label
-                init_common_prediction[idx_r] = _ensemble_pred(
-                    (self.sigmoid_thetas_[0, r, :]),
-                    init_common_prediction[idx_r],
-                    init_tasks_prediction[idx_r],
-                )
-
-            for r_label, r in self.tasks_dic_test.items():
                 idx_r = t == r_label
                 X_r = self.X_test[idx_r]
                 X_r = self.estimators_[
@@ -742,12 +730,6 @@ class BaseMTGB(BaseGradientBoosting):
 
                 init_tasks_prediction[idx_r] = self._loss.get_init_raw_predictions(
                     X_r, self.inits_[r + 1]
-                )
-
-                init_common_prediction[idx_r] = _ensemble_pred(
-                    (self.sigmoid_thetas_[0, r, :]),
-                    init_common_prediction[idx_r],
-                    init_tasks_prediction[idx_r],
                 )
 
         elif task_info is None:
@@ -764,27 +746,10 @@ class BaseMTGB(BaseGradientBoosting):
 
         return init_common_prediction, init_tasks_prediction
 
-    def _raw_predict(self, X: np.ndarray, task_info=None, stage=False) -> np.ndarray:
+    def _predict(self, X: np.ndarray, task_info=None):
         """Return the sum of the trees raw predictions (+ init estimator)."""
         check_is_fitted(self)
-        init_common_prediction, init_tasks_prediction = self._raw_predict_init(
-            X, task_info
-        )
-        raw_predictions = self._predict_stages(
-            X,
-            init_common_prediction,
-            init_tasks_prediction,
-            task_info,
-        )
-        return raw_predictions
-
-    def _predict_stages(
-        self,
-        X: np.ndarray,
-        common_prediction: np.ndarray,
-        tasks_prediction: np.ndarray,
-        task_info=None,
-    ):
+        common_prediction, tasks_prediction = self._raw_predict_init(X, task_info)
 
         if isinstance(self._loss, MSE) and self._loss.n_class == 1:
             common_prediction = common_prediction.squeeze()
@@ -793,29 +758,25 @@ class BaseMTGB(BaseGradientBoosting):
 
         if self.tasks_dic != None and task_info != None:
             # Multi task learning
-
             t = self.t_test
-            for i, estimator_row in enumerate(
-                self.estimators_[: self.n_common_estimators]
-            ):
-                # Update ommon task prediction
-                common_prediction += self.learning_rate * estimator_row[0].predict(
-                    self.X_test
-                )
+            for i, estimator_row in enumerate(self.estimators_):
+                if i < self.n_common_estimators:
+                    # First inference block (Common tasks)
+                    common_prediction += self.learning_rate * estimator_row[0].predict(
+                        self.X_test
+                    )
 
-            for _, estimator_row in enumerate(
-                self.estimators_[self.n_common_estimators :],
-            ):
-                # Update task-specific predictions
-                for r_label, r in self.tasks_dic_test.items():
-                    idx_r = t == r_label
-                    X_r = self.X_test[idx_r]
-                    tasks_prediction[idx_r] += self.learning_rate * estimator_row[
-                        r + 1
-                    ].predict(X_r)
+                else:
+                    # Second inference block (Specific tasks)
+                    for r_label, r in self.tasks_dic_test.items():
+                        idx_r = t == r_label
+                        X_r = self.X_test[idx_r]
+                        tasks_prediction[idx_r] += self.learning_rate * estimator_row[
+                            r + 1
+                        ].predict(X_r)
 
-                    del X_r
-                    del idx_r
+                        del X_r
+                        del idx_r
 
             ensemble_prediction = self._update_prediction(
                 common_prediction,
@@ -824,77 +785,13 @@ class BaseMTGB(BaseGradientBoosting):
                 "inference",
             )
 
+            return ensemble_prediction
+
         else:
             # Single task learning
             for _, estimator_row in enumerate(self.estimators_):
                 common_prediction += self.learning_rate * estimator_row[0].predict(X)
             return common_prediction
-        return ensemble_prediction
-
-    def _staged_raw_predict(
-        self,
-        X: np.ndarray,
-        common_prediction: np.ndarray,
-        tasks_prediction: np.ndarray,
-        task_info=None,
-    ):
-
-        if isinstance(self._loss, MSE) and self._loss.n_class == 1:
-            common_prediction = common_prediction.squeeze()
-            if task_info:
-                tasks_prediction = tasks_prediction.squeeze()
-
-        ensemble_prediction = (
-            self._update_prediction(
-                common_prediction,
-                tasks_prediction,
-                self.sigmoid_thetas_[0, :, :],
-                "inference",
-            )
-            if task_info
-            else common_prediction
-        )
-
-        if self.tasks_dic != None and task_info != None:
-            # Multi task learning
-
-            t = self.t_test
-            for i, estimator_row in enumerate(self.estimators_):
-                if i < self.n_common_estimators:
-                    # Update ommon task prediction
-                    common_prediction = self.learning_rate * estimator_row[0].predict(
-                        self.X_test
-                    )
-
-                    ensemble_prediction += self._update_prediction(
-                        common_prediction,
-                        tasks_prediction,
-                        self.sigmoid_thetas_[i, :, :],
-                        "inference",
-                    )
-
-                else:
-                    # Update task-specific predictions
-                    for r_label, r in self.tasks_dic_test.items():
-                        idx_r = t == r_label
-                        X_r = self.X_test[idx_r]
-                        tasks_prediction[idx_r] += self.learning_rate * estimator_row[
-                            r + 1
-                        ].predict(X_r)
-
-                ensemble_prediction = self._update_prediction(
-                    common_prediction,
-                    tasks_prediction,
-                    self.sigmoid_thetas_[-1, :, :],
-                    "inference",
-                )
-
-        else:
-            # Single task learning
-            for _, estimator_row in enumerate(self.estimators_):
-                ensemble_prediction += self.learning_rate * estimator_row[0].predict(X)
-
-        yield ensemble_prediction.copy()
 
     @property
     def feature_importances_(self):
