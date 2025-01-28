@@ -16,7 +16,7 @@ def split_task(X, task_info):
 
 def data():
 
-    df = pd.read_csv(r"2d_example.csv")
+    df = pd.read_csv(r"tasks_data_128_25_instances.csv")
     x_train, y_train, task_train = df["X"].values, df["Y"].values, df["Task"].values
     x_train = x_train.reshape(-1, 1)
 

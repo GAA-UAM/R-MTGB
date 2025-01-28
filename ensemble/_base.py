@@ -25,7 +25,6 @@ from sklearn.utils.validation import (
 )
 from libs._logging import FileHandler, StreamHandler
 
-
 class BaseMTGB(BaseGradientBoosting):
     @abstractmethod
     def __init__(
@@ -227,6 +226,7 @@ class BaseMTGB(BaseGradientBoosting):
         elif self.is_classifier:
             num_cols = self._loss.n_class
 
+        # The optimization of theta for each task is performed exclusively in the first block (n_common_estimators).
         self.sigmoid_thetas_ = sigmoid(
             np.zeros(
                 (self.n_common_estimators + 1, self.T, self._loss.n_class),
@@ -554,6 +554,7 @@ class BaseMTGB(BaseGradientBoosting):
 
         return theta_out
 
+    
     def _fit_stages(
         self,
         X,
@@ -595,7 +596,7 @@ class BaseMTGB(BaseGradientBoosting):
             # Multi-task learning
             for i in boosting_bar:
                 if i < self.n_common_estimators:
-                    # Data pooling (Common tasks prediction)
+                    # First training block (Common tasks)
 
                     common_prediction = self._fit_stage(
                         i,
@@ -608,6 +609,7 @@ class BaseMTGB(BaseGradientBoosting):
                         "data_pooling",
                     )
 
+                    # Optimize theta for task alignment
                     theta = self._task_theta_opt(
                         common_prediction, tasks_prediction, y, theta, i
                     )
@@ -620,6 +622,7 @@ class BaseMTGB(BaseGradientBoosting):
                         common_prediction,
                     )
 
+                    # Update ensemble prediction after the last common estimator
                     if i == self.n_common_estimators - 1:
                         ensemble_prediction = self._update_prediction(
                             common_prediction,
@@ -628,28 +631,33 @@ class BaseMTGB(BaseGradientBoosting):
                         )
                 # FIXME: Early stopping for multi task learning
                 else:
-                    # Task-specific predictions
+                    # First training block (Specific tasks)
                     for r_label, r in self.tasks_dic.items():
                         idx_r = self.t == r_label
                         X_r = X[idx_r]
                         y_r = y[idx_r]
                         sample_mask_r = self._subsampling(X_r)
-
+                        prediction = (
+                            ensemble_prediction[idx_r]
+                            if i == self.n_common_estimators
+                            else tasks_prediction[idx_r]
+                        )
                         tasks_prediction[idx_r] = self._fit_stage(
                             i,
                             r + 1,
                             X_r,
                             y_r,
-                            # Considering the latest ensemble prediction with the final optimized theta once.
-                            (
-                                ensemble_prediction[idx_r]
-                                if i == self.n_common_estimators
-                                else tasks_prediction[idx_r]
-                            ),
+                            prediction,
                             sample_mask_r,
                             sample_weight[idx_r],
                             "specific_task",
                         )
+
+                        del prediction
+                        del X_r
+                        del y_r
+                        del sample_mask_r
+
 
                     self._track_loss(
                         i,
