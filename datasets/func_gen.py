@@ -7,8 +7,8 @@ class FuncGen:
         self,
         num_dims,
         num_random_features=500,
-        alpha=5.0,
-        length_scale=3,
+        alpha=1.0,
+        length_scale=0.25,
         random_state=111,
     ):
 
@@ -157,7 +157,7 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims=2, num_tasks=8, num_instances=100, num_outlier_tasks=1
+        self, num_dims, num_tasks, num_instances, num_outlier_tasks=1
     ):
 
         valid = False
@@ -206,7 +206,7 @@ class GenerateDataset:
                 valid = True
         return X, Y
 
-    def __call__(self, regression):
+    def __call__(self, regression, num_dims=5, num_tasks=8, num_instances=125):
 
         self.regression = regression
 
@@ -218,14 +218,17 @@ class GenerateDataset:
         }
 
         def _gen_df(x, y, task_num):
+            columns = [f"Feature {i}" for i in range(x.shape[1])]
+            columns.append("Target")
             df = pd.DataFrame(
-                np.column_stack((x, y)), columns=["Feature 1", "Feature 2", "target"]
+                np.column_stack((x, y)),
+                columns=columns,
             )
             df["Task"] = np.ones_like(y) * task_num
             return df
 
         if self.scenario in scenario_methods:
-            x_list, y_list = scenario_methods[self.scenario](num_instances=100)
+            x_list, y_list = scenario_methods[self.scenario](num_dims, num_tasks, num_instances)
 
         ranges = []
         for x, y in zip(x_list, y_list):

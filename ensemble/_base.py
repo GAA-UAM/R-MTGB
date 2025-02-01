@@ -635,23 +635,17 @@ class BaseMTGB(BaseGradientBoosting):
                         X_r = X[idx_r]
                         y_r = y[idx_r]
                         sample_mask_r = self._subsampling(X_r)
-                        prediction = (
-                            ensemble_prediction[idx_r]
-                            if i == self.n_common_estimators
-                            else tasks_prediction[idx_r]
-                        )
-                        tasks_prediction[idx_r] = self._fit_stage(
+                        ensemble_prediction[idx_r] = self._fit_stage(
                             i,
                             r + 1,
                             X_r,
                             y_r,
-                            prediction,
+                            ensemble_prediction[idx_r],
                             sample_mask_r,
                             sample_weight[idx_r],
                             "specific_task",
                         )
 
-                        del prediction
                         del X_r
                         del y_r
                         del sample_mask_r
@@ -661,7 +655,7 @@ class BaseMTGB(BaseGradientBoosting):
                         X,
                         y,
                         sample_weight,
-                        tasks_prediction,
+                        ensemble_prediction,
                     )
 
                     # FIXME: Early stoppings
