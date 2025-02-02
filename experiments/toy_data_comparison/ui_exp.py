@@ -85,6 +85,8 @@ class run:
             pred_mt = model_mt.predict(
                 np.column_stack((x_test, task_test)), task_info=-1
             )
+            # to_csv(model_mt.sigmoid_thetas_[:, :], self.path, "sigmoid_theta")
+            
             # Standard GB Data Pooling without task as the feature training
             model_st = GradientBoostingClassifier(
                 max_depth=self.max_depth,
@@ -162,6 +164,7 @@ class run:
             pred_mt = np.column_stack((pred_mt, task_test))
             to_csv(pred_mt, self.path, f"pred_{title}")
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
+        to_csv(np.column_stack((y_train, task_test)), self.path, f"y_train")
 
     def fit_reg(
         self, x_train, y_train, task_train, x_test, y_test, task_test, proposed_mtgb
@@ -192,6 +195,7 @@ class run:
             )
             pred_mt = np.column_stack((pred_mt, task_test))
             to_csv(pred_mt, self.path, f"pred_{title}")
+            to_csv(model_mt.sigmoid_thetas_[:, :, 0], self.path, "sigmoid_theta")
 
             # Standard GB Data Pooling without task as the feature training
             model_st = GradientBoostingRegressor(
@@ -268,6 +272,7 @@ class run:
             pred_mt = np.column_stack((pred_mt, task_test))
             to_csv(pred_mt, self.path, f"pred_{title}")
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
+        to_csv(np.column_stack((y_train, task_train)), self.path, f"y_train")
 
 
 if __name__ == "__main__":
