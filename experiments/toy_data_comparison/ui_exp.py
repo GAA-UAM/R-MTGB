@@ -324,8 +324,8 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = True
-    experiment = "8tasks_1outliers_5features_1200instances"
+    proposed_mtgb = False
+    experiment = "8tasks_1outliers_5features_50_training_instances"
     with tqdm.tqdm(total=2, desc="Classifiers", position=0, leave=True) as pbar_clf:
         # for clf in [True, False]:
         for clf in [False]:
