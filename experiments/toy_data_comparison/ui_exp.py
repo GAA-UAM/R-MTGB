@@ -82,11 +82,16 @@ class run:
                 verbose=0,
             )
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)
-            pred_mt = model_mt.predict(
+            pred_test_mt = model_mt.predict(
                 np.column_stack((x_test, task_test)), task_info=-1
             )
+            pred_train_mt = model_mt.predict(
+                np.column_stack((x_train, task_train)), task_info=-1
+            )
+            to_csv(pred_test_mt, self.path, f"pred_test_{title}")
+            to_csv(pred_train_mt, self.path, f"pred_train_{title}")
             # to_csv(model_mt.sigmoid_thetas_[:, :], self.path, "sigmoid_theta")
-            
+
             # Standard GB Data Pooling without task as the feature training
             model_st = GradientBoostingClassifier(
                 max_depth=self.max_depth,
@@ -100,9 +105,12 @@ class run:
             )
 
             model_st.fit(x_train, y_train)
-            pred_st = model_st.predict(x_test)
-            pred_st = np.column_stack((pred_st, task_test))
-            to_csv(pred_st, self.path, "pred_GB_datapooling")
+            pred_test_st = model_st.predict(x_test)
+            pred_train_st = model_st.predict(x_train)
+            pred_test_st = np.column_stack((pred_test_st, task_test))
+            pred_train_st = np.column_stack((pred_train_st, task_train))
+            to_csv(pred_test_st, self.path, "pred_test_GB_datapooling")
+            to_csv(pred_train_st, self.path, "pred_train_GB_datapooling")
 
             # Standard GB Data Pooling with task as the feature training
             x_train = np.column_stack((x_train, task_train))
@@ -118,12 +126,18 @@ class run:
                 n_iter_no_change=self.es,
             )
             model_st.fit(x_train, y_train)
-            pred_st = model_st.predict(x_test)
-            pred_st = np.column_stack((pred_st, task_test))
-            to_csv(pred_st, self.path, "pred_GB_datapooling_task_as_feature")
+            pred_test_st = model_st.predict(x_test)
+            pred_train_st = model_st.predict(x_train)
+            pred_test_st = np.column_stack((pred_test_st, task_test))
+            pred_train_st = np.column_stack((pred_train_st, task_train))
+            to_csv(pred_test_st, self.path, "pred_test_GB_datapooling_task_as_feature")
+            to_csv(
+                pred_train_st, self.path, "pred_train_GB_datapooling_task_as_feature"
+            )
 
             # Standard GB single task learning
-            pred_list = []
+            pred_test_list = []
+            pred_train_list = []
             for r in set(task_train):
                 model_st_i = GradientBoostingClassifier(
                     max_depth=self.max_depth,
@@ -136,10 +150,17 @@ class run:
                     n_iter_no_change=self.es,
                 )
                 model_st_i.fit(x_train[task_train == r], y_train[task_train == r])
-                preds = model_st_i.predict(x_test[task_test == r])
-                task_column = np.full_like(preds, r)
-                pred_list.append(np.column_stack((preds, task_column)))
-            to_csv(np.vstack(pred_list), self.path, f"pred_GB_single_task")
+                preds_test = model_st_i.predict(x_test[task_test == r])
+                task_column_test = np.full_like(preds_test, r)
+                pred_test_list.append(np.column_stack((preds_test, task_column_test)))
+
+                preds_train = model_st_i.predict(x_train[task_train == r])
+                task_column_train = np.full_like(preds_train, r)
+                pred_train_list.append(
+                    np.column_stack((preds_train, task_column_train))
+                )
+            to_csv(np.vstack(pred_test_list), self.path, f"pred_test_GB_single_task")
+            to_csv(np.vstack(pred_train_list), self.path, f"pred_train_GB_single_task")
 
         else:
             import sys
@@ -160,9 +181,12 @@ class run:
             )
 
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)
-            pred_mt = model_mt.predict(np.column_stack((x_test, task_test)))
-            pred_mt = np.column_stack((pred_mt, task_test))
-            to_csv(pred_mt, self.path, f"pred_{title}")
+            pred_test_mt = model_mt.predict(np.column_stack((x_test, task_test)))
+            pred_test_mt = np.column_stack((pred_test_mt, task_test))
+            to_csv(pred_test_mt, self.path, f"pred_test_{title}")
+            pred_train_mt = model_mt.predict(np.column_stack((x_train, task_train)))
+            pred_train_mt = np.column_stack((pred_train_mt, task_train))
+            to_csv(pred_train_mt, self.path, f"pred_train_{title}")
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
         to_csv(np.column_stack((y_train, task_test)), self.path, f"y_train")
 
@@ -190,11 +214,16 @@ class run:
                 n_common_estimators=self.n_common_estimators,
             )
             model_mt.fit(np.column_stack((x_train, task_train)), y_train, task_info=-1)
-            pred_mt = model_mt.predict(
+            pred_test_mt = model_mt.predict(
                 np.column_stack((x_test, task_test)), task_info=-1
             )
-            pred_mt = np.column_stack((pred_mt, task_test))
-            to_csv(pred_mt, self.path, f"pred_{title}")
+            pred_test_mt = np.column_stack((pred_test_mt, task_test))
+            pred_train_mt = model_mt.predict(
+                np.column_stack((x_train, task_train)), task_info=-1
+            )
+            pred_train_mt = np.column_stack((pred_train_mt, task_train))
+            to_csv(pred_test_mt, self.path, f"pred_test_{title}")
+            to_csv(pred_train_mt, self.path, f"pred_train_{title}")
             to_csv(model_mt.sigmoid_thetas_[:, :, 0], self.path, "sigmoid_theta")
 
             # Standard GB Data Pooling without task as the feature training
@@ -209,9 +238,12 @@ class run:
                 n_iter_no_change=self.es,
             )
             model_st.fit(x_train, y_train)
-            pred_st = model_st.predict(x_test)
-            pred_st = np.column_stack((pred_st, task_test))
-            to_csv(pred_st, self.path, "pred_GB_datapooling")
+            pred_test_st = model_st.predict(x_test)
+            pred_train_st = model_st.predict(x_train)
+            pred_test_st = np.column_stack((pred_test_st, task_test))
+            pred_train_st = np.column_stack((pred_train_st, task_train))
+            to_csv(pred_test_st, self.path, "pred_test_GB_datapooling")
+            to_csv(pred_train_st, self.path, "pred_train_GB_datapooling")
 
             # Standard GB Data Pooling with task as the feature training
             x_train = np.column_stack((x_train, task_train))
@@ -227,12 +259,18 @@ class run:
                 n_iter_no_change=self.es,
             )
             model_st.fit(x_train, y_train)
-            pred_st = model_st.predict(x_test)
-            pred_st = np.column_stack((pred_st, task_test))
-            to_csv(pred_st, self.path, "pred_GB_datapooling_task_as_feature")
+            pred_test_st = model_st.predict(x_test)
+            pred_train_st = model_st.predict(x_train)
+            pred_test_st = np.column_stack((pred_test_st, task_test))
+            pred_train_st = np.column_stack((pred_train_st, task_train))
+            to_csv(pred_test_st, self.path, "pred_test_GB_datapooling_task_as_feature")
+            to_csv(
+                pred_train_st, self.path, "pred_train_GB_datapooling_task_as_feature"
+            )
 
             # Standard GB single task learning
-            pred_list = []
+            pred_test_list = []
+            pred_train_list = []
             for r in set(task_train):
                 model_st_i = GradientBoostingRegressor(
                     max_depth=self.max_depth,
@@ -245,10 +283,16 @@ class run:
                     n_iter_no_change=self.es,
                 )
                 model_st_i.fit(x_train[task_train == r], y_train[task_train == r])
-                preds = model_st_i.predict(x_test[task_test == r])
-                task_column = np.full_like(preds, r)
-                pred_list.append(np.column_stack((preds, task_column)))
-            to_csv(np.vstack(pred_list), self.path, f"pred_GB_single_task")
+                preds_test = model_st_i.predict(x_test[task_test == r])
+                task_column_test = np.full_like(preds_test, r)
+                pred_test_list.append(np.column_stack((preds_test, task_column_test)))
+                preds_train = model_st_i.predict(x_train[task_train == r])
+                task_column_train = np.full_like(preds_train, r)
+                pred_train_list.append(
+                    np.column_stack((preds_train, task_column_train))
+                )
+            to_csv(np.vstack(pred_test_list), self.path, f"pred_test_GB_single_task")
+            to_csv(np.vstack(pred_train_list), self.path, f"pred_train_GB_single_task")
         else:
             import sys
 
@@ -268,16 +312,19 @@ class run:
             )
 
             model_mt.fit(np.column_stack((x_train, task_train)), y_train)
-            pred_mt = model_mt.predict(np.column_stack((x_test, task_test)))
-            pred_mt = np.column_stack((pred_mt, task_test))
-            to_csv(pred_mt, self.path, f"pred_{title}")
+            pred_test_mt = model_mt.predict(np.column_stack((x_test, task_test)))
+            pred_test_mt = np.column_stack((pred_test_mt, task_test))
+            to_csv(pred_test_mt, self.path, f"pred_test_{title}")
+            pred_train_mt = model_mt.predict(np.column_stack((x_train, task_train)))
+            pred_train_mt = np.column_stack((pred_train_mt, task_train))
+            to_csv(pred_train_mt, self.path, f"pred_train_{title}")
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
         to_csv(np.column_stack((y_train, task_train)), self.path, f"y_train")
 
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
+    proposed_mtgb = True
     experiment = "8tasks_1outliers_5features_1200instances"
     with tqdm.tqdm(total=2, desc="Classifiers", position=0, leave=True) as pbar_clf:
         # for clf in [True, False]:

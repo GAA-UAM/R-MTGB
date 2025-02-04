@@ -34,8 +34,10 @@ def report(training_set):
         if root.endswith("reg"):
             if not training_set:
                 set_ = "y_test.csv"
+                term = "test"
             else:
                 set_ = "y_train.csv"
+                term = "train"
             y_test_path = os.path.join(root, set_)
             sigmoid_theta_path = os.path.join(root, "sigmoid_theta.csv")
             if not os.path.exists(y_test_path):
@@ -50,38 +52,43 @@ def report(training_set):
             processed_models = set()
             for file_ in os.listdir(root):
                 if file_.endswith(".csv") and file_.startswith("pred_"):
-                    file_name = os.path.splitext(file_)[0]  # Remove .csv extension
-                    model_name = file_name.replace(
-                        "pred_)", ")"
-                    )  # Remove "pred_" prefix
-                    model_name = model_name.replace("pred_", "")
+                    if term in file_:
+                        file_name = os.path.splitext(file_)[0]  # Remove .csv extension
+                        model_name = file_name.replace(
+                            "pred_)", ")"
+                        )  # Remove "pred_" prefix
+                        
+                        model_name = model_name.replace("pred_", "")
+                        model_name = model_name.replace(f"{term}_", "")
+                        
+                        if model_name in models and model_name not in processed_models:
+                            pred_path = os.path.join(root, file_)
+                            pred = pd.read_csv(pred_path, header=None)
 
-                    if model_name in models and model_name not in processed_models:
-                        pred_path = os.path.join(root, file_)
-                        pred = pd.read_csv(pred_path, header=None)
+                            pred_t, _ = split_task(pred.values)
+                            y_t, t = split_task(y_test.values)
+                            pred_t = pred_t.squeeze()
+                            y_t = y_t.squeeze()
 
-                        pred_t, _ = split_task(pred.values)
-                        y_t, t = split_task(y_test.values)
-                        pred_t = pred_t.squeeze()
-                        y_t = y_t.squeeze()
+                            unique_values = np.unique(pred.values[:, -1])
+                            T = unique_values.size
+                            task_dic = dict(zip(unique_values, range(T)))
 
-                        unique_values = np.unique(pred.values[:, -1])
-                        T = unique_values.size
-                        task_dic = dict(zip(unique_values, range(T)))
+                            rmse_all_tasks_value = root_mean_squared_error(y_t, pred_t)
 
-                        rmse_all_tasks_value = root_mean_squared_error(y_t, pred_t)
+                            rmse_all_tasks_dict[model_name] = rmse_all_tasks_value
+                            # print(model_name, rmse_all_tasks_value)
 
-                        rmse_all_tasks_dict[model_name] = rmse_all_tasks_value
-                        # print(model_name, rmse_all_tasks_value)
-
-                        for r_label, r in task_dic.items():
-                            idxt = t == r
-                            rmse_per_task = root_mean_squared_error(
-                                y_t[idxt], pred_t[idxt]
-                            )
-                            rmse_per_task_dict[model_name][f"task_{r}"] = rmse_per_task
-                            # print(r, rmse_per_task)
-                        processed_models.add(model_name)
+                            for r_label, r in task_dic.items():
+                                idxt = t == r
+                                rmse_per_task = root_mean_squared_error(
+                                    y_t[idxt], pred_t[idxt]
+                                )
+                                rmse_per_task_dict[model_name][
+                                    f"task_{r}"
+                                ] = rmse_per_task
+                                # print(r, rmse_per_task)
+                            processed_models.add(model_name)
             rmse_per_task_list.append(rmse_per_task_dict)
             rmse_all_tasks_list.append(rmse_all_tasks_dict)
 
@@ -95,8 +102,11 @@ def report(training_set):
     avg_df_all_tasks = (
         pd.concat(df_list_all_tasks).groupby(level=0).agg(["mean", "std"])
     )
+    
+    sigmoid_theta_pd = pd.DataFrame(np.mean(np.stack(sigmoid_theta_list), axis=0))
 
-    return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_list
+
+    return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd
 
 
 path = "8tasks_1outliers_5features_1200instances"
@@ -104,7 +114,23 @@ try:
     os.chdir(path)
 except:
     pass
-train_df_per_task, train_df_all_tasks, sigmoid_theta_list = report(training_set=True)
-# test_df_per_task, test_df_all_tasks, _ = report(training_set=False)
+train_df_per_task, train_df_all_tasks, sigmoid_theta_pd = report(training_set=True)
+test_df_per_task, test_df_all_tasks, _ = report(training_set=False)
 # %%
-sigmoid_theta_list
+print(r"\sigma(\theta)")
+import matplotlib.pyplot as plt
+plt.plot(sigmoid_theta_pd)
+plt.legend(
+        labels=[f"task {i}" for i in range(8)],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -.2),
+        ncol=4,
+        fontsize=12,
+        frameon=True,
+    )
+
+plt.xlabel("Epochs", fontsize=12)
+plt.ylabel("Sigmoid_theta", fontsize=12)
+plt.title("Sigmoid_theta for common estimators", fontsize=14)
+sigmoid_theta_pd
+# %%
