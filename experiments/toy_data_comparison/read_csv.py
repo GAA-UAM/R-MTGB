@@ -109,7 +109,7 @@ def report(training_set):
     return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd
 
 
-path = "8tasks_1outliers_5features_50_training_instances"
+path = "8tasks_1outliers_5features_80_training_instances"
 try:
     os.chdir(path)
 except:
@@ -134,3 +134,4 @@ plt.ylabel("Sigmoid_theta", fontsize=12)
 plt.title("Sigmoid_theta for common estimators", fontsize=14)
 sigmoid_theta_pd
 # %%
+test_df_all_tasks
