@@ -16,7 +16,7 @@ class data_gen:
 
 if __name__ == "__main__":
 
-    base_dir = "8tasks_1outliers_5features_80_training_instances"
+    base_dir = "8tasks_1outliers_5features_90_training_instances_length_scale0.125"
 
     if os.path.exists(base_dir):
         print("a")

@@ -57,10 +57,10 @@ def report(training_set):
                         model_name = file_name.replace(
                             "pred_)", ")"
                         )  # Remove "pred_" prefix
-                        
+
                         model_name = model_name.replace("pred_", "")
                         model_name = model_name.replace(f"{term}_", "")
-                        
+
                         if model_name in models and model_name not in processed_models:
                             pred_path = os.path.join(root, file_)
                             pred = pd.read_csv(pred_path, header=None)
@@ -102,36 +102,68 @@ def report(training_set):
     avg_df_all_tasks = (
         pd.concat(df_list_all_tasks).groupby(level=0).agg(["mean", "std"])
     )
-    
+
     sigmoid_theta_pd = pd.DataFrame(np.mean(np.stack(sigmoid_theta_list), axis=0))
 
+    return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list
 
-    return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd
 
-
-path = "8tasks_1outliers_5features_80_training_instances"
+path = "8tasks_1outliers_5features_90_training_instances_length_scale0.125"
 try:
     os.chdir(path)
 except:
     pass
-train_df_per_task, train_df_all_tasks, sigmoid_theta_pd = report(training_set=True)
-test_df_per_task, test_df_all_tasks, _ = report(training_set=False)
+train_df_per_task, train_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list = report(
+    training_set=True
+)
+test_df_per_task, test_df_all_tasks, _, _ = report(training_set=False)
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt
+
 plt.plot(sigmoid_theta_pd)
 plt.legend(
-        labels=[f"task {i}" for i in range(8)],
-        loc="upper center",
-        bbox_to_anchor=(0.5, -.2),
-        ncol=4,
-        fontsize=12,
-        frameon=True,
-    )
+    labels=[f"task {i}" for i in range(8)],
+    loc="upper center",
+    bbox_to_anchor=(0.5, -0.2),
+    ncol=4,
+    fontsize=12,
+    frameon=True,
+)
 
 plt.xlabel("Epochs", fontsize=12)
 plt.ylabel("Sigmoid_theta", fontsize=12)
-plt.title("Sigmoid_theta for common estimators", fontsize=14)
+plt.title(
+    "average of Sigmoid_theta for common estimators over 100 times run", fontsize=14
+)
 sigmoid_theta_pd
 # %%
-test_df_all_tasks
+import matplotlib.pyplot as plt
+
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(4, 1, figsize=(8, 12))  # Creates 4 subplots in a single column
+
+for r in range(4):
+    ax[r].plot(sigmoid_theta_list[r])
+    if r == 3:
+        for i in range(8):
+            ax[r].legend(
+                labels=[f"task {i}" for i in range(8)],
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.2),
+                ncol=4,
+                fontsize=12,
+                frameon=True,
+            )
+
+    ax[r].set_xlabel("Epochs", fontsize=12)
+    ax[r].set_ylabel("Sigmoid_theta", fontsize=12)
+    ax[r].set_title(
+        f"Sigmoid_theta for the experiment {r}", fontsize=14
+    )
+
+fig.suptitle("length_scale=0.125")
+plt.tight_layout()
+plt.savefig("sigmoid_theta.png")
+plt.show()

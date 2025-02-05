@@ -8,7 +8,7 @@ class FuncGen:
         num_dims,
         num_random_features=500,
         alpha=1.0,
-        length_scale=0.25,
+        length_scale=0.125,
         random_state=111,
     ):
 
