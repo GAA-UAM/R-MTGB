@@ -108,7 +108,7 @@ def report(training_set):
     return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list
 
 
-path = "8tasks_1outliers_5features_90_training_instances_length_scale0.125"
+path = "8tasks_1outliers_5features_200_training_instances_length_scale0.125"
 try:
     os.chdir(path)
 except:
@@ -167,3 +167,6 @@ fig.suptitle("length_scale=0.125")
 plt.tight_layout()
 plt.savefig("sigmoid_theta.png")
 plt.show()
+
+# %%
+test_df_per_task
