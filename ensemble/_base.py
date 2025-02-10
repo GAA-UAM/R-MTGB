@@ -1,5 +1,4 @@
 import copy
-import warnings
 import numpy as np
 from tqdm import trange
 from numbers import Integral
@@ -97,16 +96,6 @@ class BaseMTGB(BaseGradientBoosting):
             raw_predictions,
         )
 
-        assert np.all(
-            np.isfinite(neg_gradient)
-        ), "Negative gradient contains NaN or Inf values."
-        assert not np.all(
-            neg_gradient == 0
-        ), "Negative gradient is zero for all samples."
-        assert (
-            np.min(neg_gradient) >= -1e5 and np.max(neg_gradient) <= 1e5
-        ), "Negative gradient values are outside the expected range."
-
         if self.tasks_dic != None:
             # Multi-task learning
             if task_type == "data_pooling":
@@ -132,8 +121,6 @@ class BaseMTGB(BaseGradientBoosting):
     ):
 
         neg_gradient = self._neg_gradient(y, raw_predictions, task_type, i)
-
-        raw_predictions_ = raw_predictions.copy()
 
         tree = DecisionTreeRegressor(
             criterion=self.criterion,
@@ -164,13 +151,6 @@ class BaseMTGB(BaseGradientBoosting):
             sample_mask,
             self.learning_rate,
         )
-
-        assert np.all(
-            np.isfinite(raw_predictions)
-        ), f"Raw predictions contain NaN or Inf in stage {i}."
-        assert not np.all(
-            raw_predictions_ == raw_predictions
-        ), f"Raw predictions did not change in stage {i}."
 
         self.estimators_[i, r] = tree
         if self.tasks_dic is None:
@@ -511,11 +491,6 @@ class BaseMTGB(BaseGradientBoosting):
             common_prediction, tasks_prediction, y, theta
         )
 
-        assert np.all(
-            np.isfinite(grad_theta)
-        ), "Gradient with respect to theta contains NaN or Inf."
-        assert not np.all(grad_theta == 0), "Gradient with respect to theta is zero."
-
         if not self.is_classifier:
             # Finite difference approximation
             epsilon = 1e-3
@@ -590,6 +565,7 @@ class BaseMTGB(BaseGradientBoosting):
             desc="Boosting epochs",
             dynamic_ncols=True,
         )
+
         if self.tasks_dic != None:
             # Multi-task learning
             for i in boosting_bar:
@@ -786,65 +762,3 @@ class BaseMTGB(BaseGradientBoosting):
             for _, estimator_row in enumerate(self.estimators_):
                 common_prediction += self.learning_rate * estimator_row[0].predict(X)
             return common_prediction
-
-    @property
-    def feature_importances_(self):
-        self._check_initialized()
-
-        relevant_trees = [
-            tree
-            for stage in self.estimators_
-            for tree in stage
-            if tree.tree_.node_count > 1
-        ]
-        if not relevant_trees:
-            # degenerate case where all trees have only one node
-            return np.zeros(shape=self.n_features_in_, dtype=np.float64)
-
-        relevant_feature_importances = [
-            tree.tree_.compute_feature_importances(normalize=False)
-            for tree in relevant_trees
-        ]
-        avg_feature_importances = np.mean(
-            relevant_feature_importances, axis=0, dtype=np.float64
-        )
-        return avg_feature_importances / np.sum(avg_feature_importances)
-
-    def _compute_partial_dependence_recursion(self, grid, target_features):
-        if self.init is not None:
-            warnings.warn(
-                "Using recursion method with a non-constant init predictor "
-                "will lead to incorrect partial dependence values. "
-                "Got init=%s." % self.init,
-                UserWarning,
-            )
-        grid = np.asarray(grid, dtype=DTYPE, order="C")
-        n_estimators, n_trees_per_stage = self.estimators_.shape
-        averaged_predictions = np.zeros(
-            (n_trees_per_stage, grid.shape[0]), dtype=np.float64, order="C"
-        )
-        for stage in range(n_estimators):
-            for k in range(n_trees_per_stage):
-                tree = self.estimators_[stage, k].tree_
-                tree.compute_partial_dependence(
-                    grid, target_features, averaged_predictions[k]
-                )
-        averaged_predictions *= self.learning_rate
-
-        return averaged_predictions
-
-    def apply(self, X):
-        self._check_initialized()
-        X = self.estimators_[0, 0]._validate_X_predict(X, check_input=True)
-
-        # n_classes will be equal to 1 in the binary classification or the
-        # regression case.
-        n_estimators, n_classes = self.estimators_.shape
-        leaves = np.zeros((X.shape[0], n_estimators, n_classes))
-
-        for i in range(n_estimators):
-            for j in range(n_classes):
-                estimator = self.estimators_[i, j]
-                leaves[:, i, j] = estimator.apply(X, check_input=False)
-
-        return leaves
