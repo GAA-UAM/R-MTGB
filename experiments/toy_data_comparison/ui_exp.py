@@ -243,7 +243,7 @@ class run:
                 criterion="squared_error",
                 early_stopping=self.es,
                 n_common_estimators=self.n_common_estimators,
-                verbose=0,
+                n_mid_estimators=int(self.n_common_estimators * 1.4),
             )
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train, task_info=-1)
             pred_test_mt = model_mt.predict(
@@ -366,8 +366,8 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
-    experiment = "8tasks_1outliers_5features_200_training_instances_length_scale0.125"
+    proposed_mtgb = True
+    experiment = "8tasks_1outliers_5features_60_training_instances"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):

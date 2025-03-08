@@ -1,7 +1,6 @@
 import numpy as np
 from ensemble._base import BaseMTGB
 from sklearn.tree._tree import DOUBLE
-from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
 
@@ -14,21 +13,14 @@ class MTGBClassifier(BaseMTGB):
         learning_rate=0.1,
         n_estimators=100,
         n_common_estimators=1,
+        n_mid_estimators=1,
         subsample=1.0,
         criterion="squared_error",
-        min_samples_split=2,
-        min_samples_leaf=1,
-        min_weight_fraction_leaf=0.0,
         max_depth=3,
-        min_impurity_decrease=0.0,
         init=None,
         random_state=None,
         max_features=None,
-        verbose=0,
-        max_leaf_nodes=None,
-        warm_start=False,
         validation_fraction=0.1,
-        ccp_alpha=0.0,
         early_stopping=None,
     ):
         super().__init__(
@@ -36,21 +28,14 @@ class MTGBClassifier(BaseMTGB):
             learning_rate=learning_rate,
             n_estimators=n_estimators,
             n_common_estimators=n_common_estimators,
+            n_mid_estimators=n_mid_estimators,
             criterion=criterion,
-            min_samples_split=min_samples_split,
-            min_samples_leaf=min_samples_leaf,
-            min_weight_fraction_leaf=min_weight_fraction_leaf,
             max_depth=max_depth,
             init=init,
             subsample=subsample,
             max_features=max_features,
             random_state=random_state,
-            verbose=verbose,
-            max_leaf_nodes=max_leaf_nodes,
-            min_impurity_decrease=min_impurity_decrease,
-            warm_start=warm_start,
             validation_fraction=validation_fraction,
-            ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
         )
 
@@ -116,7 +101,6 @@ class MTGBClassifier(BaseMTGB):
         return np.log(proba)
 
 
-
 class MTGBRegressor(BaseMTGB):
     def __init__(
         self,
@@ -125,21 +109,14 @@ class MTGBRegressor(BaseMTGB):
         learning_rate=0.1,
         n_estimators=100,
         n_common_estimators=1,
+        n_mid_estimators=1,
         subsample=1.0,
         criterion="squared_error",
-        min_samples_split=2,
-        min_samples_leaf=1,
-        min_weight_fraction_leaf=0.0,
         max_depth=3,
-        min_impurity_decrease=0.0,
         init=None,
         random_state=None,
         max_features=None,
-        verbose=0,
-        max_leaf_nodes=None,
-        warm_start=False,
         validation_fraction=0.1,
-        ccp_alpha=0.0,
         early_stopping=None,
     ):
         super().__init__(
@@ -147,21 +124,14 @@ class MTGBRegressor(BaseMTGB):
             learning_rate=learning_rate,
             n_estimators=n_estimators,
             n_common_estimators=n_common_estimators,
+            n_mid_estimators=n_mid_estimators,
             criterion=criterion,
-            min_samples_split=min_samples_split,
-            min_samples_leaf=min_samples_leaf,
-            min_weight_fraction_leaf=min_weight_fraction_leaf,
             max_depth=max_depth,
             init=init,
             subsample=subsample,
             max_features=max_features,
             random_state=random_state,
-            verbose=verbose,
-            max_leaf_nodes=max_leaf_nodes,
-            min_impurity_decrease=min_impurity_decrease,
-            warm_start=warm_start,
             validation_fraction=validation_fraction,
-            ccp_alpha=ccp_alpha,
             early_stopping=early_stopping,
         )
 
@@ -176,4 +146,3 @@ class MTGBRegressor(BaseMTGB):
 
     def predict(self, X, task_info=None):
         return self._predict(X, task_info)
-

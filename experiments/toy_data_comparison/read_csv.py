@@ -108,15 +108,24 @@ def report(training_set):
     return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list
 
 
-path = "8tasks_1outliers_5features_200_training_instances_length_scale0.125"
+path = "8tasks_1outliers_5features_60_training_instances"
+
 try:
     os.chdir(path)
 except:
     pass
+
 train_df_per_task, train_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list = report(
-    training_set=True
-)
+    training_set=True)
+
 test_df_per_task, test_df_all_tasks, _, _ = report(training_set=False)
+#%%
+
+test_df_per_task
+test_df_all_tasks
+test_df_per_task
+
+train_df_per_task
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt

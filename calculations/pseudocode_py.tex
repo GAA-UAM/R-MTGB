@@ -1,0 +1,99 @@
+\documentclass{article}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{amsmath}
+
+
+\begin{document}
+
+\begin{algorithm}
+    \caption{Training and Prediction for MTGB py}
+    \begin{algorithmic}[1]
+        \REQUIRE Training data $X$, targets $y$, task info $task\_info$
+        \STATE Initialize model parameters:
+        \STATE  $learning\_rate (\eta) \gets 0.1$, $max\_depth \gets 1$
+        \STATE Initialize base estimator with dummy values
+
+        \STATE \textbf{Training Phase:}
+        \FOR{$i$ in $n\_estimators$}
+        \STATE Compute negative gradient:
+        \[
+            \text{neg\_grad} \gets y - \hat{y}
+        \]
+
+        \IF{$i = 0$}
+        \STATE \textbf{Initialize ensemble prediction:}
+        \[
+            p_{\text{meta}} \gets p_{\text{meta}} + (1 - \sigma(\theta)) \times p_{\text{non\_out}} + \sigma(\theta) \times p_{\text{out}} + p_{\text{task}}
+        \]
+
+        \ELSIF{$i \leq n\_common\_estimators$}
+        \STATE Update meta ensemble prediction:
+        \[
+            p_{\text{meta}} \gets p_{\text{meta}} + \eta \times \text{tree(X, neg\_grad)}
+        \]
+
+
+        \ELSIF{$i \leq n\_mid\_estimators$}
+        \STATE \textbf{Update ensemble prediction for outlier and non-outlier block:}
+        \[
+            p_{\text{non\_out}}, p_{\text{out}} \gets p_{\text{meta}} + (1 - \sigma(\theta)) \times p_{\text{non\_out}} + \sigma(\theta) \times p_{\text{out}} + p_{\text{task}}
+        \]
+
+
+        \STATE \textbf{Compute gradients for outlier and non-outlier:}
+        \[
+            \text{neg\_grad\_outlier} \gets \text{neg\_grad} \times \sigma(\theta)
+        \]
+        \[
+            \text{neg\_grad\_non\_outlier} \gets \text{neg\_grad} \times (1 - \sigma(\theta))
+        \]
+        \STATE Update outlier estimator:
+        \[
+            p_{\text{out}} \gets p_{\text{out}} + \eta \times \text{tree(X, neg\_grad\_outlier)}
+        \]
+        \STATE Update non-outlier estimator:
+        \[
+            p_{\text{non\_out}} \gets p_{\text{non\_out}} + \eta \times \text{tree(X, neg\_grad\_non\_outlier)}
+        \]
+        \STATE Optimize task-specific parameter $\theta$:
+
+        \[
+            \theta \gets \theta - \eta \frac{\partial L}{\partial \theta}
+        \]
+
+        \STATE \textbf{Gradient of Loss w.r.t. $\theta$ (for each task):}
+        \[
+            \frac{\partial L}{\partial \theta} = \sigma(\theta) \times (1 - \sigma(\theta)) \times \left( p_{\text{out}} - p_{\text{non\_out}} \right)
+        \]
+
+        \ELSE
+        \STATE Update task-specific prediction:
+
+        \STATE \textbf{Update ensemble prediction for task-specific block:}
+        \[
+            p_{\text{task}} \gets p_{\text{meta}} + (1 - \sigma(\theta)) \times p_{\text{non\_out}} + \sigma(\theta) \times p_{\text{out}} + p_{\text{task}}
+        \]
+
+        \[
+            p_{\text{task}} \gets p_{\text{task}} + \eta \times \text{tree(X, neg\_grad)}
+        \]
+        \ENDIF
+        \ENDFOR
+
+        \STATE \textbf{Prediction Phase:}
+        \STATE Compute meta, outlier, non-outlier, and task predictions:
+        \[
+            p_{\text{meta}}, p_{\text{out}}, p_{\text{non\_out}}, p_{\text{task}} \gets \text{initial predictions from models}
+        \]
+        \STATE Final prediction using the ensemble function:
+        \[
+            \hat{y} \gets p_{\text{meta}} + (1 - \sigma(\theta)) \times p_{\text{non\_out}} + \sigma(\theta) \times p_{\text{out}} + p_{\text{task}}
+        \]
+
+        \RETURN Predicted values $\hat{y}$
+
+    \end{algorithmic}
+\end{algorithm}
+
+\end{document}

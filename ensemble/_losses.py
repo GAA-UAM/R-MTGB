@@ -93,8 +93,6 @@ class CE(LossFunction):
 
     def gradient_theta(self, common_prediction, tasks_prediction, y, theta):
 
-        # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
-
         sigmoid_theta = sigmoid(theta)
 
         dH_dtheta = sigmoid_theta * (1 - sigmoid_theta) * common_prediction
@@ -181,37 +179,54 @@ class MSE(LossFunction):
 
         return init
 
-    def negative_gradient(self, y, raw_predictions, **kargs):
+    def negative_gradient(self, y, p, **kargs):
         if self.n_class > 1:
-            neg_gradient = np.squeeze(y) - raw_predictions
+            neg_gradient = np.squeeze(y) - p
         else:
-            neg_gradient = np.squeeze(y) - raw_predictions.ravel()
+            neg_gradient = np.squeeze(y) - p.ravel()
 
         return neg_gradient
 
-    def gradient_theta(self, common_prediction, tasks_prediction, y, theta):
-
-        # ∂L/∂theta = (∂L/∂obj()).(∂obj()/∂theta)
+    def gradient_theta(
+        self,
+        p_meta,
+        p_out,
+        p_non_out,
+        p_task,
+        y,
+        theta,
+    ):
 
         if self.n_class == 1:
-            common_prediction, tasks_prediction = (
-                common_prediction.ravel(),
-                tasks_prediction.ravel(),
+            (
+                p_meta,
+                p_out,
+                p_non_out,
+                p_task,
+            ) = (
+                p_meta.ravel(),
+                p_out.ravel(),
+                p_non_out.ravel(),
+                p_task.ravel(),
             )
 
         sigmoid_theta = sigmoid(theta)
 
-        dH_dtheta = sigmoid_theta * (1 - sigmoid_theta) * common_prediction
-
-        dL_dH = np.squeeze(y) - _ensemble_pred(
-            sigmoid_theta, common_prediction, tasks_prediction
+        p = _ensemble_pred(
+            sigmoid_theta,
+            p_meta,
+            p_out,
+            p_non_out,
+            p_task,
         )
 
-        gradient = dL_dH * dH_dtheta
+        grad_p = np.squeeze(y) - p
+
+        gradient = (grad_p * sigmoid_theta * (1 - sigmoid_theta)) @ (p_out - p_non_out)
 
         assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
 
-        return np.sum(gradient, axis=0)
+        return gradient * -1
 
     def update_terminal_regions(
         self,
