@@ -1,4 +1,3 @@
-
 set.seed(1)
 library(rpart)
 N_data_per_task <- 250
@@ -178,19 +177,6 @@ update_ensemble_first_stage <- function(ensemble, data) {
 			loss_outlier <- sum((output$prediction - data$Y[[ i ]])^2)
 
 		losses[ i ] <- sum((output$prediction - data$Y[[ i ]])^2)
-
-        for (i in 1:length(data$X)) {
-        output <- predict_ensemble(ensemble, i, data$X[[i]])
-        gradient_ch <- - (data$Y[[i]] - output$prediction)
-        
-        if (i == 1 && length(ensemble$ensemble_members_mt) == 0) {
-            print("First epoch of ensemble - First stage")
-            print("Gradient w.r.t. ch:")
-            print(gradient_ch)
-            print("Predictions:")
-            print(output$prediction)
-        }
-	}
 	}
 
 	loss <- loss / (N_data_per_task * length(data$X))
@@ -226,6 +212,7 @@ update_ensemble_second_stage <- function(ensemble, data) {
 	loss <- 0
 	loss_outlier <- 0
 	losses <- rep(0, length(data$X))
+
 	for (i in 1 : length(data$X)) {
 
 		output <- predict_ensemble(ensemble, i, data$X[[ i ]])
@@ -247,19 +234,8 @@ update_ensemble_second_stage <- function(ensemble, data) {
 			loss_outlier <- sum((output$prediction - data$Y[[ i ]])^2)
 
 		losses[ i ] <- sum((output$prediction - data$Y[[ i ]])^2)
-
-        if (i == 1 && length(ensemble$ensemble_members_ch_non_out) == 0) {
-            print("First epoch of ensemble - Second stage")
-            print("Gradient w.r.t. ch (non-outlier):")
-            print(gradient_ch_non_out)
-            print("Gradient w.r.t. ch (outlier):")
-            print(gradient_ch_out)
-            print("Gradient w.r.t. theta:")
-            print(gradient_theta[i])
-            print("Predictions:")
-            print(output$prediction)
-        }
 	}
+
 
 	loss <- loss / (N_data_per_task * length(data$X))
 	loss_outlier <- loss_outlier / N_data_per_task
@@ -285,6 +261,7 @@ update_ensemble_second_stage <- function(ensemble, data) {
 	model <- rpart(y~x.1+x.2, data = data_to_train_predictor, control = list(maxdepth = 1, minsplit = 1, cp = 0.0, xval = 0))
 	ensemble$ensemble_members_ch_non_out[[ length(ensemble$ensemble_members_ch_non_out) + 1 ]] <- model
 
+
 	data_to_train_predictor <- data.frame(x = x, y = -gradient_ch_out)
 	model <- rpart(y~x.1+x.2, data = data_to_train_predictor, control = list(maxdepth = 1, minsplit = 1, cp = 0.0, xval = 0))
 	ensemble$ensemble_members_ch_out[[ length(ensemble$ensemble_members_ch_out) + 1 ]] <- model
@@ -298,6 +275,7 @@ update_ensemble_third_stage <- function(ensemble, data) {
 
 	for (i in 1 : length(data$X)) {
 
+
 		output <- predict_ensemble(ensemble, i, data$X[[ i ]])
 	        gradient_rh <- - (data$Y[[ i ]] - output$prediction) 
 
@@ -306,16 +284,7 @@ update_ensemble_third_stage <- function(ensemble, data) {
 		data_to_train_predictor <- data.frame(x = data$X[[ i ]], y = -gradient_rh)
 		model <- rpart(y~x.1+x.2, data = data_to_train_predictor, control = list(maxdepth = 1, minsplit = 1, cp = 0.0, xval = 0))
 		ensemble$ensemble_members_rh[[ i ]][[ length(ensemble$ensemble_members_rh[[ i ]]) + 1 ]] <- model
-	
-    if (i == 1 && length(ensemble$ensemble_members_rh[[i]]) == 0) {
-            print("First epoch of ensemble - Third stage")
-            print("Gradient w.r.t. rh:")
-            print(gradient_rh)
-            print("Predictions:")
-            print(output$prediction)
-        }
-    
-    }
+	}
 
 	return(ensemble)
 }
@@ -324,14 +293,14 @@ update_ensemble_third_stage <- function(ensemble, data) {
 
 data <- create_tasks_data()
 ensemble <- create_ensemble(length(data$X))
-n_iterations_first_stage  <- 100
-n_iterations_second_stage  <- 100
-n_iterations_third_stage  <- 100
+n_iterations_first_stage  <- 3
+n_iterations_second_stage  <- 3
+n_iterations_third_stage  <- 3
 
 # We carry out the first stage, where we update ch and theta
 
 for (i in 1 : n_iterations_first_stage) {
-	# print(i)
+	print(i)
 	ensemble <- update_ensemble_first_stage(ensemble, data)
 }
 
@@ -339,12 +308,10 @@ for (i in 1 : n_iterations_first_stage) {
 # We carry out the second stage, where we update ch and theta
 
 for (i in 1 : n_iterations_first_stage) {
-	# print(i)
+	print(i)
 	ensemble <- update_ensemble_second_stage(ensemble, data)
 	print(sigmoid(ensemble$theta))
 }
-
-browser()
 
 ## We plot the results
 #
@@ -375,7 +342,7 @@ browser()
 # We carry out the second stage, where we update rh 
 
 for (i in 1 : n_iterations_third_stage) {
-	# print(i)
+	print(i)
 	ensemble <- update_ensemble_third_stage(ensemble, data)
 }
 
@@ -409,3 +376,9 @@ for (i in 1 : n_iterations_third_stage) {
 #	write.table(data$X[[ i ]], paste("x_train_task_", i, ".txt", sep = ""), row.names = F, col.names = F)
 #	write.table(data$Y[[ i ]], paste("y_train_task_", i, ".txt", sep = ""), row.names = F, col.names = F)
 #}
+
+
+
+output <- predict_ensemble(ensemble, 1, data$X[[ 1 ]])
+print(output$prediction[0:5])
+print(ensemble$theta)

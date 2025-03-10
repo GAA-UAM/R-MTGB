@@ -78,15 +78,11 @@ class BaseMTGB(BaseGradientBoosting):
         if key == 2:  # Non-outlier function
             for r_label, r in self.tasks_dic.items():
                 idx_r = self.t == r_label
-                neg_gradient[idx_r] = neg_gradient[idx_r] * (
-                    1 - self.sigmoid_thetas_[i, r, :]
-                )
+                neg_gradient[idx_r] = neg_gradient[idx_r] * (1 - sigmoid(self.theta[r]))
         elif key == 1:  # outlier function
             for r_label, r in self.tasks_dic.items():
                 idx_r = self.t == r_label
-                neg_gradient[idx_r] = (
-                    neg_gradient[idx_r] * self.sigmoid_thetas_[i, r, :]
-                )
+                neg_gradient[idx_r] = neg_gradient[idx_r] * sigmoid(self.theta[r])
 
         return neg_gradient
 
@@ -525,7 +521,7 @@ class BaseMTGB(BaseGradientBoosting):
                 theta[r],
             )
 
-            self.sigmoid_thetas_[i + 1, r, :] = sigmoid(optimized_theta)
+            #            self.sigmoid_thetas_[i + 1, r, :] = sigmoid(optimized_theta)
             theta_out[r] = optimized_theta
 
         return theta_out
@@ -533,7 +529,6 @@ class BaseMTGB(BaseGradientBoosting):
     def _fit_tree(
         self, raw_predictions, neg_gradient, X, y, sample_weight, sample_mask
     ):
-        
 
         tree = DecisionTreeRegressor(
             criterion=self.criterion,
@@ -585,7 +580,20 @@ class BaseMTGB(BaseGradientBoosting):
         y = self._label_y(y)
 
         # theta = np.random.rand(self.T, self._loss.n_class) * 0.1
-        theta = np.random.rand(self.T) * 0.1
+        # theta = np.random.randn(self.T) * 0.1 # DHL we sample from a Gaussian, not a uniform variable (see the diff between rand and randn)
+        # DHL we keep current value of theta
+        self.theta = np.array(
+            [
+                0.060385127,
+                -0.096597032,
+                -0.016628529,
+                0.036170050,
+                -0.139193041,
+                -0.020166009,
+                -0.072877763,
+                0.006896677,
+            ]
+        )
 
         boosting_bar = trange(
             0,
@@ -597,7 +605,10 @@ class BaseMTGB(BaseGradientBoosting):
 
         if self.tasks_dic != None:
 
-            p_meta = p_out = p_non_out = p_task = init_prediction
+            p_meta = init_prediction  # DHL this was wrong. Initializing references to point to the same array
+            p_out = p_meta * 0.0
+            p_non_out = p_meta * 0.0
+            p_task = p_meta * 0.0
 
             for i in boosting_bar:
                 x_subsample = self._subsampling(X)
@@ -609,7 +620,8 @@ class BaseMTGB(BaseGradientBoosting):
                             p_out,
                             p_non_out,
                             p_task,
-                            self.sigmoid_thetas_[-1, :, :],
+                            # self.sigmoid_thetas_[-1, :, :],  DHL this seems wrong, we have to use current value of theta
+                            sigmoid(self.theta),
                         )
 
                     p_meta = self._fit_stage(
@@ -628,61 +640,80 @@ class BaseMTGB(BaseGradientBoosting):
                 elif i < self.n_mid_estimators:
                     # Second stage: Update common outlier &
                     # non-outlier estimators
-                    if i == self.n_common_estimators:
-                        ensemble_prediction = self._update_prediction(
-                            p_meta,
-                            p_out,
-                            p_non_out,
-                            p_task,
-                            self.sigmoid_thetas_[-1, :, :],
-                        )
-                        p_out = p_non_out = ensemble_prediction
+                    # DHL we always update the ensemble output
+                    ensemble_prediction = self._update_prediction(
+                        p_meta,
+                        p_out,
+                        p_non_out,
+                        p_task,
+                        #                           self.sigmoid_thetas_[-1, :, :], DHL this seems wrong, we have to use current value of theta
+                        sigmoid(self.theta),
+                    )
+                    # p_out = p_non_out = ensemble_prediction DHL this seems wrong taking a look at ensemble_prediction XXX
 
-                    p_out = self._fit_stage(
+                    new_ensemble_prediction = self._fit_stage(
                         i,
                         0,
                         X,
                         y,
-                        p_out,
+                        ensemble_prediction,
                         x_subsample,
                         sample_weight,
                         1,
                     )
 
-                    p_non_out = self._fit_stage(
+                    out_tree_cont = (
+                        new_ensemble_prediction - ensemble_prediction
+                    )  # DHL total hack to separate ensemble_output from outlier task output
+                    p_out_old = p_out.copy()
+                    p_out += out_tree_cont
+
+                    new_ensemble_prediction = self._fit_stage(
                         i,
                         0,
                         X,
                         y,
-                        p_non_out,
+                        ensemble_prediction,
                         x_subsample,
                         sample_weight,
                         2,
                     )
 
+                    non_out_tree_cont = (
+                        new_ensemble_prediction - ensemble_prediction
+                    )  # DHL total hack to separate ensemble_output from non outlier task output
+                    p_non_out_old = p_non_out.copy()
+                    p_non_out += non_out_tree_cont
+
                     # Optimize theta values per task
-                    theta = self._opt_theta_per_task(
+                    self.theta = self._opt_theta_per_task(
+                        p_meta,
+                        p_out_old,
+                        p_non_out_old,
+                        p_task,
+                        y,
+                        self.theta,
+                        i,
+                    )
+
+                    self._track_loss(
+                        i, X, y, sample_weight, p_out, 1
+                    )  # DHL check if this is right
+                    self._track_loss(
+                        i, X, y, sample_weight, p_non_out, 2
+                    )  # DHL check if this is right
+                else:
+                    # Third stage: Task-specific estimators
+                    # DHL we always update the ensemble output
+                    ensemble_prediction = self._update_prediction(
                         p_meta,
                         p_out,
                         p_non_out,
                         p_task,
-                        y,
-                        theta,
-                        i,
+                        self.sigmoid_thetas_[-1, :, :],
                     )
 
-                    self._track_loss(i, X, y, sample_weight, p_out, 1)
-                    self._track_loss(i, X, y, sample_weight, p_non_out, 2)
-                else:
-                    # Third stage: Task-specific estimators
-                    if i == self.n_mid_estimators:
-                        p_task = self._update_prediction(
-                            p_meta,
-                            p_out,
-                            p_non_out,
-                            p_task,
-                            self.sigmoid_thetas_[-1, :, :],
-                        )
+                    new_ensemble_prediction = ensemble_prediction.copy()
 
                     for r_label, r in self.tasks_dic.items():
                         idx_r = self.t == r_label
@@ -693,15 +724,20 @@ class BaseMTGB(BaseGradientBoosting):
                             x_subsample[idx_r],
                         )
                         # Update task-specific predictions
-                        p_task[idx_r] = self._fit_stage(
+                        new_ensemble_prediction[idx_r] = self._fit_stage(
                             i,
                             r,
                             X_r,
                             y_r,
-                            p_task[idx_r],
+                            ensemble_prediction[idx_r],
                             x_subsample_r,
                             sample_weight_r,
                             0,
+                        )
+
+                        # # DHL total hack to separate ensemble_output from specitific task output
+                        p_task[idx_r] += (
+                            new_ensemble_prediction[idx_r] - ensemble_prediction[idx_r]
                         )
 
                         del X_r
@@ -709,7 +745,7 @@ class BaseMTGB(BaseGradientBoosting):
                         del sample_weight_r
                         del x_subsample_r
 
-                    # Track loss for monitoring
+                    # Track loss for monitoring DHL check if this is right.
                     self._track_loss(
                         i,
                         X,

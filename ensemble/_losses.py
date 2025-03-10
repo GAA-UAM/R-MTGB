@@ -226,7 +226,7 @@ class MSE(LossFunction):
 
         assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
 
-        return gradient * -1
+        return gradient * -1 
 
     def update_terminal_regions(
         self,
