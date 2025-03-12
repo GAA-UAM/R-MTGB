@@ -176,14 +176,6 @@ class BaseMTGB(BaseGradientBoosting):
         elif self.is_classifier:
             num_cols = self._loss.n_class
 
-        # The optimization of theta for each task is performed exclusively in the second block (n_common_estimators).
-        self.sigmoid_thetas_ = sigmoid(
-            np.zeros(
-                (self.n_mid_estimators + 1, self.T, self._loss.n_class),
-                dtype=np.float64,
-            )
-        )
-
         shape = (
             (self.n_estimators, self.T + 1, num_cols)
             if self.tasks_dic is not None
@@ -521,7 +513,6 @@ class BaseMTGB(BaseGradientBoosting):
                 theta[r],
             )
 
-            #            self.sigmoid_thetas_[i + 1, r, :] = sigmoid(optimized_theta)
             theta_out[r] = optimized_theta
 
         return theta_out
@@ -620,7 +611,6 @@ class BaseMTGB(BaseGradientBoosting):
                             p_out,
                             p_non_out,
                             p_task,
-                            # self.sigmoid_thetas_[-1, :, :],  DHL this seems wrong, we have to use current value of theta
                             sigmoid(self.theta),
                         )
 
@@ -646,7 +636,6 @@ class BaseMTGB(BaseGradientBoosting):
                         p_out,
                         p_non_out,
                         p_task,
-                        #                           self.sigmoid_thetas_[-1, :, :], DHL this seems wrong, we have to use current value of theta
                         sigmoid(self.theta),
                     )
                     # p_out = p_non_out = ensemble_prediction DHL this seems wrong taking a look at ensemble_prediction XXX
@@ -710,7 +699,7 @@ class BaseMTGB(BaseGradientBoosting):
                         p_out,
                         p_non_out,
                         p_task,
-                        self.sigmoid_thetas_[-1, :, :],
+                        sigmoid(self.theta),
                     )
 
                     new_ensemble_prediction = ensemble_prediction.copy()
@@ -893,7 +882,7 @@ class BaseMTGB(BaseGradientBoosting):
                 p_out,
                 p_non_out,
                 p_task,
-                self.sigmoid_thetas_[-1, :, :],
+                sigmoid(self.theta),
                 "inference",
             )
 

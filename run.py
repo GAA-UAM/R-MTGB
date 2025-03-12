@@ -5,6 +5,7 @@ import pandas as pd
 import warnings
 from mtgb_models.mt_gb import MTGBRegressor
 import matplotlib.pyplot as plt
+from scipy.special import expit as sigmoid
 
 warnings.simplefilter("ignore")
 
@@ -44,4 +45,9 @@ pred_mt = model_mt.predict(np.column_stack((x_train, task_train)), task_info=-1)
 
 # pdb.set_trace()
 
-model_mt.theta
+
+# %%
+arr = sigmoid(model_mt.theta)
+m_arr = 1- arr
+# %%
+max_index = np.argmax(arr)

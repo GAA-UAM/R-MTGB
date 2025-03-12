@@ -47,6 +47,12 @@ def report(training_set):
             sigmoid_theta = pd.read_csv(sigmoid_theta_path, header=None)
             rmse_per_task_dict = {model: dict(zip(tasks, range(8))) for model in models}
             rmse_all_tasks_dict = {model: 0 for model in models}
+            # print(sigmoid_theta)
+            if np.argmax(sigmoid_theta) == 0:
+                print(sigmoid_theta)
+                sigmoid_theta = (1-sigmoid_theta)
+                print(sigmoid_theta)
+                print("--------")
             sigmoid_theta_list.append(sigmoid_theta)
 
             processed_models = set()
@@ -103,12 +109,12 @@ def report(training_set):
         pd.concat(df_list_all_tasks).groupby(level=0).agg(["mean", "std"])
     )
 
-    sigmoid_theta_pd = pd.DataFrame(np.mean(np.stack(sigmoid_theta_list), axis=0))
+    sigmoid_theta_pd = pd.DataFrame(np.mean((sigmoid_theta_list), axis=0))
 
     return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list
 
 
-path = "8tasks_1outliers_5features_60_training_instances"
+path = "8tasks_1outliers_5features_90_training_instances"
 
 try:
     os.chdir(path)
@@ -124,15 +130,18 @@ test_df_per_task, test_df_all_tasks, _, _ = report(training_set=False)
 test_df_per_task
 test_df_all_tasks
 test_df_per_task
-
 train_df_per_task
+
+#%%
+train_df_per_task
+
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt
 
 plt.plot(sigmoid_theta_pd)
 plt.legend(
-    labels=[f"task {i}" for i in range(8)],
+    # labels=[f"task {i}" for i in range(8)],
     loc="upper center",
     bbox_to_anchor=(0.5, -0.2),
     ncol=4,
@@ -140,11 +149,14 @@ plt.legend(
     frameon=True,
 )
 
-plt.xlabel("Epochs", fontsize=12)
+plt.xlabel("Tasks", fontsize=12)
 plt.ylabel("Sigmoid_theta", fontsize=12)
 plt.title(
-    "average of Sigmoid_theta for common estimators over 100 times run", fontsize=14
+    "average of Sigmoid_theta", fontsize=14
 )
+plt.grid()
+#%%
+# np.argmax()
 sigmoid_theta_pd
 # %%
 import matplotlib.pyplot as plt

@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import warnings
 import os
+from scipy.special import expit as sigmoid
 
 warnings.simplefilter("ignore")
 
@@ -256,8 +257,8 @@ class run:
             pred_train_mt = np.column_stack((pred_train_mt, task_train))
             to_csv(pred_test_mt, self.path, f"pred_test_{title}")
             to_csv(pred_train_mt, self.path, f"pred_train_{title}")
-            to_csv(model_mt.sigmoid_thetas_[:, :, 0], self.path, "sigmoid_theta")
-
+            to_csv(sigmoid(model_mt.theta), self.path, "sigmoid_theta")
+            
             # Standard GB Data Pooling without task as the feature training
             X_train, X_test, Y_train, Y_test = self._mat(
                 x_train, x_test, y_train, y_test
@@ -367,7 +368,7 @@ class run:
 if __name__ == "__main__":
 
     proposed_mtgb = True
-    experiment = "8tasks_1outliers_5features_60_training_instances"
+    experiment = "8tasks_1outliers_5features_90_training_instances"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):
