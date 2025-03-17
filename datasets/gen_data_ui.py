@@ -39,7 +39,7 @@ if __name__ == "__main__":
                 gen_data = data_gen(scenario)
                 df = gen_data(regression, 5, 8, 1000)
                 train_df, test_df = train_test_split(
-                    train_df, test_size=0.98, random_state=42
+                    df, test_size=0.98, random_state=42
                 )
                 train_df.to_csv(
                     f"train_{'reg' if regression else 'clf'}_{scenario}.csv"
