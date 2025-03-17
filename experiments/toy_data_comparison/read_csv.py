@@ -31,6 +31,7 @@ def report(training_set):
 
     for root, _, files in os.walk(os.getcwd()):
         y_test = None
+        y_test_std = []
         if root.endswith("reg"):
             if not training_set:
                 set_ = "y_test.csv"
@@ -44,13 +45,15 @@ def report(training_set):
                 print(f"Skipping {root}, no y_test.csv found.")
                 continue
             y_test = pd.read_csv(y_test_path, header=None)
+            y_test_std.append(np.std(y_test))
             sigmoid_theta = pd.read_csv(sigmoid_theta_path, header=None)
             rmse_per_task_dict = {model: dict(zip(tasks, range(8))) for model in models}
             rmse_all_tasks_dict = {model: 0 for model in models}
+
             # print(sigmoid_theta)
             if np.argmax(sigmoid_theta) == 0:
                 print(sigmoid_theta)
-                sigmoid_theta = (1-sigmoid_theta)
+                sigmoid_theta = 1 - sigmoid_theta
                 print(sigmoid_theta)
                 print("--------")
             sigmoid_theta_list.append(sigmoid_theta)
@@ -111,30 +114,53 @@ def report(training_set):
 
     sigmoid_theta_pd = pd.DataFrame(np.mean((sigmoid_theta_list), axis=0))
 
-    return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list
+    return (
+        avg_df_per_task,
+        avg_df_all_tasks,
+        sigmoid_theta_pd,
+        sigmoid_theta_list,
+        np.mean(y_test_std),
+    )
 
 
-path = "8tasks_0outliers_5features_10_training_instances"
+path = "8tasks_1outliers_5features_10_training_instances"
 
 try:
     os.chdir(path)
 except:
     pass
 
-train_df_per_task, train_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list = report(
-    training_set=True)
+(
+    train_df_per_task,
+    train_df_all_tasks,
+    sigmoid_theta_pd,
+    sigmoid_theta_list,
+    y_train_std,
+) = report(training_set=True)
 
-test_df_per_task, test_df_all_tasks, _, _ = report(training_set=False)
-#%%
+(
+    test_df_per_task,
+    test_df_all_tasks,
+    _,
+    _,
+    y_test_std,
+) = report(training_set=False)
+# %%
 
 test_df_per_task
 test_df_all_tasks
 test_df_per_task
 train_df_per_task
 
-#%%
-test_df_all_tasks
+# %%
+def result_2_show(df):
+    exclude_names = ["GB_datapooling", "GB_datapooling_task_as_feature", "GB_single_task"]
+    df_filtered  = df[~df.index.isin(exclude_names)]
+    return df_filtered
 
+result_2_show(test_df_all_tasks)
+print(y_test_std)
+test_df_all_tasks
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt
@@ -151,11 +177,9 @@ plt.legend(
 
 plt.xlabel("Tasks", fontsize=12)
 plt.ylabel("Sigmoid_theta", fontsize=12)
-plt.title(
-    "average of Sigmoid_theta", fontsize=14
-)
+plt.title("average of Sigmoid_theta", fontsize=14)
 plt.grid()
-#%%
+# %%
 # np.argmax()
 sigmoid_theta_pd
 # %%
@@ -180,9 +204,7 @@ for r in range(4):
 
     ax[r].set_xlabel("Epochs", fontsize=12)
     ax[r].set_ylabel("Sigmoid_theta", fontsize=12)
-    ax[r].set_title(
-        f"Sigmoid_theta for the experiment {r}", fontsize=14
-    )
+    ax[r].set_title(f"Sigmoid_theta for the experiment {r}", fontsize=14)
 
 fig.suptitle("length_scale=0.125")
 plt.tight_layout()
