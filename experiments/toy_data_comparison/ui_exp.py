@@ -18,7 +18,7 @@ def data_pre_split(df):
 
 
 def extract_data(path, clf, train):
-    clf_ = "clf_4" if clf else "reg_4"
+    clf_ = "clf_3" if clf else "reg_3"
     pre_title = "train_" if train else "test_"
     title = pre_title + clf_ + ".csv"
     df = pd.read_csv(os.path.join(path, title))
@@ -367,8 +367,8 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = True
-    experiment = "8tasks_1outliers_5features_90_training_instances"
+    proposed_mtgb = False
+    experiment = "8tasks_0outliers_5features_10_training_instances"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):

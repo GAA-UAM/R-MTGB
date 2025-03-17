@@ -114,7 +114,7 @@ def report(training_set):
     return avg_df_per_task, avg_df_all_tasks, sigmoid_theta_pd, sigmoid_theta_list
 
 
-path = "8tasks_1outliers_5features_90_training_instances"
+path = "8tasks_0outliers_5features_10_training_instances"
 
 try:
     os.chdir(path)
@@ -133,7 +133,7 @@ test_df_per_task
 train_df_per_task
 
 #%%
-train_df_per_task
+test_df_all_tasks
 
 # %%
 print(r"\sigma(\theta)")
