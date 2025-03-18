@@ -15,7 +15,7 @@ class data_gen:
 
 if __name__ == "__main__":
 
-    base_dir = "8tasks_1outliers_5features_10_training_instances"
+    base_dir = "8tasks_1outliers_5features_200_training_instances_0.8common"
 
     if os.path.exists(base_dir):
         print("a")
@@ -37,9 +37,9 @@ if __name__ == "__main__":
             # for regression in [True, False]:
             for regression in [True]:
                 gen_data = data_gen(scenario)
-                df = gen_data(regression, 5, 8, 1000)
+                df = gen_data(regression, 5, 8, 1200)
                 train_df, test_df = train_test_split(
-                    df, test_size=0.99, random_state=42
+                    df, test_size=1000, train_size=200, random_state=int(i)
                 )
                 train_df.to_csv(
                     f"train_{'reg' if regression else 'clf'}_{scenario}.csv"

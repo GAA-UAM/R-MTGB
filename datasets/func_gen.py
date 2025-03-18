@@ -186,7 +186,7 @@ class GenerateDataset:
 
                 if i < num_tasks - num_outlier_tasks:
                     # non-outlier tasks
-                    common_weight = 0.9
+                    common_weight = 0.8
                     specific_weight = 1 - common_weight
                     y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
                         specific_weight * self.specific_funcgens[i].evaluate_function(x)

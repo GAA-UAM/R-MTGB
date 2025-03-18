@@ -123,7 +123,7 @@ def report(training_set):
     )
 
 
-path = "8tasks_1outliers_5features_10_training_instances"
+path = "8tasks_1outliers_5features_200_training_instances"
 
 try:
     os.chdir(path)
@@ -145,7 +145,7 @@ except:
     _,
     y_test_std,
 ) = report(training_set=False)
-# %%
+
 
 test_df_per_task
 test_df_all_tasks
@@ -158,9 +158,9 @@ def result_2_show(df):
     df_filtered  = df[~df.index.isin(exclude_names)]
     return df_filtered
 
-result_2_show(test_df_all_tasks)
+result_2_show(train_df_all_tasks)
 print(y_test_std)
-test_df_all_tasks
+test_df_per_task
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt
