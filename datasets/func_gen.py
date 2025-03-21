@@ -58,7 +58,9 @@ class GenerateDataset:
         return y
 
     # Here pooling is optimal
-    def _gen_data_scenario_1(self, num_dims=2, num_tasks=8, num_instances=100):
+    def _gen_data_scenario_1(
+        self, num_dims, num_tasks, num_instances, num_outlier_tasks
+    ):
 
         valid = False
         while not valid:
@@ -88,7 +90,9 @@ class GenerateDataset:
         return X, Y
 
     # Here single task learning is optimal
-    def _gen_data_scenario_2(self, num_dims=2, num_tasks=8, num_instances=100):
+    def _gen_data_scenario_2(
+        self, num_dims, num_tasks, num_instances, num_outlier_tasks
+    ):
 
         X = list()
         Y = list()
@@ -121,7 +125,9 @@ class GenerateDataset:
         return X, Y
 
     # Here multi-task learning is optimal
-    def _gen_data_scenario_3(self, num_dims=2, num_tasks=8, num_instances=100):
+    def _gen_data_scenario_3(
+        self, num_dims, num_tasks, num_instances, num_outlier_tasks=None
+    ):
 
         valid = False
         while not valid:
@@ -164,7 +170,11 @@ class GenerateDataset:
     # Here robust multi-task learning is optimal since
     # there are outlier tasks
     def _gen_data_scenario_4(
-        self, num_dims, num_tasks, num_instances, num_outlier_tasks=1
+        self,
+        num_dims,
+        num_tasks,
+        num_instances,
+        num_outlier_tasks,
     ):
 
         valid = False
@@ -210,7 +220,9 @@ class GenerateDataset:
                 valid = True
         return X, Y
 
-    def __call__(self, regression, num_dims=5, num_tasks=8, num_instances=125):
+    def __call__(
+        self, regression, num_dims, num_tasks, num_instances, num_outlier_tasks
+    ):
 
         self.regression = regression
 
@@ -233,7 +245,7 @@ class GenerateDataset:
 
         if self.scenario in scenario_methods:
             x_list, y_list = scenario_methods[self.scenario](
-                num_dims, num_tasks, num_instances
+                num_dims, num_tasks, num_instances, num_outlier_tasks
             )
 
         ranges = []

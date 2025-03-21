@@ -1,21 +1,13 @@
 # %%
 import os
+import pandas as pd
 from func_gen import GenerateDataset
 from sklearn.model_selection import train_test_split
 
 
-class data_gen:
-    def __init__(self, scenario):
-        self.scenario = scenario
-
-    def __call__(self, regression, n_dim, n_tasks, n_instances):
-        self.task_gen = GenerateDataset(self.scenario)
-        return self.task_gen(regression, n_dim, n_tasks, n_instances)
-
-
 if __name__ == "__main__":
 
-    base_dir = "8tasks_1outliers_5features_200_training_instances_0.8common"
+    base_dir = "8tasks_1outliers_5features_1000_training_instances_0.8common"
 
     if os.path.exists(base_dir):
         print("a")
@@ -23,10 +15,17 @@ if __name__ == "__main__":
         os.mkdir(base_dir)
 
     original_dir = os.getcwd()
+    num_tasks = 8
+    num_dims = 1
+    num_train_per_task = 20
+    num_test_per_task = 1000
+    num_outlier_tasks = 1
+    num_instances = num_train_per_task + num_test_per_task
 
     # for scenario in [1, 2, 3, 4]:
     for scenario in [4]:
-        for i, subdir in enumerate(range(1, 100 + 1)):
+        # for i, subdir in enumerate(range(1, 100 + 1)):
+        for i, subdir in enumerate(range(1, 1 + 1)):
             scenario_name = "scenario_" + str(scenario)
             # dir_path = os.path.join(base_dir, scenario_name, str(subdir))
             dir_path = os.path.join(base_dir, str(subdir))
@@ -36,11 +35,33 @@ if __name__ == "__main__":
             os.mkdir("reg")
             # for regression in [True, False]:
             for regression in [True]:
-                gen_data = data_gen(scenario)
-                df = gen_data(regression, 5, 8, 1200)
-                train_df, test_df = train_test_split(
-                    df, test_size=1000, train_size=200, random_state=int(i)
+                gen_data = GenerateDataset(scenario)
+                df = gen_data(
+                    regression=regression,
+                    num_dims=num_dims,
+                    num_tasks=num_tasks,
+                    num_instances=num_instances,
+                    num_outlier_tasks=num_outlier_tasks,
                 )
+
+                train_dfs, test_dfs = [], []
+                for task_id in df["Task"].unique():
+                    task_df = df[df["Task"] == task_id]
+
+                    train_task_df, test_task_df = train_test_split(
+                        task_df,
+                        train_size=num_train_per_task,
+                        test_size=num_test_per_task,
+                        random_state=int(i),
+                    )
+
+                    train_dfs.append(train_task_df)
+                    test_dfs.append(test_task_df)
+
+                    # Concatenate all tasks
+                    train_df = pd.concat(train_dfs)
+                    test_df = pd.concat(test_dfs)
+
                 train_df.to_csv(
                     f"train_{'reg' if regression else 'clf'}_{scenario}.csv"
                 )
