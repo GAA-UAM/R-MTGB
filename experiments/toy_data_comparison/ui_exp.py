@@ -368,7 +368,7 @@ class run:
 if __name__ == "__main__":
 
     proposed_mtgb = False
-    experiment = "8tasks_1outliers_5features_1000_training_instances_0.8common"
+    experiment = "8tasks_1outliers_1features_300training"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):

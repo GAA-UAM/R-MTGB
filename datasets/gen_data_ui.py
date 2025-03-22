@@ -4,28 +4,26 @@ import pandas as pd
 from func_gen import GenerateDataset
 from sklearn.model_selection import train_test_split
 
-
 if __name__ == "__main__":
 
-    base_dir = "8tasks_1outliers_5features_1000_training_instances_0.8common"
+    original_dir = os.getcwd()
+    num_tasks = 8
+    num_dims = 1
+    num_train_per_task = 300
+    num_test_per_task = 1000
+    num_outlier_tasks = 1
+    num_instances = num_train_per_task + num_test_per_task
+
+    base_dir = f"{num_tasks}tasks_{num_outlier_tasks}outliers_{num_dims}features_{num_train_per_task}training"
 
     if os.path.exists(base_dir):
         print("a")
     else:
         os.mkdir(base_dir)
 
-    original_dir = os.getcwd()
-    num_tasks = 8
-    num_dims = 1
-    num_train_per_task = 20
-    num_test_per_task = 1000
-    num_outlier_tasks = 1
-    num_instances = num_train_per_task + num_test_per_task
-
     # for scenario in [1, 2, 3, 4]:
     for scenario in [4]:
-        # for i, subdir in enumerate(range(1, 100 + 1)):
-        for i, subdir in enumerate(range(1, 1 + 1)):
+        for i, subdir in enumerate(range(1, 100 + 1)):
             scenario_name = "scenario_" + str(scenario)
             # dir_path = os.path.join(base_dir, scenario_name, str(subdir))
             dir_path = os.path.join(base_dir, str(subdir))
