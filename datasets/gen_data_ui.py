@@ -9,7 +9,7 @@ if __name__ == "__main__":
     original_dir = os.getcwd()
     num_tasks = 8
     num_dims = 1
-    num_train_per_task = 300
+    num_train_per_task = 10
     num_test_per_task = 1000
     num_outlier_tasks = 1
     num_instances = num_train_per_task + num_test_per_task

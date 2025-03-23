@@ -367,16 +367,16 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
-    experiment = "8tasks_1outliers_1features_300training"
+    proposed_mtgb = True
+    experiment = "8tasks_1outliers_1features_10training"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):
             data_path = f"{experiment}\{batch}"
             run_exp = run(
                 max_depth=1,
-                n_estimators=300,
-                n_common_estimators=100,
+                n_estimators=100,
+                n_common_estimators=40,
                 subsample=1,
                 max_features=None,
                 learning_rate=1.0,

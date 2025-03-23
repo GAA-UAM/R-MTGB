@@ -123,7 +123,7 @@ def report(training_set):
     )
 
 
-path = "8tasks_1outliers_1features_300training"
+path = "8tasks_1outliers_1features_10training"
 
 try:
     os.chdir(path)
@@ -160,7 +160,7 @@ def result_2_show(df):
 
 result_2_show(train_df_all_tasks)
 print(y_test_std)
-train_df_all_tasks
+test_df_all_tasks
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt
