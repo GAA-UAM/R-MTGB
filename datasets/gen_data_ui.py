@@ -7,11 +7,11 @@ from sklearn.model_selection import train_test_split
 if __name__ == "__main__":
 
     original_dir = os.getcwd()
-    num_tasks = 8
+    num_tasks = 10
     num_dims = 1
     num_train_per_task = 10
     num_test_per_task = 1000
-    num_outlier_tasks = 1
+    num_outlier_tasks = 5
     num_instances = num_train_per_task + num_test_per_task
 
     base_dir = f"{num_tasks}tasks_{num_outlier_tasks}outliers_{num_dims}features_{num_train_per_task}training"
