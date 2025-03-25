@@ -585,7 +585,7 @@ class BaseMTGB(BaseGradientBoosting):
                 0.006896677,
             ]
         )
-        self.theta = np.random.rand(self.T)
+
 
         boosting_bar = trange(
             0,
