@@ -1,10 +1,12 @@
 # %%
+from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 import pandas as pd
 import numpy as np
 import warnings
 import os
 from scipy.special import expit as sigmoid
+from sklearn.metrics import make_scorer, mean_squared_error
 
 warnings.simplefilter("ignore")
 
@@ -64,6 +66,22 @@ class run:
         Y_test = y_test.copy()
 
         return X_train, X_test, Y_train, Y_test
+
+    def hyperparameter_tuning(self, model, param_grid):
+        """
+        Perform hyperparameter tuning using GridSearchCV and return the best model.
+        """
+        scorer = make_scorer(mean_squared_error)
+        grid_search = GridSearchCV(
+            estimator=model,
+            param_grid=param_grid,
+            cv=2,
+            n_jobs=-1,
+            verbose=1,
+            scoring=scorer,
+        )
+
+        return grid_search
 
     def fit_clf(
         self, x_train, y_train, task_train, x_test, y_test, task_test, proposed_mtgb
@@ -232,20 +250,42 @@ class run:
             # X_train, X_test, Y_train, Y_test = self._mat(
             #     x_train, x_test, y_train, y_test
             # )
+
+            param_grid = {
+                "n_common_estimators": [20, 30, 50],  # Values for common estimators
+            }
+
+            param_grid["n_mid_estimators"] = [
+                val * 2 for val in param_grid["n_common_estimators"]
+            ]
+
             X_train, X_test, Y_train, Y_test = x_train, x_test, y_train, y_test
             # Proposed model training
             model_mt = MTGBRegressor(
                 max_depth=self.max_depth,
-                n_estimators=self.n_estimators,
+                # n_estimators=self.n_estimators,
+                n_estimators=150,
                 subsample=self.subsample,
                 max_features=None,
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
-                n_common_estimators=self.n_common_estimators,
-                n_mid_estimators=int(self.n_common_estimators * 2.0),
+                # n_common_estimators=self.n_common_estimators,
+                # n_mid_estimators=int(self.n_common_estimators * 2.0),
+                n_common_estimators=20,
+                n_mid_estimators=99,
             )
+
+            grid_search = self.hyperparameter_tuning(
+                model_mt,
+                param_grid,
+            )
+            grid_search = grid_search.fit(
+                np.column_stack((X_train, task_train)), Y_train, task_info=-1
+            )
+            print(f"Best parameters found: {grid_search.best_params_}")
+            model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train, task_info=-1)
             pred_test_mt = model_mt.predict(
                 np.column_stack((X_test, task_test)), task_info=-1
@@ -258,11 +298,15 @@ class run:
             to_csv(pred_test_mt, self.path, f"pred_test_{title}")
             to_csv(pred_train_mt, self.path, f"pred_train_{title}")
             to_csv(sigmoid(model_mt.theta), self.path, "sigmoid_theta")
-            
+
             # Standard GB Data Pooling without task as the feature training
             X_train, X_test, Y_train, Y_test = self._mat(
                 x_train, x_test, y_train, y_test
             )
+            param_grid = {
+                "n_estimators": [10, 50, 100],
+            }
+
             model_st = GradientBoostingRegressor(
                 max_depth=self.max_depth,
                 n_estimators=self.n_estimators,
@@ -273,6 +317,15 @@ class run:
                 criterion="squared_error",
                 n_iter_no_change=self.es,
             )
+
+            grid_search = self.hyperparameter_tuning(
+                model_st,
+                param_grid,
+            )
+            grid_search = grid_search.fit(X_train, Y_train)
+            print(f"Best parameters found: {grid_search.best_params_}")
+            model_st = grid_search.best_estimator_
+
             model_st.fit(X_train, Y_train)
             pred_test_st = model_st.predict(X_test)
             pred_train_st = model_st.predict(X_train)
@@ -297,6 +350,14 @@ class run:
                 criterion="squared_error",
                 n_iter_no_change=self.es,
             )
+
+            grid_search = self.hyperparameter_tuning(
+                model_st,
+                param_grid,
+            )
+            grid_search = grid_search.fit(X_train, Y_train)
+            print(f"Best parameters found: {grid_search.best_params_}")
+            model_st = grid_search.best_estimator_
             model_st.fit(X_train, Y_train)
             pred_test_st = model_st.predict(X_test)
             pred_train_st = model_st.predict(X_train)
@@ -324,6 +385,15 @@ class run:
                     criterion="squared_error",
                     n_iter_no_change=self.es,
                 )
+
+                grid_search = self.hyperparameter_tuning(
+                    model_st_i,
+                    param_grid,
+                )
+                grid_search = grid_search.fit(X_train, Y_train)
+                print(f"Best parameters found: {grid_search.best_params_}")
+                model_st_i = grid_search.best_estimator_
+
                 model_st_i.fit(X_train[task_train == r], Y_train[task_train == r])
                 preds_test = model_st_i.predict(X_test[task_test == r])
                 task_column_test = np.full_like(preds_test, r)
@@ -344,18 +414,30 @@ class run:
             sys.path.append(r"D:\Ph.D\Programming\Py\MT-GB\MT_GB")
             from model.mtgb import MTGBRegressor
 
+            param_grid = {
+                "n_common_estimators": [20, 30, 50],
+            }
+
             model_mt = MTGBRegressor(
                 max_depth=self.max_depth,
-                n_estimators=self.n_estimators,
+                n_estimators=150,
                 subsample=self.subsample,
                 max_features=self.max_features,
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
                 n_iter_no_change=self.es,
-                n_common_estimators=self.n_common_estimators,
+                # n_common_estimators=self.n_common_estimators,
+                n_common_estimators=100,
             )
 
+            grid_search = self.hyperparameter_tuning(
+                model_mt,
+                param_grid,
+            )
+            grid_search = grid_search.fit(np.column_stack((X_train, task_train)), Y_train)
+            print(f"Best parameters found: {grid_search.best_params_}")
+            model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train)
             pred_test_mt = model_mt.predict(np.column_stack((X_test, task_test)))
             pred_test_mt = np.column_stack((pred_test_mt, task_test))
@@ -367,8 +449,8 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
-    experiment = "8tasks_6outliers_8features_50training"
+    proposed_mtgb = True
+    experiment = "10tasks_2outliers_5features_300training"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):
@@ -376,7 +458,7 @@ if __name__ == "__main__":
             run_exp = run(
                 max_depth=1,
                 n_estimators=100,
-                n_common_estimators=5,
+                n_common_estimators=80,
                 subsample=1,
                 max_features=None,
                 learning_rate=1.0,

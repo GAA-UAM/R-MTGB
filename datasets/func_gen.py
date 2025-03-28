@@ -185,25 +185,41 @@ class GenerateDataset:
                 self.common_funcgen = FuncGen(
                     num_dims=num_dims, random_state=self.random_states[0]
                 )
-                self.specific_funcgens = [
-                    FuncGen(num_dims=num_dims, random_state=self.random_states[i])
-                    for i in range(num_tasks)
-                ]
+                # self.specific_funcgens = [
+                #     FuncGen(num_dims=num_dims, random_state=self.random_states[i])
+                #     for i in range(num_tasks)
+                # ]
 
             for i in range(num_tasks):
 
-                x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-
                 if i < num_tasks - num_outlier_tasks:
+                    funcgen_specific = FuncGen(
+                        num_dims, random_state=self.random_states + i
+                    )
                     # non-outlier tasks
-                    common_weight = 0.8
+                    x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                    common_weight = 0.9
                     specific_weight = 1 - common_weight
+                    # y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
+                    #     specific_weight * self.specific_funcgens[i].evaluate_function(x)
+                    # )
                     y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
-                        specific_weight * self.specific_funcgens[i].evaluate_function(x)
+                        specific_weight * funcgen_specific.evaluate_function(x)
                     )
                 else:
                     # outlier tasks
-                    y = self.specific_funcgens[i].evaluate_function(x)
+                    x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                    funcgen_specific = FuncGen(
+                        num_dims, random_state=self.random_states + i
+                    )
+                    common_funcgen = FuncGen(
+                        num_dims=num_dims, random_state=self.random_states[0]
+                    )
+                    y = (common_funcgen.evaluate_function(x) * common_weight) + (
+                        specific_weight * funcgen_specific.evaluate_function(x)
+                    )
+                    y = funcgen_specific.evaluate_function(x)
+                    # y = self.specific_funcgens[i].evaluate_function(x)
 
                 if self.regression is False:
                     y = self._classify_output(y)

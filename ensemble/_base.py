@@ -106,7 +106,7 @@ class BaseMTGB(BaseGradientBoosting):
             raw_predictions,
         )
 
-        if key > 0:
+        if key is not None and key> 0:
             # Handle second stage training (outlier-aware)
             neg_gradient = self._neg_gradient(
                 neg_gradient,
@@ -194,7 +194,6 @@ class BaseMTGB(BaseGradientBoosting):
             del self.train_score_
         if hasattr(self, "init_"):
             del self.init_
-            del self.inits_
         if hasattr(self, "_rng"):
             del self._rng
 
@@ -573,19 +572,20 @@ class BaseMTGB(BaseGradientBoosting):
         # theta = np.random.rand(self.T, self._loss.n_class) * 0.1
         # theta = np.random.randn(self.T) * 0.1 # DHL we sample from a Gaussian, not a uniform variable (see the diff between rand and randn)
         # DHL we keep current value of theta
-        self.theta = np.array(
-            [
-                0.060385127,
-                -0.096597032,
-                -0.016628529,
-                0.036170050,
-                -0.139193041,
-                -0.020166009,
-                -0.072877763,
-                0.006896677,
-            ]
-        )
+        # self.theta = np.array(
+        #     [
+        #         0.060385127,
+        #         -0.096597032,
+        #         -0.016628529,
+        #         0.036170050,
+        #         -0.139193041,
+        #         -0.020166009,
+        #         -0.072877763,
+        #         0.006896677,
+        #     ]
+        # )
 
+        self.theta = np.random.randn(self.T) * 0.1
 
         boosting_bar = trange(
             0,

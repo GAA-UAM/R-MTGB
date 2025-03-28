@@ -2,6 +2,8 @@
 import os
 import pandas as pd
 import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
 from sklearn.metrics import root_mean_squared_error
 
 
@@ -52,10 +54,10 @@ def report(training_set):
 
             # print(sigmoid_theta)
             if np.argmax(sigmoid_theta) == 0:
-                print(sigmoid_theta)
+                # print(sigmoid_theta)
                 sigmoid_theta = 1 - sigmoid_theta
-                print(sigmoid_theta)
-                print("--------")
+                # print(sigmoid_theta)
+                # print("--------")
             sigmoid_theta_list.append(sigmoid_theta)
 
             processed_models = set()
@@ -123,7 +125,7 @@ def report(training_set):
     )
 
 
-path = "8tasks_4outliers_6features_30training"
+path = "8tasks_6outliers_8features_800training"
 
 try:
     os.chdir(path)
@@ -147,10 +149,10 @@ except:
 ) = report(training_set=False)
 
 
-test_df_per_task
-train_df_all_tasks
-test_df_per_task
-train_df_per_task
+# test_df_per_task
+# train_df_all_tasks
+# test_df_per_task
+# train_df_per_task
 
 # %%
 def result_2_show(df):
@@ -158,7 +160,7 @@ def result_2_show(df):
     df_filtered  = df[~df.index.isin(exclude_names)]
     return df_filtered
 
-result_2_show(train_df_per_task)
+result_2_show(test_df_all_tasks)
 # print(y_test_std)
 # test_df_all_tasks
 # %%
