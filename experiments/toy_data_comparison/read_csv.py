@@ -125,7 +125,7 @@ def report(training_set):
     )
 
 
-path = "8tasks_6outliers_8features_800training"
+path = "10tasks_2outliers_5features_300training"
 
 try:
     os.chdir(path)

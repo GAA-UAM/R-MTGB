@@ -449,7 +449,7 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = True
+    proposed_mtgb = False
     experiment = "10tasks_2outliers_5features_300training"
     # for clf in [True, False]:
     for clf in [False]:

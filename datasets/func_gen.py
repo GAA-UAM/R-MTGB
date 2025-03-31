@@ -9,10 +9,7 @@ class FuncGen:
         num_random_features=500,
         alpha=1.0,
         length_scale=0.125,
-        random_state=111,
     ):
-
-        np.random.seed(random_state)
 
         self.N = num_random_features
         self.d = num_dims
@@ -64,10 +61,9 @@ class GenerateDataset:
 
         valid = False
         while not valid:
-            random_states = np.random.choice(range(1, 100), 1, replace=False)
 
             X, Y = [], []
-            funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
+            funcgen = FuncGen(num_dims=num_dims)
 
             for _ in range(num_tasks):
                 x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
@@ -98,8 +94,7 @@ class GenerateDataset:
         Y = list()
 
         for _ in range(num_tasks):
-            random_states = np.random.choice(range(1, 100), 1, replace=False)
-            funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
+            funcgen = FuncGen(num_dims=num_dims)
 
             x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
             y = funcgen.evaluate_function(x)
@@ -110,8 +105,7 @@ class GenerateDataset:
             if not self.regression and not self._valid_class_prop(y, 0.1):
 
                 while not self._valid_class_prop(y, 0.1):
-                    random_states = np.random.choice(range(1, 100), 1, replace=False)
-                    funcgen = FuncGen(num_dims=num_dims, random_state=random_states[0])
+                    funcgen = FuncGen(num_dims=num_dims)
 
                     x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
                     y = funcgen.evaluate_function(x)
@@ -134,12 +128,9 @@ class GenerateDataset:
             X, Y = [], []
 
             if self.common_funcgen is None:
-                self.common_funcgen = FuncGen(
-                    num_dims=num_dims, random_state=self.random_states[0]
-                )
+                self.common_funcgen = FuncGen(num_dims=num_dims)
                 self.specific_funcgens = [
-                    FuncGen(num_dims=num_dims, random_state=self.random_states[i])
-                    for i in range(num_tasks)
+                    FuncGen(num_dims=num_dims) for i in range(num_tasks)
                 ]
 
             for i in range(num_tasks):
@@ -179,61 +170,31 @@ class GenerateDataset:
 
         valid = False
         X, Y = [], []
-        while not valid:
+        common_weight = 0.9
+        specific_weight = 1 - common_weight
 
-            if self.common_funcgen is None:
-                self.common_funcgen = FuncGen(
-                    num_dims=num_dims, random_state=self.random_states[0]
-                )
-                # self.specific_funcgens = [
-                #     FuncGen(num_dims=num_dims, random_state=self.random_states[i])
-                #     for i in range(num_tasks)
-                # ]
+        if self.common_funcgen is None:
+            self.common_funcgen = FuncGen(num_dims=num_dims)
+        for _ in range(num_tasks - num_outlier_tasks):  # non-outlier tasks
+            funcgen_specific = FuncGen(num_dims)
+            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+            y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
+                specific_weight * funcgen_specific.evaluate_function(x)
+            )
+            X.append(x)
+            Y.append(y)
+        # Generate data for outlier tasks
+        common_funcgen = FuncGen(num_dims=num_dims)
+        for _ in range(num_outlier_tasks):
+            # outlier tasks
+            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+            funcgen_specific = FuncGen(num_dims)
+            y = (common_funcgen.evaluate_function(x) * common_weight) + (
+                specific_weight * funcgen_specific.evaluate_function(x)
+            )
+            X.append(x)
+            Y.append(y)
 
-            for i in range(num_tasks):
-
-                if i < num_tasks - num_outlier_tasks:
-                    funcgen_specific = FuncGen(
-                        num_dims, random_state=self.random_states + i
-                    )
-                    # non-outlier tasks
-                    x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-                    common_weight = 0.9
-                    specific_weight = 1 - common_weight
-                    # y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
-                    #     specific_weight * self.specific_funcgens[i].evaluate_function(x)
-                    # )
-                    y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
-                        specific_weight * funcgen_specific.evaluate_function(x)
-                    )
-                else:
-                    # outlier tasks
-                    x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-                    funcgen_specific = FuncGen(
-                        num_dims, random_state=self.random_states + i
-                    )
-                    common_funcgen = FuncGen(
-                        num_dims=num_dims, random_state=self.random_states[0]
-                    )
-                    y = (common_funcgen.evaluate_function(x) * common_weight) + (
-                        specific_weight * funcgen_specific.evaluate_function(x)
-                    )
-                    y = funcgen_specific.evaluate_function(x)
-                    # y = self.specific_funcgens[i].evaluate_function(x)
-
-                if self.regression is False:
-                    y = self._classify_output(y)
-                    if not self._valid_class_prop(y, 0.03):
-                        valid = False
-                        break
-                    else:
-                        X.append(x)
-                        Y.append(y)
-                else:
-                    X.append(x)
-                    Y.append(y)
-            if len(X) == num_tasks and len(Y) == num_tasks:
-                valid = True
         return X, Y
 
     def __call__(

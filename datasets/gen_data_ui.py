@@ -1,5 +1,6 @@
 # %%
 import os
+import numpy as np
 import pandas as pd
 from func_gen import GenerateDataset
 from sklearn.model_selection import train_test_split
@@ -21,9 +22,9 @@ if __name__ == "__main__":
     else:
         os.mkdir(base_dir)
 
-    # for scenario in [1, 2, 3, 4]:
     for scenario in [4]:
-        for i, subdir in enumerate(range(1, 100 + 1)):
+        for i, subdir in enumerate(range(1, 5 + 1)):
+            np.random.seed(i)
             scenario_name = "scenario_" + str(scenario)
             # dir_path = os.path.join(base_dir, scenario_name, str(subdir))
             dir_path = os.path.join(base_dir, str(subdir))
@@ -66,7 +67,6 @@ if __name__ == "__main__":
                 test_df.to_csv(f"test_{'reg' if regression else 'clf'}_{scenario}.csv")
             os.chdir(original_dir)
         os.chdir(original_dir)
-
 
 
 # %%
