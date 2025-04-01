@@ -77,7 +77,7 @@ class run:
             param_grid=param_grid,
             cv=2,
             n_jobs=-1,
-            verbose=1,
+            verbose=2,
             scoring=scorer,
         )
 

@@ -56,7 +56,9 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
-        self.total_iter = np.sum([self.n_iter_1st, self.n_iter_2nd, self.n_iter_3rd])
+        self.total_iter = int(
+            np.sum([self.n_iter_1st, self.n_iter_2nd, self.n_iter_3rd])
+        )
         np.random.seed(self.random_state)
 
     @abstractmethod
@@ -112,6 +114,8 @@ class BaseMTGB(BaseGradientBoosting):
                 i,
                 key,
             )
+        # if i >= self.estimators_.shape[0]: 
+        #     raise ValueError(f"Index {i} out of bounds for estimators_ with shape {self.estimators_.shape}")
         try:
             raw_predictions, self.estimators_[i, r, key] = self._fit_tree(
                 raw_predictions,
@@ -121,9 +125,8 @@ class BaseMTGB(BaseGradientBoosting):
                 sample_weight,
                 sample_mask,
             )
-        except IndexError as e:
-            print(f"IndexError: {e}, i={i}, r={r}, key={key}, self.estimators_.shape")
-            
+        except ValueError as e:
+            raise (f"Index {i} out of bounds for estimators_ with shape {self.estimators_.shape}")
         return raw_predictions
 
     def _set_max_features(self):
@@ -545,9 +548,9 @@ class BaseMTGB(BaseGradientBoosting):
         if block == 1:
             t = self.n_iter_1st
         elif block == 2:
-            t = self.n_iter_2nd + i + 1
+            t = self.n_iter_2nd + i
         elif block == 3:
-            t = self.n_iter_3rd + i + 1
+            t = self.n_iter_3rd + i
         return trange(
             i,
             t,
@@ -612,7 +615,7 @@ class BaseMTGB(BaseGradientBoosting):
             )
 
             # self._track_loss(i, X, y, sample_weight, p_meta)
-        for j in self._boosting_bar(i, block=2):
+        for j in self._boosting_bar(i + 1, block=2):
             x_subsample = self._subsampling(X)
             ensemble_prediction = self._update_prediction(
                 p_meta,
@@ -668,7 +671,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             # self._track_loss(j, X, y, sample_weight, p_out, 1)
             # self._track_loss(j, X, y, sample_weight, p_non_out, 2)
-        for k in self._boosting_bar(j, block=3):
+        for k in self._boosting_bar(j + 1, block=3):
             x_subsample = self._subsampling(X)
             ensemble_prediction = self._update_prediction(
                 p_meta,
@@ -717,7 +720,7 @@ class BaseMTGB(BaseGradientBoosting):
             #     sample_weight,
             #     p_task,
             # )
-        return k 
+        return k + 1
 
     def _raw_predict_init(self, X: np.ndarray, task_info=None) -> np.ndarray:
         self._check_initialized()
@@ -735,12 +738,12 @@ class BaseMTGB(BaseGradientBoosting):
         p_meta = self._loss.get_init_raw_predictions(self.X_test_meta, self.init_)
 
         self.X_test_out = self.estimators_[
-            0 + self.n_iter_2nd, 0, 1
+            self.n_iter_1st + 1, 0, 1
         ]._validate_X_predict(self.X_test, check_input=True)
         p_out = self._loss.get_init_raw_predictions(self.X_test_out, self.init_)
 
         self.X_test_non_out = self.estimators_[
-            0 + self.n_iter_2nd, 0, 2
+            self.n_iter_1st + 1, 0, 2
         ]._validate_X_predict(self.X_test, check_input=True)
         p_non_out = self._loss.get_init_raw_predictions(self.X_test_non_out, self.init_)
 
@@ -755,7 +758,7 @@ class BaseMTGB(BaseGradientBoosting):
             idx_r = t == r_label
             self.X_test_task[idx_r] = self.X_test[idx_r]
             self.X_test_task[idx_r] = self.estimators_[
-                self.n_iter_2nd + self.n_iter_3rd, int(self.tasks_dic[r_label]), 0
+                self.n_iter_1st + self.n_iter_2nd + 1, int(self.tasks_dic[r_label]), 0
             ]._validate_X_predict(self.X_test_task[idx_r], check_input=True)
 
             p_task[idx_r] = self._loss.get_init_raw_predictions(
@@ -792,7 +795,7 @@ class BaseMTGB(BaseGradientBoosting):
             p_meta += self.learning_rate * estimator_row[0][0].predict(self.X_test_meta)
 
         for _, estimator_row in enumerate(
-            self.estimators_[self.n_iter_1st : self.n_iter_1st + self.n_iter_2nd]
+            self.estimators_[self.n_iter_1st + 1 : self.n_iter_1st + self.n_iter_2nd]
         ):
             # Second inference block (Common task learning)
             p_out += self.learning_rate * estimator_row[0][1].predict(self.X_test_out)
@@ -801,7 +804,7 @@ class BaseMTGB(BaseGradientBoosting):
                 self.X_test_non_out
             )
         for _, estimator_row in enumerate(
-            self.estimators_[self.n_iter_1st + self.n_iter_2nd : self.total_iter]
+            self.estimators_[self.n_iter_1st + self.n_iter_2nd + 1 :]
         ):
             # Third inference block (tasks-specific learning)
             for r_label, r in self.tasks_dic_test.items():
