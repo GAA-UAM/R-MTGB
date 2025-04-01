@@ -77,7 +77,7 @@ class run:
             param_grid=param_grid,
             cv=2,
             n_jobs=-1,
-            verbose=2,
+            verbose=1,
             scoring=scorer,
         )
 
@@ -252,7 +252,7 @@ class run:
                 "n_iter_2nd": [20, 30, 50, 75, 100],
                 "n_iter_3rd": [20, 30, 50, 75, 100],
             }
-
+            
             X_train, X_test, Y_train, Y_test = x_train, x_test, y_train, y_test
             # Proposed model training
             model_mt = MTGBRegressor(
@@ -265,7 +265,6 @@ class run:
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
-                early_stopping=self.es,
             )
 
             grid_search = self.hyperparameter_tuning(

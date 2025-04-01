@@ -56,9 +56,7 @@ class BaseMTGB(BaseGradientBoosting):
         self.validation_fraction = validation_fraction
         self.is_classifier = False
         self.early_stopping = early_stopping
-        self.total_iter = int(
-            np.sum([self.n_iter_1st, self.n_iter_2nd, self.n_iter_3rd])
-        )
+
         np.random.seed(self.random_state)
 
     @abstractmethod
@@ -114,19 +112,16 @@ class BaseMTGB(BaseGradientBoosting):
                 i,
                 key,
             )
-        # if i >= self.estimators_.shape[0]: 
-        #     raise ValueError(f"Index {i} out of bounds for estimators_ with shape {self.estimators_.shape}")
-        try:
-            raw_predictions, self.estimators_[i, r, key] = self._fit_tree(
-                raw_predictions,
-                neg_gradient,
-                X,
-                y,
-                sample_weight,
-                sample_mask,
-            )
-        except ValueError as e:
-            raise (f"Index {i} out of bounds for estimators_ with shape {self.estimators_.shape}")
+
+        raw_predictions, self.estimators_[i, r, key] = self._fit_tree(
+            raw_predictions,
+            neg_gradient,
+            X,
+            y,
+            sample_weight,
+            sample_mask,
+        )
+
         return raw_predictions
 
     def _set_max_features(self):
@@ -165,6 +160,9 @@ class BaseMTGB(BaseGradientBoosting):
         return self._loss.get_init_raw_predictions(X, self.init_)
 
     def _init_state(self, y):
+        self.total_iter = int(
+            np.sum([self.n_iter_1st, self.n_iter_2nd, self.n_iter_3rd])
+        )
         n_training_blocks = 3
         self.estimators_ = np.empty(
             (self.total_iter, self.T, n_training_blocks), dtype=object
@@ -323,7 +321,7 @@ class BaseMTGB(BaseGradientBoosting):
         if n_stages != self.estimators_.shape[0]:
             self.estimators_ = self.estimators_[:n_stages]
             self.train_score_ = self.train_score_[:n_stages]
-            self.total_iter = n_stages
+            # self.total_iter = n_stages
 
         return self
 
