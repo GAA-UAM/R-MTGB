@@ -247,34 +247,25 @@ class run:
             sys.path.append(r"D:\Ph.D\Programming\Py\NoiseAwareBoost")
             from mtgb_models.mt_gb import MTGBRegressor
 
-            # X_train, X_test, Y_train, Y_test = self._mat(
-            #     x_train, x_test, y_train, y_test
-            # )
-
             param_grid = {
-                "n_common_estimators": [20, 30, 50],  # Values for common estimators
+                "n_iter_1st": [20, 30, 50, 75, 100],
+                "n_iter_2nd": [20, 30, 50, 75, 100],
+                "n_iter_3rd": [20, 30, 50, 75, 100],
             }
-
-            param_grid["n_mid_estimators"] = [
-                val * 2 for val in param_grid["n_common_estimators"]
-            ]
 
             X_train, X_test, Y_train, Y_test = x_train, x_test, y_train, y_test
             # Proposed model training
             model_mt = MTGBRegressor(
                 max_depth=self.max_depth,
-                # n_estimators=self.n_estimators,
-                n_estimators=150,
+                n_iter_1st=10,
+                n_iter_2nd=10,
+                n_iter_3rd=10,
                 subsample=self.subsample,
                 max_features=None,
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
                 early_stopping=self.es,
-                # n_common_estimators=self.n_common_estimators,
-                # n_mid_estimators=int(self.n_common_estimators * 2.0),
-                n_common_estimators=20,
-                n_mid_estimators=99,
             )
 
             grid_search = self.hyperparameter_tuning(
@@ -304,7 +295,7 @@ class run:
                 x_train, x_test, y_train, y_test
             )
             param_grid = {
-                "n_estimators": [10, 50, 100],
+                "n_estimators": [20, 30, 50, 75, 100],
             }
 
             model_st = GradientBoostingRegressor(
@@ -415,7 +406,7 @@ class run:
             from model.mtgb import MTGBRegressor
 
             param_grid = {
-                "n_common_estimators": [20, 30, 50],
+                "n_common_estimators": [20, 30, 50, 75, 100],
             }
 
             model_mt = MTGBRegressor(
@@ -427,7 +418,6 @@ class run:
                 random_state=self.random_state,
                 criterion="squared_error",
                 n_iter_no_change=self.es,
-                # n_common_estimators=self.n_common_estimators,
                 n_common_estimators=100,
             )
 
@@ -435,7 +425,9 @@ class run:
                 model_mt,
                 param_grid,
             )
-            grid_search = grid_search.fit(np.column_stack((X_train, task_train)), Y_train)
+            grid_search = grid_search.fit(
+                np.column_stack((X_train, task_train)), Y_train
+            )
             print(f"Best parameters found: {grid_search.best_params_}")
             model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train)
@@ -449,8 +441,9 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
-    experiment = "10tasks_2outliers_5features_300training"
+    proposed_mtgb = True
+    # experiment = "10tasks_2outliers_5features_300training"
+    experiment = r"D:\Ph.D\Programming\Py\NoiseAwareBoost\experiments\toy_data_comparison\10tasks_2outliers_5features_300training"
     # for clf in [True, False]:
     for clf in [False]:
         for batch in range(1, 100 + 1):

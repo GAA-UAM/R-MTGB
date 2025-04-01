@@ -1,4 +1,3 @@
-# %%
 import os
 import numpy as np
 import pandas as pd
@@ -23,7 +22,7 @@ if __name__ == "__main__":
         os.mkdir(base_dir)
 
     for scenario in [4]:
-        for i, subdir in enumerate(range(1, 5 + 1)):
+        for i, subdir in enumerate(range(1, 100 + 1)):
             np.random.seed(i)
             scenario_name = "scenario_" + str(scenario)
             # dir_path = os.path.join(base_dir, scenario_name, str(subdir))
