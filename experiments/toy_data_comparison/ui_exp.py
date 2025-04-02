@@ -440,10 +440,8 @@ class run:
 
 if __name__ == "__main__":
 
-    proposed_mtgb = False
-    # experiment = "10tasks_2outliers_5features_300training"
-    experiment = r"D:\Ph.D\Programming\Py\NoiseAwareBoost\experiments\toy_data_comparison\10tasks_2outliers_5features_300training"
-    # for clf in [True, False]:
+    proposed_mtgb = True
+    experiment = "10tasks_2outliers_5features_300training"
     for clf in [False]:
         for batch in range(1, 100 + 1):
             data_path = f"{experiment}\{batch}"
