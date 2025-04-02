@@ -47,6 +47,7 @@ def report(training_set):
                 print(f"Skipping {root}, no y_test.csv found.")
                 continue
             y_test = pd.read_csv(y_test_path, header=None)
+            y_test = y_test.dropna(how="all")
             y_test_std.append(np.std(y_test))
             sigmoid_theta = pd.read_csv(sigmoid_theta_path, header=None)
             rmse_per_task_dict = {model: dict(zip(tasks, range(8))) for model in models}
@@ -75,7 +76,10 @@ def report(training_set):
                         if model_name in models and model_name not in processed_models:
                             pred_path = os.path.join(root, file_)
                             pred = pd.read_csv(pred_path, header=None)
-
+                            print(os.path.join(root, file_))
+                            
+                            pred = pred.dropna(how="all")
+                            
                             pred_t, _ = split_task(pred.values)
                             y_t, t = split_task(y_test.values)
                             pred_t = pred_t.squeeze()
@@ -114,8 +118,9 @@ def report(training_set):
         pd.concat(df_list_all_tasks).groupby(level=0).agg(["mean", "std"])
     )
 
-    sigmoid_theta_pd = pd.DataFrame(np.mean((sigmoid_theta_list), axis=0))
-
+    # sigmoid_theta_pd = pd.DataFrame(np.mean((sigmoid_theta_list), axis=0))
+    sigmoid_theta_pd = None
+    print("------------all files are extracted successfully! -----------------")
     return (
         avg_df_per_task,
         avg_df_all_tasks,
@@ -125,7 +130,7 @@ def report(training_set):
     )
 
 
-path = "10tasks_2outliers_5features_300training"
+path = r"D:\Ph.D\Programming\Py\NoiseAwareBoost\experiments\toy_data_comparison\10tasks_2outliers_5features_300training"
 
 try:
     os.chdir(path)
@@ -156,7 +161,8 @@ except:
 
 # %%
 def result_2_show(df):
-    exclude_names = ["GB_datapooling", "GB_datapooling_task_as_feature", "GB_single_task"]
+    # exclude_names = ["GB_datapooling", "GB_datapooling_task_as_feature", "GB_single_task"]
+    exclude_names = ["GB_datapooling_task_as_feature"]
     df_filtered  = df[~df.index.isin(exclude_names)]
     return df_filtered
 
