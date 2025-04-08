@@ -68,12 +68,9 @@ class MTGBClassifier(BaseMTGB):
     def _get_loss(self, sample_weight):
         pass
 
-    def decision_function(self, X, task_info=None):
+    def decision_function(self, X):
 
-        raw_predictions = self._predict(
-            X,
-            task_info,
-        )
+        raw_predictions = self._predict(X)
         if raw_predictions.shape[1] == 1:
             return raw_predictions.ravel()
         return raw_predictions
@@ -81,23 +78,20 @@ class MTGBClassifier(BaseMTGB):
     def staged_decision_function(self, X):
         yield from self._staged_raw_predict(X)
 
-    def predict(self, X, task_info=None):
-        raw_predictions = self.decision_function(
-            X,
-            task_info,
-        )
+    def predict(self, X):
+        raw_predictions = self.decision_function(X)
         if raw_predictions.ndim == 1:  # decision_function already squeezed it
             encoded_classes = (raw_predictions >= 0).astype(int)
         else:
             encoded_classes = np.argmax(raw_predictions, axis=1)
         return self.classes_[encoded_classes]
 
-    def predict_proba(self, X, task_info=None):
-        raw_predictions = self.decision_function(X, task_info=None)
+    def predict_proba(self, X):
+        raw_predictions = self.decision_function(X)
         return self._loss_util.predict_proba(raw_predictions)
 
-    def predict_log_proba(self, X, task_info=None):
-        proba = self.predict_proba(X, task_info=None)
+    def predict_log_proba(self, X):
+        proba = self.predict_proba(X)
         return np.log(proba)
 
 
@@ -144,5 +138,5 @@ class MTGBRegressor(BaseMTGB):
     def _get_loss(self, sample_weight):
         pass
 
-    def predict(self, X, task_info=None):
-        return self._predict(X, task_info)
+    def predict(self, X):
+        return self._predict(X)

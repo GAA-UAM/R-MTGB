@@ -8,7 +8,7 @@ class FuncGen:
         num_dims,
         num_random_features=500,
         alpha=1.0,
-        length_scale=0.125,
+        length_scale=0.25,
     ):
 
         self.N = num_random_features
@@ -23,7 +23,7 @@ class FuncGen:
         output = np.apply_along_axis(
             lambda x: np.sum(
                 self.theta
-                * np.sqrt(self.alpha / self.N)
+                * np.sqrt(2.0 * self.alpha / self.N)
                 * np.cos(np.dot(self.w, x / self.l) + self.b)
             ),
             1,
@@ -33,10 +33,6 @@ class FuncGen:
 
 
 class GenerateDataset:
-
-    # We have a parameter to indicate regresion,
-    # Otherwise it is binary
-    # classification with labels -1 and 1
 
     def __init__(self, scenario):
         self.scenario = scenario
@@ -51,7 +47,7 @@ class GenerateDataset:
 
     def _classify_output(self, y):
         y = np.sign(y)
-        y = (y + 1) // 2
+        # y = (y + 1) // 2
         return y
 
     # Here pooling is optimal
@@ -141,8 +137,6 @@ class GenerateDataset:
                     x
                 ) * 0.9 + 0.1 * self.specific_funcgens[i].evaluate_function(x)
 
-                # y = self.common_funcgen.evaluate_function(x)
-
                 if self.regression is False:
                     y = self._classify_output(y)
                     if not self._valid_class_prop(y, 0.1):
@@ -167,35 +161,65 @@ class GenerateDataset:
         num_instances,
         num_outlier_tasks,
     ):
+        """
+        Generate synthetic data for scenario 4 with a mix
+        of nonoutlier and outlier tasks.
 
-        valid = False
-        X, Y = [], []
+        Parameters:
+            num_dims (int): Number of dimensions/features.
+            num_tasks (int): Total number of tasks.
+            num_instances (int): Number of data instances per task.
+            num_outlier_tasks (int): Number of outlier tasks.
+
+        Returns:
+            X (list of np.ndarray): Input features for all tasks.
+            Y (list of np.ndarray): Output targets for all tasks.
+        """
+
         common_weight = 0.9
         specific_weight = 1 - common_weight
 
-        if self.common_funcgen is None:
-            self.common_funcgen = FuncGen(num_dims=num_dims)
-        for _ in range(num_tasks - num_outlier_tasks):  # non-outlier tasks
-            funcgen_specific = FuncGen(num_dims)
-            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-            y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
-                specific_weight * funcgen_specific.evaluate_function(x)
-            )
-            X.append(x)
-            Y.append(y)
-        # Generate data for outlier tasks
-        common_funcgen = FuncGen(num_dims=num_dims)
-        for _ in range(num_outlier_tasks):
-            # outlier tasks
-            x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
-            funcgen_specific = FuncGen(num_dims)
-            y = (common_funcgen.evaluate_function(x) * common_weight) + (
-                specific_weight * funcgen_specific.evaluate_function(x)
-            )
-            X.append(x)
-            Y.append(y)
+        while True:
+            X, Y = [], []
+            # Initialize common function generator if not already done
+            if self.common_funcgen is None:
+                self.common_funcgen = FuncGen(num_dims=num_dims)
 
-        return X, Y
+            # Generate data for regular (non-outlier) tasks
+            for _ in range(num_tasks - num_outlier_tasks):
+                funcgen_specific = FuncGen(num_dims)
+                x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                y = (self.common_funcgen.evaluate_function(x) * common_weight) + (
+                    specific_weight * funcgen_specific.evaluate_function(x)
+                )
+                if not self.regression:
+                    y = self._classify_output(y)
+                    if not self._valid_class_prop(y=y, alpha=0.1):
+                        break  # imbalanced classification, restart entire generation
+                X.append(x)
+                Y.append(y)
+
+            # Only proceed if all regular tasks were successfully generated
+            if len(X) != num_tasks - num_outlier_tasks:
+                continue
+
+            # Generate data for outlier tasks using a different common function
+            common_funcgen = FuncGen(num_dims=num_dims)
+            for _ in range(num_outlier_tasks):
+                x = np.random.uniform(size=(num_instances, num_dims)) * 2.0 - 1.0
+                funcgen_specific = FuncGen(num_dims)
+                y = (common_funcgen.evaluate_function(x) * common_weight) + (
+                    specific_weight * funcgen_specific.evaluate_function(x)
+                )
+                if not self.regression:
+                    y = self._classify_output(y)
+                    if not self._valid_class_prop(y, 0.1):
+                        break  # imbalanced classification, restart entire generation
+                X.append(x)
+                Y.append(y)
+            # Confirm all tasks were generated successfully
+            if len(X) == num_tasks and len(Y) == num_tasks:
+                return X, Y
 
     def __call__(
         self, regression, num_dims, num_tasks, num_instances, num_outlier_tasks

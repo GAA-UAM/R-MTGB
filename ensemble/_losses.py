@@ -91,25 +91,33 @@ class CE(LossFunction):
             np.exp(raw_predictions - logsumexp(raw_predictions, axis=1, keepdims=True))
         )
 
-    def gradient_theta(self, common_prediction, tasks_prediction, y, theta):
+    def gradient_theta(
+        self,
+        p_meta,
+        p_out,
+        p_non_out,
+        p_task,
+        y,
+        theta,
+    ):
 
         sigmoid_theta = sigmoid(theta)
 
-        dH_dtheta = sigmoid_theta * (1 - sigmoid_theta) * common_prediction
-        dL_dH = y - np.nan_to_num(
-            np.exp(
-                _ensemble_pred(sigmoid_theta, common_prediction, tasks_prediction)
-                - logsumexp(
-                    _ensemble_pred(sigmoid_theta, common_prediction, tasks_prediction),
-                    axis=1,
-                    keepdims=True,
-                )
-            )
+        p = _ensemble_pred(
+            sigmoid_theta,
+            p_meta,
+            p_out,
+            p_non_out,
+            p_task,
         )
 
-        gradient = dL_dH * dH_dtheta
+        grad_p = self.negative_gradient(y, p)
 
-        return np.sum(gradient, axis=0)
+        gradient = np.sum((grad_p * sigmoid_theta * (1 - sigmoid_theta)) * (p_out - p_non_out), axis=0)
+
+        # assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
+
+        return gradient * -1
 
     def _update_terminal_region(
         self,
@@ -226,7 +234,7 @@ class MSE(LossFunction):
 
         assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
 
-        return gradient * -1 
+        return gradient * -1
 
     def update_terminal_regions(
         self,
