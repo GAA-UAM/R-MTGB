@@ -1,12 +1,11 @@
-# %%
 from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
 import pandas as pd
 import numpy as np
 import warnings
 import os
 from scipy.special import expit as sigmoid
-from sklearn.metrics import make_scorer, mean_squared_error
+from sklearn.metrics import make_scorer, mean_squared_error, accuracy_score
+import sys
 
 warnings.simplefilter("ignore")
 
@@ -43,7 +42,6 @@ class run:
         max_features,
         learning_rate,
         random_state,
-        es,
         clf,
         path_exp,
     ):
@@ -53,7 +51,6 @@ class run:
         self.max_features = max_features
         self.learning_rate = learning_rate
         self.random_state = random_state
-        self.es = es
         self.n_common_estimators = n_common_estimators
 
         problem = "clf" if clf else "reg"
@@ -67,228 +64,184 @@ class run:
 
         return X_train, X_test, Y_train, Y_test
 
-    def hyperparameter_tuning(self, model, param_grid):
+    def hyperparameter_tuning(self, model, param_grid, score):
         """
         Perform hyperparameter tuning using GridSearchCV and return the best model.
         """
-        scorer = make_scorer(mean_squared_error, greater_is_better=False)
+
         grid_search = GridSearchCV(
             estimator=model,
             param_grid=param_grid,
             cv=5,
             n_jobs=-1,
             verbose=1,
-            scoring=scorer,
+            scoring=score,
         )
 
         return grid_search
 
-    def fit_clf(
-        self, x_train, y_train, task_train, x_test, y_test, task_test, proposed_mtgb
-    ):
+    def fit_clf(self, x_train, y_train, task_train, x_test, y_test, task_test):
 
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
         to_csv(np.column_stack((y_train, task_test)), self.path, f"y_train")
-        title = "Conventional MT" if not proposed_mtgb else "Proposed MT"
 
-        if proposed_mtgb:
-            import sys
+        sys.path.append(r"../..")
+        from mtgb_models.mt_gb import MTGBClassifier
 
-            sys.path.append(r"../..")
-            from mtgb_models.mt_gb import MTGBClassifier
+        X_train, X_test, Y_train, Y_test = self._mat(x_train, x_test, y_train, y_test)
 
-            X_train, X_test, Y_train, Y_test = self._mat(
-                x_train, x_test, y_train, y_test
-            )
-
-            def evaluate_model(
-                param_grid,
-                title,
-                X_train,
-                Y_train,
-                task_train,
-                X_test,
-                Y_test,
-                task_test,
-            ):
-
-                model_mt = MTGBClassifier(
-                    max_depth=self.max_depth,
-                    n_iter_1st=0,
-                    n_iter_2nd=50,
-                    n_iter_3rd=0,
-                    subsample=self.subsample,
-                    max_features=self.max_features,
-                    learning_rate=self.learning_rate,
-                    random_state=self.random_state,
-                    criterion="squared_error",
-                )
-
-                grid_search = self.hyperparameter_tuning(
-                    model_mt,
-                    param_grid,
-                )
-                grid_search = grid_search.fit(
-                    np.column_stack((X_train, task_train)), Y_train, task_info=-1
-                )
-                print(f"Best parameters found: {grid_search.best_params_}")
-                model_mt = grid_search.best_estimator_
-                model_mt.fit(
-                    np.column_stack((X_train, task_train)), Y_train, task_info=-1
-                )
-                pred_test_mt = model_mt.predict(np.column_stack((X_test, task_test)))
-                pred_test_mt = np.column_stack((pred_test_mt, task_test))
-                pred_train_mt = model_mt.predict(np.column_stack((X_train, task_train)))
-                test_error = np.mean(
-                    (model_mt.predict(np.column_stack((X_test, task_test))) - y_test)
-                    ** 2
-                )
-
-                pred_train_mt = np.column_stack((pred_train_mt, task_train))
-                train_error = np.mean(
-                    (model_mt.predict(np.column_stack((X_train, task_train))) - y_train)
-                    ** 2
-                )
-
-                to_csv(pred_test_mt, self.path, f"pred_test_{title}")
-                to_csv(pred_train_mt, self.path, f"pred_train_{title}")
-                to_csv(sigmoid(model_mt.theta), self.path, "sigmoid_theta_{title}")
-                to_csv(train_error * np.ones((1, 1)), self.path, f"train_error_{title}")
-                to_csv(test_error * np.ones((1, 1)), self.path, f"test_error_{title}")
-
-            param_grid = {
-                "n_iter_1st": [0, 20, 30, 50],
-                "n_iter_2nd": [20, 30, 50],
-                "n_iter_3rd": [0, 20, 30, 50],
-            }
-
-            evaluate_model(
-                param_grid,
-                "RMTB",
-                X_train,
-                Y_train,
-                task_train,
-                X_test,
-                Y_test,
-                task_test,
-            )
-
-            param_grid = {
-                "n_iter_1st": [20, 30, 50],
-                "n_iter_2nd": [0],
-                "n_iter_3rd": [0, 20, 30, 50],
-            }
-
-            evaluate_model(
-                param_grid,
-                "MTB",
-                X_train,
-                Y_train,
-                task_train,
-                X_test,
-                Y_test,
-                task_test,
-            )
-
-            param_grid = {
-                "n_iter_1st": [0],
-                "n_iter_2nd": [0],
-                "n_iter_3rd": [20, 30, 50],
-            }
-
-            evaluate_model(
-                param_grid,
-                "STL",
-                X_train,
-                Y_train,
-                task_train,
-                X_test,
-                Y_test,
-                task_test,
-            )
-
-            param_grid = {
-                "n_iter_1st": [0],
-                "n_iter_2nd": [0],
-                "n_iter_3rd": [20, 30, 50],
-            }
-
-            evaluate_model(
-                param_grid,
-                "POOLING",
-                X_train,
-                Y_train,
-                task_train * 0.0,
-                X_test,
-                Y_test,
-                task_test * 0.0,
-            )
-
-            param_grid = {
-                "n_iter_1st": [0],
-                "n_iter_2nd": [0],
-                "n_iter_3rd": [20, 30, 50],
-            }
-
-            X_train_poo_task_as_feature = np.column_stack(
-                (
-                    X_train,
-                    np.eye(np.max(task_train.to_numpy().astype(int)) + 1)[
-                        task_train.to_numpy().astype(int)
-                    ],
-                )
-            )
-            X_test_poo_task_as_feature = np.column_stack(
-                (
-                    X_test,
-                    np.eye(np.max(task_test.to_numpy().astype(int)) + 1)[
-                        task_test.to_numpy().astype(int)
-                    ],
-                )
-            )
-
-            evaluate_model(
-                param_grid,
-                "POOLING_TASK_AS_FEATURE",
-                X_train_poo_task_as_feature,
-                Y_train,
-                task_train * 0.0,
-                X_test_poo_task_as_feature,
-                Y_test,
-                task_test * 0.0,
-            )
-        else:
-            import sys
-
-            X_train, X_test, Y_train, Y_test = self._mat(
-                x_train, x_test, y_train, y_test
-            )
-            sys.path.append(r"D:\Ph.D\Programming\Py\MT-GB\MT_GB")
-            from model.mtgb import MTGBClassifier
+        def evaluate_model(
+            param_grid,
+            title,
+            X_train,
+            Y_train,
+            task_train,
+            X_test,
+            Y_test,
+            task_test,
+        ):
 
             model_mt = MTGBClassifier(
                 max_depth=self.max_depth,
-                n_estimators=self.n_estimators,
+                n_iter_1st=0,
+                n_iter_2nd=50,
+                n_iter_3rd=0,
                 subsample=self.subsample,
                 max_features=self.max_features,
                 learning_rate=self.learning_rate,
                 random_state=self.random_state,
                 criterion="squared_error",
-                n_iter_no_change=self.es,
-                n_common_estimators=self.n_common_estimators,
             )
 
+            grid_search = self.hyperparameter_tuning(model_mt, param_grid, "accuracy")
+            grid_search = grid_search.fit(
+                np.column_stack((X_train, task_train)), Y_train, task_info=-1
+            )
+            print(f"Best parameters found: {grid_search.best_params_}")
+            model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train, task_info=-1)
             pred_test_mt = model_mt.predict(np.column_stack((X_test, task_test)))
             pred_test_mt = np.column_stack((pred_test_mt, task_test))
-            to_csv(pred_test_mt, self.path, f"pred_test_{title}")
             pred_train_mt = model_mt.predict(np.column_stack((X_train, task_train)))
-            pred_train_mt = np.column_stack((pred_train_mt, task_train))
-            to_csv(pred_train_mt, self.path, f"pred_train_{title}")
 
-    def fit_reg(
-        self, x_train, y_train, task_train, x_test, y_test, task_test, proposed_mtgb
-    ):
+            test_error = accuracy_score(
+                y_test, model_mt.predict(np.column_stack((X_test, task_test)))
+            )
+
+            pred_train_mt = np.column_stack((pred_train_mt, task_train))
+            train_error = accuracy_score(
+                Y_train, model_mt.predict(np.column_stack((X_train, task_train)))
+            )
+
+            to_csv(pred_test_mt, self.path, f"pred_test_{title}")
+            to_csv(pred_train_mt, self.path, f"pred_train_{title}")
+            to_csv(sigmoid(model_mt.theta), self.path, "sigmoid_theta_{title}")
+            to_csv(train_error * np.ones((1, 1)), self.path, f"train_error_{title}")
+            to_csv(test_error * np.ones((1, 1)), self.path, f"test_error_{title}")
+
+        param_grid = {
+            "n_iter_1st": [0, 20, 30, 50],
+            "n_iter_2nd": [20, 30, 50],
+            "n_iter_3rd": [0, 20, 30, 50],
+        }
+
+        evaluate_model(
+            param_grid,
+            "RMTB",
+            X_train,
+            Y_train,
+            task_train,
+            X_test,
+            Y_test,
+            task_test,
+        )
+
+        param_grid = {
+            "n_iter_1st": [20, 30, 50],
+            "n_iter_2nd": [0],
+            "n_iter_3rd": [0, 20, 30, 50],
+        }
+
+        evaluate_model(
+            param_grid,
+            "MTB",
+            X_train,
+            Y_train,
+            task_train,
+            X_test,
+            Y_test,
+            task_test,
+        )
+
+        param_grid = {
+            "n_iter_1st": [0],
+            "n_iter_2nd": [0],
+            "n_iter_3rd": [20, 30, 50],
+        }
+
+        evaluate_model(
+            param_grid,
+            "STL",
+            X_train,
+            Y_train,
+            task_train,
+            X_test,
+            Y_test,
+            task_test,
+        )
+
+        param_grid = {
+            "n_iter_1st": [0],
+            "n_iter_2nd": [0],
+            "n_iter_3rd": [20, 30, 50],
+        }
+
+        evaluate_model(
+            param_grid,
+            "POOLING",
+            X_train,
+            Y_train,
+            task_train * 0.0,
+            X_test,
+            Y_test,
+            task_test * 0.0,
+        )
+
+        param_grid = {
+            "n_iter_1st": [0],
+            "n_iter_2nd": [0],
+            "n_iter_3rd": [20, 30, 50],
+        }
+
+        X_train_poo_task_as_feature = np.column_stack(
+            (
+                X_train,
+                np.eye(np.max(task_train.to_numpy().astype(int)) + 1)[
+                    task_train.to_numpy().astype(int)
+                ],
+            )
+        )
+        X_test_poo_task_as_feature = np.column_stack(
+            (
+                X_test,
+                np.eye(np.max(task_test.to_numpy().astype(int)) + 1)[
+                    task_test.to_numpy().astype(int)
+                ],
+            )
+        )
+
+        evaluate_model(
+            param_grid,
+            "POOLING_TASK_AS_FEATURE",
+            X_train_poo_task_as_feature,
+            Y_train,
+            task_train * 0.0,
+            X_test_poo_task_as_feature,
+            Y_test,
+            task_test * 0.0,
+        )
+
+    def fit_reg(self, x_train, y_train, task_train, x_test, y_test, task_test):
 
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
         to_csv(np.column_stack((y_train, task_train)), self.path, f"y_train")
@@ -317,11 +270,8 @@ class run:
                 random_state=self.random_state,
                 criterion="squared_error",
             )
-
-            grid_search = self.hyperparameter_tuning(
-                model_mt,
-                param_grid,
-            )
+            scorer = make_scorer(mean_squared_error, greater_is_better=False)
+            grid_search = self.hyperparameter_tuning(model_mt, param_grid, scorer)
 
             grid_search = grid_search.fit(
                 np.column_stack((X_train, task_train)), Y_train, task_info=-1
@@ -434,12 +384,11 @@ class run:
 if __name__ == "__main__":
 
     np.random.seed(0)
-    proposed_mtgb = True
     experiment = "10tasks_2outliers_5features_300training"
     for clf in [True, False]:
         for batch in range(1, 100 + 1):
             print(batch)
-            data_path = f"{experiment}/{batch}"
+            data_path = f"../../datasets/{experiment}/{batch}"
             run_exp = run(
                 max_depth=1,
                 n_estimators=100,
@@ -448,7 +397,6 @@ if __name__ == "__main__":
                 max_features=None,
                 learning_rate=1.0,
                 random_state=111,
-                es=None,
                 clf=clf,
                 path_exp=data_path,
             )
@@ -476,7 +424,6 @@ if __name__ == "__main__":
                     x_test=x_test,
                     y_test=y_test,
                     task_test=task_test,
-                    proposed_mtgb=proposed_mtgb,
                 )
             else:
                 run_exp.fit_reg(
@@ -486,7 +433,4 @@ if __name__ == "__main__":
                     x_test=x_test,
                     y_test=y_test,
                     task_test=task_test,
-                    proposed_mtgb=proposed_mtgb,
                 )
-
-# %%
