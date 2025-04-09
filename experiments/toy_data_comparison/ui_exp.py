@@ -1,5 +1,6 @@
 from sklearn.model_selection import GridSearchCV
 import pandas as pd
+import json
 import numpy as np
 import warnings
 import os
@@ -277,7 +278,9 @@ class run:
                 np.column_stack((X_train, task_train)), Y_train, task_info=-1
             )
 
-            print(f"Best parameters found: {grid_search.best_params_}")
+            best_params = grid_search.best_params_
+            with open(f"best_params_{title}.json", "w") as f:
+                json.dump(best_params, f)
             model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train, task_info=-1)
             pred_test_mt = model_mt.predict(np.column_stack((X_test, task_test)))
@@ -387,7 +390,6 @@ if __name__ == "__main__":
     experiment = "10tasks_2outliers_5features_300training"
     for clf in [True, False]:
         for batch in range(1, 100 + 1):
-            print(batch)
             data_path = f"../../datasets/{experiment}/{batch}"
             run_exp = run(
                 max_depth=1,
