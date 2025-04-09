@@ -1,0 +1,19 @@
+@startuml
+class run {
+    _mat()
+    hyperparameter_tuning()
+    fit_clf()
+    fit_reg()
+    evaluate_model()
+        max_depth
+    n_estimators
+    subsample
+    max_features
+    learning_rate
+    random_state
+    es
+    n_common_estimators
+    path
+    __init__()
+}
+@enduml
