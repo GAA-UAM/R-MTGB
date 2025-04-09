@@ -1,4 +1,3 @@
-#%%
 import os
 import numpy as np
 import pandas as pd
@@ -42,7 +41,6 @@ if __name__ == "__main__":
                     num_instances=num_instances,
                     num_outlier_tasks=num_outlier_tasks,
                 )
-
 
                 train_dfs, test_dfs = [], []
                 for task_id in df["Task"].unique():
