@@ -1,3 +1,4 @@
+# %%
 from sklearn.model_selection import GridSearchCV
 import pandas as pd
 import json
@@ -7,6 +8,12 @@ import os
 from scipy.special import expit as sigmoid
 from sklearn.metrics import make_scorer, mean_squared_error, accuracy_score
 import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+from mtgb_models.mt_gb import MTGBClassifier
+from mtgb_models.mt_gb import MTGBRegressor
+
 
 warnings.simplefilter("ignore")
 
@@ -84,10 +91,7 @@ class run:
     def fit_clf(self, x_train, y_train, task_train, x_test, y_test, task_test):
 
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
-        to_csv(np.column_stack((y_train, task_test)), self.path, f"y_train")
-
-        sys.path.append(r"../..")
-        from mtgb_models.mt_gb import MTGBClassifier
+        to_csv(np.column_stack((y_train, task_train)), self.path, f"y_train")
 
         X_train, X_test, Y_train, Y_test = self._mat(x_train, x_test, y_train, y_test)
 
@@ -247,11 +251,6 @@ class run:
         to_csv(np.column_stack((y_test, task_test)), self.path, f"y_test")
         to_csv(np.column_stack((y_train, task_train)), self.path, f"y_train")
 
-        import sys
-
-        sys.path.append(r"../../")
-        from mtgb_models.mt_gb import MTGBRegressor
-
         X_train, X_test, Y_train, Y_test = x_train, x_test, y_train, y_test
 
         def evaluate_model(
@@ -387,10 +386,10 @@ class run:
 if __name__ == "__main__":
 
     np.random.seed(0)
-    experiment = "10tasks_2outliers_5features_300training"
+    experiment = r"D:\Ph.D\Programming\Py\NoiseAwareBoost\experiments\toy_data_comparison\10tasks_2outliers_5features_300training"
     for clf in [True, False]:
         for batch in range(1, 100 + 1):
-            data_path = f"../../datasets/{experiment}/{batch}"
+            data_path = f"{experiment}/{batch}"
             run_exp = run(
                 max_depth=1,
                 n_estimators=100,
