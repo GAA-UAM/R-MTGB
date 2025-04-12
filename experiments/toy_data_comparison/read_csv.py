@@ -4,11 +4,16 @@ import pandas as pd
 import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
-from sklearn.metrics import root_mean_squared_error
+from sklearn.metrics import root_mean_squared_error, accuracy_score
 
 
-def report(training_set):
-
+def report(training_set, regression=True):
+    if regression:
+        problem = "reg"
+        scoring_func= root_mean_squared_error
+    else:
+        problem = "clf"
+        scoring_func= accuracy_score
     def split_task(X):
         unique_values = np.unique(X[:, -1])
         mapping = {value: index for index, value in enumerate(unique_values)}
@@ -19,11 +24,11 @@ def report(training_set):
         return X_d, X_t
 
     models = [
-        "Conventional MT",
-        "GB_datapooling",
-        "GB_datapooling_task_as_feature",
-        "GB_single_task",
-        "Proposed MT",
+        "MTB",
+        "POOLING",
+        "POOLING_TASK_AS_FEATURE",
+        "STL",
+        "RMTB",
     ]
 
     tasks = [f"task_{i}" for i in range(8)]
@@ -34,7 +39,7 @@ def report(training_set):
     for root, _, files in os.walk(os.getcwd()):
         y_test = None
         y_test_std = []
-        if root.endswith("reg"):
+        if root.endswith(problem):
             if not training_set:
                 set_ = "y_test.csv"
                 term = "test"
@@ -42,9 +47,8 @@ def report(training_set):
                 set_ = "y_train.csv"
                 term = "train"
             y_test_path = os.path.join(root, set_)
-            sigmoid_theta_path = os.path.join(root, "sigmoid_theta.csv")
+            sigmoid_theta_path = os.path.join(root, "sigmoid_theta_{title}.csv")
             if not os.path.exists(y_test_path):
-                print(f"Skipping {root}, no y_test.csv found.")
                 continue
             y_test = pd.read_csv(y_test_path, header=None)
             y_test = y_test.dropna(how="all")
@@ -89,20 +93,18 @@ def report(training_set):
                             T = unique_values.size
                             task_dic = dict(zip(unique_values, range(T)))
 
-                            rmse_all_tasks_value = root_mean_squared_error(y_t, pred_t)
+                            rmse_all_tasks_value = scoring_func(y_t, pred_t)
 
                             rmse_all_tasks_dict[model_name] = rmse_all_tasks_value
-                            # print(model_name, rmse_all_tasks_value)
 
                             for r_label, r in task_dic.items():
                                 idxt = t == r
-                                rmse_per_task = root_mean_squared_error(
+                                rmse_per_task = scoring_func(
                                     y_t[idxt], pred_t[idxt]
                                 )
                                 rmse_per_task_dict[model_name][
                                     f"task_{r}"
                                 ] = rmse_per_task
-                                # print(r, rmse_per_task)
                             processed_models.add(model_name)
             rmse_per_task_list.append(rmse_per_task_dict)
             rmse_all_tasks_list.append(rmse_all_tasks_dict)
@@ -136,7 +138,7 @@ try:
     os.chdir(path)
 except:
     pass
-
+#%%
 (
     train_df_per_task,
     train_df_all_tasks,
@@ -154,10 +156,23 @@ except:
 ) = report(training_set=False)
 
 
-# test_df_per_task
-# train_df_all_tasks
-# test_df_per_task
-# train_df_per_task
+#%%
+
+(
+    train_df_per_task,
+    train_df_all_tasks,
+    sigmoid_theta_pd,
+    sigmoid_theta_list,
+    y_train_std,
+) = report(training_set=True, regression=False)
+
+(
+    test_df_per_task,
+    test_df_all_tasks,
+    _,
+    _,
+    y_test_std,
+) = report(training_set=False, regression=False)
 
 # %%
 def result_2_show(df):
@@ -166,9 +181,7 @@ def result_2_show(df):
     df_filtered  = df[~df.index.isin(exclude_names)]
     return df_filtered
 
-result_2_show(test_df_all_tasks)
-# print(y_test_std)
-# test_df_all_tasks
+test_df_all_tasks
 # %%
 print(r"\sigma(\theta)")
 import matplotlib.pyplot as plt

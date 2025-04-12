@@ -122,7 +122,10 @@ class run:
             grid_search = grid_search.fit(
                 np.column_stack((X_train, task_train)), Y_train, task_info=-1
             )
-            print(f"Best parameters found: {grid_search.best_params_}")
+
+            best_params = grid_search.best_params_
+            with open(os.path.join(self.path, f"best_params_{title}.json"), "w") as f:
+                json.dump(best_params, f)
             model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train, task_info=-1)
             pred_test_mt = model_mt.predict(np.column_stack((X_test, task_test)))
@@ -140,7 +143,7 @@ class run:
 
             to_csv(pred_test_mt, self.path, f"pred_test_{title}")
             to_csv(pred_train_mt, self.path, f"pred_train_{title}")
-            to_csv(sigmoid(model_mt.theta), self.path, "sigmoid_theta_{title}")
+            to_csv(sigmoid(model_mt.theta), self.path, f"sigmoid_theta_{title}")
             to_csv(train_error * np.ones((1, 1)), self.path, f"train_error_{title}")
             to_csv(test_error * np.ones((1, 1)), self.path, f"test_error_{title}")
 
@@ -278,7 +281,7 @@ class run:
             )
 
             best_params = grid_search.best_params_
-            with open(f"best_params_{title}.json", "w") as f:
+            with open(os.path.join(self.path, f"best_params_{title}.json"), "w") as f:
                 json.dump(best_params, f)
             model_mt = grid_search.best_estimator_
             model_mt.fit(np.column_stack((X_train, task_train)), Y_train, task_info=-1)
@@ -297,7 +300,7 @@ class run:
 
             to_csv(pred_test_mt, self.path, f"pred_test_{title}")
             to_csv(pred_train_mt, self.path, f"pred_train_{title}")
-            to_csv(sigmoid(model_mt.theta), self.path, "sigmoid_theta_{title}")
+            to_csv(sigmoid(model_mt.theta), self.path, f"sigmoid_theta_{title}")
             to_csv(train_error * np.ones((1, 1)), self.path, f"train_error_{title}")
             to_csv(test_error * np.ones((1, 1)), self.path, f"test_error_{title}")
 
