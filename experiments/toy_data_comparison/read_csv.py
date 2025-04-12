@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 import warnings
+
 warnings.filterwarnings("ignore")
 from sklearn.metrics import root_mean_squared_error, accuracy_score
 
@@ -10,10 +11,11 @@ from sklearn.metrics import root_mean_squared_error, accuracy_score
 def report(training_set, regression=True):
     if regression:
         problem = "reg"
-        scoring_func= root_mean_squared_error
+        scoring_func = root_mean_squared_error
     else:
         problem = "clf"
-        scoring_func= accuracy_score
+        scoring_func = accuracy_score
+
     def split_task(X):
         unique_values = np.unique(X[:, -1])
         mapping = {value: index for index, value in enumerate(unique_values)}
@@ -32,9 +34,10 @@ def report(training_set, regression=True):
     ]
 
     tasks = [f"task_{i}" for i in range(8)]
-    rmse_per_task_list = []
-    rmse_all_tasks_list = []
+    score_per_task_list = []
+    score_all_tasks_list = []
     sigmoid_theta_list = []
+    sigmoid_all_tasks_list = []
 
     for root, _, files in os.walk(os.getcwd()):
         y_test = None
@@ -47,32 +50,23 @@ def report(training_set, regression=True):
                 set_ = "y_train.csv"
                 term = "train"
             y_test_path = os.path.join(root, set_)
-            sigmoid_theta_path = os.path.join(root, "sigmoid_theta_{title}.csv")
+
             if not os.path.exists(y_test_path):
                 continue
             y_test = pd.read_csv(y_test_path, header=None)
             y_test = y_test.dropna(how="all")
             y_test_std.append(np.std(y_test))
-            sigmoid_theta = pd.read_csv(sigmoid_theta_path, header=None)
-            rmse_per_task_dict = {model: dict(zip(tasks, range(8))) for model in models}
-            rmse_all_tasks_dict = {model: 0 for model in models}
-
-            # print(sigmoid_theta)
-            if np.argmax(sigmoid_theta) == 0:
-                # print(sigmoid_theta)
-                sigmoid_theta = 1 - sigmoid_theta
-                # print(sigmoid_theta)
-                # print("--------")
-            sigmoid_theta_list.append(sigmoid_theta)
+            score_per_task_dict = {
+                model: dict(zip(tasks, range(8))) for model in models
+            }
+            score_all_tasks_dict = {model: 0 for model in models}
 
             processed_models = set()
             for file_ in os.listdir(root):
                 if file_.endswith(".csv") and file_.startswith("pred_"):
                     if term in file_:
                         file_name = os.path.splitext(file_)[0]  # Remove .csv extension
-                        model_name = file_name.replace(
-                            "pred_)", ")"
-                        )  # Remove "pred_" prefix
+                        model_name = file_name.replace("pred_)", ")")
 
                         model_name = model_name.replace("pred_", "")
                         model_name = model_name.replace(f"{term}_", "")
@@ -80,10 +74,9 @@ def report(training_set, regression=True):
                         if model_name in models and model_name not in processed_models:
                             pred_path = os.path.join(root, file_)
                             pred = pd.read_csv(pred_path, header=None)
-                            print(os.path.join(root, file_))
-                            
+
                             pred = pred.dropna(how="all")
-                            
+
                             pred_t, _ = split_task(pred.values)
                             y_t, t = split_task(y_test.values)
                             pred_t = pred_t.squeeze()
@@ -93,41 +86,44 @@ def report(training_set, regression=True):
                             T = unique_values.size
                             task_dic = dict(zip(unique_values, range(T)))
 
-                            rmse_all_tasks_value = scoring_func(y_t, pred_t)
+                            score_all_tasks_value = scoring_func(y_t, pred_t)
 
-                            rmse_all_tasks_dict[model_name] = rmse_all_tasks_value
-
+                            score_all_tasks_dict[model_name] = score_all_tasks_value
+                            if model_name == "RMTB":
+                                sigmoid_theta_path = os.path.join(
+                                    root, f"sigmoid_theta_{model_name}.csv"
+                                )
+                                sigmoid_theta = pd.read_csv(
+                                    sigmoid_theta_path, header=None
+                                )
+                                if np.argmax(sigmoid_theta) == 0:
+                                    sigmoid_theta = 1 - sigmoid_theta
+                                sigmoid_theta_list.append(sigmoid_theta)
                             for r_label, r in task_dic.items():
                                 idxt = t == r
-                                rmse_per_task = scoring_func(
-                                    y_t[idxt], pred_t[idxt]
-                                )
-                                rmse_per_task_dict[model_name][
+                                rmse_per_task = scoring_func(y_t[idxt], pred_t[idxt])
+                                score_per_task_dict[model_name][
                                     f"task_{r}"
                                 ] = rmse_per_task
                             processed_models.add(model_name)
-            rmse_per_task_list.append(rmse_per_task_dict)
-            rmse_all_tasks_list.append(rmse_all_tasks_dict)
+            score_per_task_list.append(score_per_task_dict)
+            score_all_tasks_list.append(score_all_tasks_dict)
 
     df_list_per_task = [
-        pd.DataFrame.from_dict(rmses, orient="index") for rmses in rmse_per_task_list
+        pd.DataFrame.from_dict(rmses, orient="index") for rmses in score_per_task_list
     ]
     avg_df_per_task = pd.concat(df_list_per_task).groupby(level=0).agg(["mean", "std"])
     df_list_all_tasks = [
-        pd.DataFrame.from_dict(rmses, orient="index") for rmses in rmse_all_tasks_list
+        pd.DataFrame.from_dict(rmses, orient="index") for rmses in score_all_tasks_list
     ]
     avg_df_all_tasks = (
         pd.concat(df_list_all_tasks).groupby(level=0).agg(["mean", "std"])
     )
 
-    # sigmoid_theta_pd = pd.DataFrame(np.mean((sigmoid_theta_list), axis=0))
-    sigmoid_theta_pd = None
-    print("------------all files are extracted successfully! -----------------")
     return (
         avg_df_per_task,
         avg_df_all_tasks,
-        sigmoid_theta_pd,
-        sigmoid_theta_list,
+        pd.DataFrame(np.mean((sigmoid_theta_list), axis=0)),
         np.mean(y_test_std),
     )
 
@@ -138,55 +134,54 @@ try:
     os.chdir(path)
 except:
     pass
-#%%
+# %% Regression
 (
     train_df_per_task,
     train_df_all_tasks,
-    sigmoid_theta_pd,
-    sigmoid_theta_list,
+    sigmoid_theta,
     y_train_std,
-) = report(training_set=True)
+) = report(training_set=True, regression=True)
 
 (
     test_df_per_task,
     test_df_all_tasks,
-    _,
-    _,
+    sigmoid_theta,
     y_test_std,
-) = report(training_set=False)
+) = report(training_set=False, regression=True)
 
 
-#%%
+# %%
 
 (
     train_df_per_task,
     train_df_all_tasks,
-    sigmoid_theta_pd,
-    sigmoid_theta_list,
+    sigmoid_theta,
     y_train_std,
 ) = report(training_set=True, regression=False)
 
 (
     test_df_per_task,
     test_df_all_tasks,
-    _,
-    _,
+    sigmoid_theta,
     y_test_std,
 ) = report(training_set=False, regression=False)
 
+
 # %%
 def result_2_show(df):
-    # exclude_names = ["GB_datapooling", "GB_datapooling_task_as_feature", "GB_single_task"]
-    exclude_names = ["GB_datapooling_task_as_feature"]
-    df_filtered  = df[~df.index.isin(exclude_names)]
+    exclude_names = ["POOLING", "POOLING_TASK_AS_FEATURE"]
+    df_filtered = df[~df.index.isin(exclude_names)]
     return df_filtered
 
-test_df_all_tasks
+
+train_df_all_tasks
+result_2_show(train_df_per_task  )
 # %%
 print(r"\sigma(\theta)")
+
 import matplotlib.pyplot as plt
 
-plt.plot(sigmoid_theta_pd)
+plt.plot(sigmoid_theta, label="class 0")
 plt.legend(
     # labels=[f"task {i}" for i in range(8)],
     loc="upper center",

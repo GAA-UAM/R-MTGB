@@ -260,8 +260,6 @@ class run:
             param_grid, title, X_train, Y_train, task_train, X_test, Y_test, task_test
         ):
 
-            # Proposed model training
-
             model_mt = MTGBRegressor(
                 max_depth=self.max_depth,
                 n_iter_1st=0,

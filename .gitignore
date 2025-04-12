@@ -162,3 +162,4 @@ cython_debug/
 Results
 *.png
 *debug*
+10tasks_2outliers_5features_300training
