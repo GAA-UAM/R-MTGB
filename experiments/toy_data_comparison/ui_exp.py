@@ -387,7 +387,7 @@ class run:
 if __name__ == "__main__":
 
     np.random.seed(0)
-    experiment = r"D:\Ph.D\Programming\Py\NoiseAwareBoost\experiments\toy_data_comparison\10tasks_2outliers_5features_300training"
+    experiment = "10tasks_2outliers_5features_300training"
     for clf in [True, False]:
         for batch in range(1, 100 + 1):
             data_path = f"{experiment}/{batch}"
