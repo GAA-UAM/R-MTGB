@@ -181,9 +181,9 @@ class GenerateDataset:
 
         while True:
             X, Y = [], []
-            # Initialize common function generator if not already done
-            if self.common_funcgen is None:
-                self.common_funcgen = FuncGen(num_dims=num_dims)
+            # Initialize common function generator 
+
+            self.common_funcgen = FuncGen(num_dims=num_dims)
 
             # Generate data for regular (non-outlier) tasks
             for _ in range(num_tasks - num_outlier_tasks):

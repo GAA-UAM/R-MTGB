@@ -150,7 +150,8 @@ class BaseMTGB(BaseGradientBoosting):
             self.init_ = self.init
         if self.init_ is None:
             if self.is_classifier:
-                self.init_ = DummyClassifier(strategy="prior")
+#                self.init_ = DummyClassifier(strategy="prior") DHL better set everyting equal to zero, as in regression
+                self.init_ = DummyClassifier(strategy="constant", constant=0)
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
         self.init_.fit(X, y)
@@ -562,15 +563,13 @@ class BaseMTGB(BaseGradientBoosting):
         #     ]
         # )
 
-        if self.is_classifier:
-            self.theta = np.random.randn(self.T, self.n_classes_) * 0.1
-        else:
-            self.theta = np.random.randn(self.T) * 0.1
+        self.theta = np.random.randn(self.T) * 0.1
 
         p_meta = init_prediction
         p_out = p_meta * 0.0
         p_non_out = p_meta * 0.0
         p_task = p_meta * 0.0
+
 
         for i in range(self.n_iter_1st):
             x_subsample = self._subsampling(X)

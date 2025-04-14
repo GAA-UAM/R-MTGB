@@ -62,28 +62,35 @@ class CE(LossFunction):
     ):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
-        terminal_regions = tree.apply(X)
+#        terminal_regions = tree.apply(X)
+#
+#        masked_terminal_regions = terminal_regions.copy()
+#        masked_terminal_regions[~sample_mask] = -1
+#
+#        for leaf in np.where(tree.children_left == TREE_LEAF)[0]:
+#            self._update_terminal_region(
+#                tree,
+#                masked_terminal_regions,
+#                leaf,
+#                X,
+#                y,
+#                residual,
+#                raw_predictions,
+#                sample_weight,
+#            )
+#
+#        raw_predictions[:, :] += (learning_rate * tree.value[:, :, 0]).take(
+#            terminal_regions, axis=0
+#        )
+#
+#        return raw_predictions
 
-        masked_terminal_regions = terminal_regions.copy()
-        masked_terminal_regions[~sample_mask] = -1
-
-        for leaf in np.where(tree.children_left == TREE_LEAF)[0]:
-            self._update_terminal_region(
-                tree,
-                masked_terminal_regions,
-                leaf,
-                X,
-                y,
-                residual,
-                raw_predictions,
-                sample_weight,
-            )
-
-        raw_predictions[:, :] += (learning_rate * tree.value[:, :, 0]).take(
-            terminal_regions, axis=0
-        )
+        for i in range(y.shape[1]):
+            raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]
 
         return raw_predictions
+
+
 
     def negative_gradient(self, y, raw_predictions, **kwargs):
 
@@ -101,6 +108,7 @@ class CE(LossFunction):
         theta,
     ):
 
+
         sigmoid_theta = sigmoid(theta)
 
         p = _ensemble_pred(
@@ -113,7 +121,7 @@ class CE(LossFunction):
 
         grad_p = self.negative_gradient(y, p)
 
-        gradient = np.sum((grad_p * sigmoid_theta * (1 - sigmoid_theta)) * (p_out - p_non_out), axis=0)
+        gradient = np.sum((grad_p * sigmoid_theta * (1 - sigmoid_theta)) * (p_out - p_non_out))
 
         # assert np.all(np.isfinite(gradient)), "Gradient contains NaN or Inf."
 
@@ -152,7 +160,7 @@ class CE(LossFunction):
         eps = np.finfo(np.float32).eps
         probas = np.clip(probas, eps, 1 - eps)
         raw_predictions = np.log(probas).astype(np.float64)
-        return raw_predictions
+        return raw_predictions * 0 # DHL we just consider 0 as the initial prediction, as in regression
 
 
 class MSE(LossFunction):
