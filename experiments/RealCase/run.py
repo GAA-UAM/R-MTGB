@@ -77,8 +77,8 @@ class RunExperiments:
         pred_train_mt = optimized_model.predict(np.column_stack((X_train, task_train)))
         pred_train_mt = np.column_stack((pred_train_mt, task_train))
 
-        self._to_csv(pred_test_mt, self.path, f"{dataset}_pred_test_{title}")
-        self._to_csv(pred_train_mt, self.path, f"{dataset}_pred_train_{title}")
+        self._to_csv(pred_test_mt, f"{dataset}_pred_test_{title}")
+        self._to_csv(pred_train_mt, f"{dataset}_pred_train_{title}")
         self._to_csv(
             sigmoid(optimized_model.theta),
             self.path,

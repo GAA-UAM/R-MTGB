@@ -25,6 +25,4 @@ echo "Running Python script..."
 
 python run.py --dataset ${RECEIVED_DATASET} --seed ${RECEIVED_SEED}
 
-sleep 2
-echo "Python script finished."
-exit 0
+
