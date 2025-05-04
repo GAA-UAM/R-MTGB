@@ -10,21 +10,5 @@
 source /home/samanema/miniconda3/etc/profile.d/conda.sh
 conda activate hfree
 
+python adult_race.py
 
-
-RECEIVED_DATASET="adult_race"
-RECEIVED_SEED="0"
-
-echo "-------------------------------------"
-echo "Worker: Script started."
-echo "Worker: Received Dataset: ${RECEIVED_DATASET}"
-echo "Worker: Received seed: ${RECEIVED_SEED}"
-echo "-------------------------------------"
-
-echo "Running Python script..."
-
-python run.py --dataset ${RECEIVED_DATASET} --seed ${RECEIVED_SEED}
-
-sleep 2
-echo "Python script finished."
-exit 0

@@ -81,7 +81,6 @@ class RunExperiments:
         self._to_csv(pred_train_mt, f"{dataset}_pred_train_{title}")
         self._to_csv(
             sigmoid(optimized_model.theta),
-            self.path,
             f"{dataset}_sigmoid_theta_{title}",
         )
 
@@ -269,15 +268,3 @@ def run(dataset, seed):
         y_test,
         task_test,
     )
-
-
-if __name__ == "__main__":
-
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=True)
-    parser.add_argument("--seed", type=int, required=True)
-
-    args = parser.parse_args()
-    run(args.dataset, args.seed)
