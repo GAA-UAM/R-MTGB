@@ -1,8 +1,10 @@
 import os
 import sys
+import argparse
 import json
 import numpy as np
 from pathlib import Path
+from sklearn.base import clone
 from scipy.special import expit as sigmoid
 from sklearn.model_selection import GridSearchCV
 
@@ -57,13 +59,8 @@ class RunExperiments:
         else:
             score_func = "accuracy"
 
-        self._to_csv(np.column_stack((Y_test, task_test)), f"{dataset}_y_test")
-        self._to_csv(np.column_stack((Y_train, task_train)), f"{dataset}_y_train")
-
         grid_search = self._gridsearch(model, param_grid, score_func)
-        grid_search = grid_search.fit(
-            np.column_stack((X_train, task_train)), Y_train, task_info=-1
-        )
+        grid_search = grid_search.fit(np.column_stack((X_train, task_train)), Y_train)
 
         best_params = grid_search.best_params_
         with open(os.path.join(os.getcwd(), f"best_params_{title}.json"), "w") as f:
@@ -124,117 +121,72 @@ class RunExperiments:
                 criterion="squared_error",
             )
 
-        param_grid = {
-            "n_iter_1st": [0, 20, 30, 50],
-            "n_iter_2nd": [20, 30, 50],
-            "n_iter_3rd": [0, 20, 30, 50],
+        configs = {
+            "RMTB": {
+                "n_iter_1st": [0, 20, 30, 50],
+                "n_iter_2nd": [20, 30, 50],
+                "n_iter_3rd": [0, 20, 30, 50],
+            },
+            "MTB": {
+                "n_iter_1st": [20, 30, 50],
+                "n_iter_2nd": [0],
+                "n_iter_3rd": [0, 20, 30, 50],
+            },
+            "STL": {
+                "n_iter_1st": [0],
+                "n_iter_2nd": [0],
+                "n_iter_3rd": [20, 30, 50],
+            },
+            "POOLING": {
+                "n_iter_1st": [0],
+                "n_iter_2nd": [0],
+                "n_iter_3rd": [20, 30, 50],
+            },
+            "POOLING_TASK_AS_FEATURE": {
+                "n_iter_1st": [0],
+                "n_iter_2nd": [0],
+                "n_iter_3rd": [20, 30, 50],
+            },
         }
 
-        self._eval_model(
-            dataset,
-            model,
-            param_grid,
-            "RMTB",
-            X_train,
-            Y_train,
-            task_train,
-            X_test,
-            Y_test,
-            task_test,
-        )
+        self._to_csv(np.column_stack((Y_test, task_test)), f"{dataset}_y_test")
+        self._to_csv(np.column_stack((Y_train, task_train)), f"{dataset}_y_train")
 
-        param_grid = {
-            "n_iter_1st": [20, 30, 50],
-            "n_iter_2nd": [0],
-            "n_iter_3rd": [0, 20, 30, 50],
-        }
+        for config_name, param_grid in configs.items():
+            if config_name == "POOLING":
+                task_train_used = task_train * 0.0
+                task_test_used = task_test * 0.0
+                X_train_used = X_train
+                X_test_used = X_test
 
-        self._eval_model(
-            dataset,
-            model,
-            param_grid,
-            "MTB",
-            X_train,
-            Y_train,
-            task_train,
-            X_test,
-            Y_test,
-            task_test,
-        )
+            elif config_name == "POOLING_TASK_AS_FEATURE":
+                X_train_used = np.column_stack(
+                    (X_train, np.eye(int(task_train.max()) + 1)[task_train.astype(int)])
+                )
+                X_test_used = np.column_stack(
+                    (X_test, np.eye(int(task_test.max()) + 1)[task_test.astype(int)])
+                )
+                task_train_used = task_train * 0.0
+                task_test_used = task_test * 0.0
 
-        param_grid = {
-            "n_iter_1st": [0],
-            "n_iter_2nd": [0],
-            "n_iter_3rd": [20, 30, 50],
-        }
+            else:
+                X_train_used = X_train
+                X_test_used = X_test
+                task_train_used = task_train
+                task_test_used = task_test
 
-        self._eval_model(
-            dataset,
-            model,
-            param_grid,
-            "STL",
-            X_train,
-            Y_train,
-            task_train,
-            X_test,
-            Y_test,
-            task_test,
-        )
-
-        param_grid = {
-            "n_iter_1st": [0],
-            "n_iter_2nd": [0],
-            "n_iter_3rd": [20, 30, 50],
-        }
-
-        self._eval_model(
-            dataset,
-            model,
-            param_grid,
-            "POOLING",
-            X_train,
-            Y_train,
-            task_train * 0.0,
-            X_test,
-            Y_test,
-            task_test * 0.0,
-        )
-
-        param_grid = {
-            "n_iter_1st": [0],
-            "n_iter_2nd": [0],
-            "n_iter_3rd": [20, 30, 50],
-        }
-
-        X_train_poo_task_as_feature = np.column_stack(
-            (
-                X_train,
-                np.eye(np.max(np.asarray(task_train).astype(int)) + 1)[
-                    task_train.to_numpy().astype(int)
-                ],
+            self._eval_model(
+                dataset,
+                clone(model),
+                param_grid,
+                config_name,
+                X_train_used,
+                Y_train,
+                task_train_used,
+                X_test_used,
+                Y_test,
+                task_test_used,
             )
-        )
-        X_test_poo_task_as_feature = np.column_stack(
-            (
-                X_test,
-                np.eye(np.max(np.asarray(task_test).astype(int)) + 1)[
-                    task_test.to_numpy().astype(int)
-                ],
-            )
-        )
-
-        self._eval_model(
-            dataset,
-            model,
-            param_grid,
-            "POOLING_TASK_AS_FEATURE",
-            X_train_poo_task_as_feature,
-            Y_train,
-            task_train * 0.0,
-            X_test_poo_task_as_feature,
-            Y_test,
-            task_test * 0.0,
-        )
 
 
 def run(dataset, seed):
@@ -246,9 +198,7 @@ def run(dataset, seed):
 
     run_experiments = RunExperiments(dataset, seed)
 
-    x_train, y_train, x_test, y_test = ReadData(
-        dataset="school", random_state=int(seed)
-    )
+    x_train, y_train, x_test, y_test = ReadData(dataset=dataset, random_state=int(seed))
 
     x_train, task_train = split_task(x_train)
     x_test, task_test = split_task(x_test)
@@ -268,3 +218,12 @@ def run(dataset, seed):
         y_test,
         task_test,
     )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", required=True)
+    parser.add_argument("--seed", required=True)
+    args = parser.parse_args()
+
+    run(args.dataset, args.seed)

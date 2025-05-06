@@ -10,5 +10,5 @@
 source /home/samanema/miniconda3/etc/profile.d/conda.sh
 conda activate hfree
 
-python parkinson.py
+python run.py --dataset parkinson --seed 42
 

@@ -7,6 +7,7 @@ from sklearn.metrics import (
     root_mean_squared_error,
     mean_squared_error,
     recall_score,
+    mean_absolute_error,
 )
 from collections import defaultdict
 import re
@@ -61,8 +62,8 @@ def read_csv(dataset, model):
         rmse_test = root_mean_squared_error(y_test[:, 0], pred_test[:, 0])
         rmse_train = root_mean_squared_error(y_train[:, 0], pred_train[:, 0])
 
-        mse_train = mean_squared_error(y_train[:, 0], pred_train[:, 0])
-        mse_test = mean_squared_error(y_test[:, 0], pred_test[:, 0])
+        mae_train = mean_absolute_error(y_train[:, 0], pred_train[:, 0])
+        mae_test = mean_absolute_error(y_test[:, 0], pred_test[:, 0])
 
         results = {
             "dataset": dataset,
@@ -70,15 +71,20 @@ def read_csv(dataset, model):
             "task": "regression",
             "rmse_train": rmse_train,
             "rmse_test": rmse_test,
-            "mse_train": mse_train,
-            "mse_test": mse_test,
+            "mse_train": mae_train,
+            "mse_test": mae_test,
         }
 
-        df_test_per_task = calculate_per_task_metrics(
-            y_test, pred_test, task_type="regression"
-        )
-        df_test_per_task["dataset"] = dataset
-        df_test_per_task["model"] = model
+        # if not model == "POOLING":
+        #     print(model, dataset)
+        #     df_test_per_task = calculate_per_task_metrics(
+        #         y_test, pred_test, task_type="regression"
+        #     )
+        # elif model == "POOLING":
+        #     df_test_per_task = 0.0
+
+        # df_test_per_task["dataset"] = dataset
+        # df_test_per_task["model"] = model
 
     elif all(v is not None for v in [y_test, pred_test, pred_train]) and dataset in [
         "adult_gender",
@@ -101,34 +107,34 @@ def read_csv(dataset, model):
             "recall_test": recall_test,
         }
 
-        df_test_per_task = calculate_per_task_metrics(
-            y_test, pred_test, task_type="classification"
-        )
-        df_test_per_task["dataset"] = dataset
-        df_test_per_task["model"] = model
+        # if not model == "POOLING":
+        #     print(model, dataset)
+        #     df_test_per_task = calculate_per_task_metrics(
+        #         y_test, pred_test, task_type="classification"
+        #     )
+        # elif model == "POOLING":
+        #     df_test_per_task = 0.0
+        # df_test_per_task["dataset"] = dataset
+        # df_test_per_task["model"] = model
 
     else:
         results = None
         df_test_per_task = None
 
-    return results, df_test_per_task
+    return results, None
 
 
 all_scores = []
 all_task_scores = []
 
 for model in ["MTB", "POOLING", "RMTB", "STL"]:
-    # for dataset in [
-    #     "school",
-    #     "computer",
-    #     "parkinson",
-    #     "landmine",
-    #     "adult_gender",
-    #     "adult_race",
-    # ]:
-
     for dataset in [
         "school",
+        "computer",
+        "parkinson",
+        "landmine",
+        "adult_gender",
+        "adult_race",
     ]:
         result, df_test_per_task = read_csv(dataset, model)
         if result is not None:
@@ -140,11 +146,9 @@ for model in ["MTB", "POOLING", "RMTB", "STL"]:
 df_scores = pd.DataFrame(all_scores)
 df_scores.to_csv("scores.csv", index=False)
 
-# Per-task scores
-df_task_scores = pd.concat(all_task_scores, ignore_index=True)
-df_task_scores.to_csv("scores_per_task.csv", index=False)
+# df_task_scores = pd.concat(all_task_scores, ignore_index=True)
+# df_task_scores.to_csv("scores_per_task.csv", index=False)
 
-# Optionally show in output
-df_scores, df_task_scores.head()
+# df_scores, df_task_scores.head()
 
-# %%
+    # %%

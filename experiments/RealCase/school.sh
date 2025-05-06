@@ -10,5 +10,5 @@
 source /home/samanema/miniconda3/etc/profile.d/conda.sh
 conda activate hfree
 
-python school.py
+python run.py --dataset school --seed 42
 

@@ -10,5 +10,5 @@
 source /home/samanema/miniconda3/etc/profile.d/conda.sh
 conda activate hfree
 
-python adult_race.py
+python run.py --dataset adult_race --seed 42
 

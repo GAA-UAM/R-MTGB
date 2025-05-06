@@ -10,5 +10,6 @@
 source /home/samanema/miniconda3/etc/profile.d/conda.sh
 conda activate hfree
 
-python computer.py
+python run.py --dataset computer --seed 42
+
 

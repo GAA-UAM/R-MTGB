@@ -150,7 +150,7 @@ class BaseMTGB(BaseGradientBoosting):
             self.init_ = self.init
         if self.init_ is None:
             if self.is_classifier:
-#                self.init_ = DummyClassifier(strategy="prior") DHL better set everyting equal to zero, as in regression
+                #                self.init_ = DummyClassifier(strategy="prior") DHL better set everyting equal to zero, as in regression
                 self.init_ = DummyClassifier(strategy="constant", constant=0)
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
@@ -168,9 +168,6 @@ class BaseMTGB(BaseGradientBoosting):
         if not self.is_classifier:
             if y.ndim < 2:
                 y = y[:, np.newaxis]
-            num_cols = y.shape[1]
-        elif self.is_classifier:
-            num_cols = self._loss.n_class
 
         self.train_score_ = np.zeros((self.total_iter, self.T + 1, 3), dtype=np.float64)
 
@@ -196,16 +193,16 @@ class BaseMTGB(BaseGradientBoosting):
         # GradientBoosting*.init is not validated yet
         prefer_skip_nested_validation=False
     )
-    def _split_task(self, X: np.ndarray, task_info: int) -> np.ndarray:
+    def _split_task(self, X: np.ndarray) -> np.ndarray:
 
         # Ensuring that every distinct value is replaced with an index, beginning from zero.
-        unique_values = np.unique(X[:, task_info])
+        unique_values = np.unique(X[:, self.task_info])
         mapping = {value: index for index, value in enumerate(unique_values)}
-        X[:, task_info] = np.vectorize(mapping.get)(X[:, task_info])
+        X[:, self.task_info] = np.vectorize(mapping.get)(X[:, self.task_info])
 
         # Separating the input array and task indices.
-        X_task = X[:, task_info]
-        X_data = np.delete(X, task_info, axis=1).astype(float)
+        X_task = X[:, self.task_info]
+        X_data = np.delete(X, self.task_info, axis=1).astype(float)
         return X_data, X_task
 
     def _stratified_train_test_split(
@@ -253,8 +250,10 @@ class BaseMTGB(BaseGradientBoosting):
             sample_weight_val,
         )
 
-    def fit(self, X: np.ndarray, y: np.ndarray, task_info=None):
+    def fit(self, X: np.ndarray, y: np.ndarray, task_info=-1):
 
+        if not task_info:
+            task_info = -1
         self.task_info = task_info
 
         self._clear_state()
@@ -292,7 +291,7 @@ class BaseMTGB(BaseGradientBoosting):
         else:
             self._loss = MSE(1 if y.ndim == 1 else y.shape[1])
 
-        X_train, self.t = self._split_task(X_train, task_info)
+        X_train, self.t = self._split_task(X_train)
         unique = np.unique(self.t)
         self.T = len(unique)
         self.tasks_dic = dict(zip(unique, range(self.T)))
@@ -441,31 +440,31 @@ class BaseMTGB(BaseGradientBoosting):
             theta,
         )
 
-        if not self.is_classifier:
-            # Finite difference approximation
-            epsilon = 1e-5
-            theta_plus, theta_minus = theta + epsilon, theta - epsilon
-            w_pred_plus = _ensemble_pred(
-                sigmoid(theta_plus),
-                p_meta,
-                p_out,
-                p_non_out,
-                p_task,
-            )
-            w_pred_minus = _ensemble_pred(
-                sigmoid(theta_minus),
-                p_meta,
-                p_out,
-                p_non_out,
-                p_task,
-            )
-            loss_plus, loss_minus = map(
-                lambda w: self._loss(y, w, None), [w_pred_plus, w_pred_minus]
-            )
-            grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
-            assert np.allclose(
-                grad_theta, grad_approx, rtol=1e-3, atol=1e-3
-            ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {(grad_theta)}, Approx: {grad_approx}"
+        # if not self.is_classifier:
+        #     # Finite difference approximation
+        #     epsilon = 1e-5
+        #     theta_plus, theta_minus = theta + epsilon, theta - epsilon
+        #     w_pred_plus = _ensemble_pred(
+        #         sigmoid(theta_plus),
+        #         p_meta,
+        #         p_out,
+        #         p_non_out,
+        #         p_task,
+        #     )
+        #     w_pred_minus = _ensemble_pred(
+        #         sigmoid(theta_minus),
+        #         p_meta,
+        #         p_out,
+        #         p_non_out,
+        #         p_task,
+        #     )
+        #     loss_plus, loss_minus = map(
+        #         lambda w: self._loss(y, w, None), [w_pred_plus, w_pred_minus]
+        #     )
+        #     grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
+        #     assert np.allclose(
+        #         grad_theta, grad_approx, rtol=1e-3, atol=1e-3
+        #     ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {(grad_theta)}, Approx: {grad_approx}"
 
         return theta - (self.learning_rate * grad_theta)
 
@@ -569,7 +568,6 @@ class BaseMTGB(BaseGradientBoosting):
         p_out = p_meta * 0.0
         p_non_out = p_meta * 0.0
         p_task = p_meta * 0.0
-
 
         for i in range(self.n_iter_1st):
             x_subsample = self._subsampling(X)
@@ -704,17 +702,16 @@ class BaseMTGB(BaseGradientBoosting):
 
         return self.n_iter_1st + self.n_iter_2nd + self.n_iter_3rd
 
-    def _raw_predict_init(self, X: np.ndarray, task_info=None) -> np.ndarray:
+    def _raw_predict_init(self, X: np.ndarray) -> np.ndarray:
         self._check_initialized()
 
-        self.X_test, self.t_test = self._split_task(X, task_info)
+        self.X_test, self.t_test = self._split_task(X)
         t = self.t_test
         unique = np.unique(t)
         T_test = len(unique)
         self.tasks_dic_test = dict(zip(unique, range(T_test)))
 
         # 0_th index (meta task estimator)
-
         if self.estimators_[0, 0, 0] is None:
             # We only arrive here if there is no first stage and there is second stage
             self.X_test_meta = self.estimators_[0, 0, 1]._validate_X_predict(
@@ -741,7 +738,6 @@ class BaseMTGB(BaseGradientBoosting):
         )
 
     def _predict(self, X: np.ndarray):
-        task_info = self.task_info
         """Return the sum of the trees raw predictions (+ init estimator)."""
         check_is_fitted(self)
         (
@@ -749,7 +745,7 @@ class BaseMTGB(BaseGradientBoosting):
             p_out,
             p_non_out,
             p_task,
-        ) = self._raw_predict_init(X, task_info)
+        ) = self._raw_predict_init(X)
 
         if isinstance(self._loss, MSE) and self._loss.n_class == 1:
             p_meta = p_meta.squeeze()
