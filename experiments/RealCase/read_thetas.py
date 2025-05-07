@@ -1,17 +1,13 @@
 # %%
 import os
-import numpy as np
 import pandas as pd
-from sklearn.metrics import (
-    accuracy_score,
-    root_mean_squared_error,
-    recall_score,
-    mean_absolute_error,
-)
-from collections import defaultdict
-import re
 from pathlib import Path
 import fnmatch
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+plt.style.use("seaborn-v0_8-whitegrid")
 
 
 def read_csv(dataset, model):
@@ -24,24 +20,51 @@ def read_csv(dataset, model):
 
             if file.endswith(".csv") and dataset in file:
                 if fnmatch.fnmatch(file, f"*sigmoid_theta_{model}*.csv"):
-                    df = pd.read_csv(file_path, header=None).values
-                    return df
+                    arr = pd.read_csv(file_path, header=None).values
+                    return arr
     return None
 
 
 sigmoid_thetas = {"MTB": [], "POOLING": [], "RMTB": [], "STL": []}
+datasets = ["school", "computer", "parkinson", "landmine", "adult_gender", "adult_race"]
+sigmoid_thetas = {dataset: [] for dataset in datasets}
+
+for dataset in datasets:
+    arr = read_csv(dataset, "RMTB")
+    if arr is not None:
+        sigmoid_thetas[dataset].append({"dataset": dataset, "values": arr})
 
 
-for model in ["MTB", "POOLING", "RMTB", "STL"]:
-    for dataset in [
-        "school",
-        "computer",
-        "parkinson",
-        "landmine",
-        "adult_gender",
-        "adult_race",
-    ]:
-        df = read_csv(dataset, model)
-        if df is not None:
-            sigmoid_thetas[model].append({"dataset": dataset, "values": df})
+fig, axs = plt.subplots(3, 2, figsize=(14, 10))
+axs = axs.flatten()
 
+# Plot each dataset
+for i, dataset in enumerate(datasets):
+    ax = axs[i]
+    values = [entry["values"] for entry in sigmoid_thetas[dataset]]
+    if values:
+        y = values[0].flatten()
+        x = np.arange(len(y))
+        ax.plot(x, y, marker="o", markersize=3, linewidth=1.5, color="#007ACC")
+
+        ax.set_title(f"{dataset}", fontsize=12, fontweight="bold")
+        ax.set_xlabel("Task ID", fontsize=10)
+        ax.set_ylabel("Value", fontsize=10)
+
+        # Reduce number of x-ticks
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
+        ax.tick_params(axis="x", rotation=45)
+    else:
+        ax.set_title(f"{dataset} (No data)")
+        ax.axis("off")
+
+# Hide unused subplots
+for j in range(i + 1, len(axs)):
+    axs[j].axis("off")
+
+plt.suptitle("Sigmoid Thetas Across Datasets", fontsize=14, fontweight="bold")
+plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.savefig("sigmoid_thetas.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+# %%
