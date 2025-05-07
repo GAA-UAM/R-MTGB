@@ -56,10 +56,17 @@ def ReadData(dataset, random_state):
         data_train, data_test, target_train, target_test = train_test_split(
             data, target, test_size=0.2, random_state=random_state
         )
+
+    if target_train.ndim > 1:
+        target_train = target_train.values.ravel()
+        target_test = target_test.values.ravel()
+    else:
+        target_train = target_train.values
+        target_test = target_test.values
+
     return (
         data_train.values,
-        target_train.values,
+        target_train,
         data_test.values,
-        target_test.values,
+        target_test,
     )
-

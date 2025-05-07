@@ -1,7 +1,7 @@
 import os
 import sys
-import argparse
 import json
+import argparse
 import numpy as np
 from pathlib import Path
 from sklearn.base import clone
@@ -153,6 +153,12 @@ class RunExperiments:
         self._to_csv(np.column_stack((Y_train, task_train)), f"{dataset}_y_train")
 
         for config_name, param_grid in configs.items():
+            print(
+                f"Running model {config_name} on dataset {dataset}...",
+                flush=True,
+                file=sys.stderr,
+                end="\r",
+            )
             if config_name == "POOLING":
                 task_train_used = task_train * 0.0
                 task_test_used = task_test * 0.0

@@ -10,7 +10,7 @@ from scipy.special import expit as sigmoid
 from sklearn.utils import check_random_state
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, validate_data
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble._gb import BaseGradientBoosting
 from sklearn.dummy import DummyClassifier, DummyRegressor
@@ -260,7 +260,8 @@ class BaseMTGB(BaseGradientBoosting):
 
         sample_weight = _check_sample_weight(None, X)
 
-        X, y = self._validate_data(
+        X, y = validate_data(
+            self,
             X,
             y,
             accept_sparse=["csr", "csc", "coo"],
