@@ -3,11 +3,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 
-def read_csv_safely(path):
-    df = pd.read_csv(path)
-    return df
-
-
 def _preprocess_adult_data(df, task_column):
 
     unique_values = sorted(df[task_column].unique())
@@ -25,34 +20,35 @@ def _preprocess_adult_data(df, task_column):
 
 def ReadData(dataset, random_state):
 
-    if "adult" in dataset:
-        if dataset == "adult_gender":
-            task_col = "sex"
-        elif dataset == "adult_race":
-            task_col = "race"
+    special_datasets = {"adult_gender": "sex", "adult_race": "race"}
 
-        sub_dataset = dataset
-        dataset = "adult"
-        base_path = os.path.join(os.path.dirname(__file__), "..", "Datasets", dataset)
-        data_train = read_csv_safely(
-            os.path.join(base_path, f"{dataset}_train_data.csv")
-        )
-        data_test = read_csv_safely(os.path.join(base_path, f"{dataset}_test_data.csv"))
+    base_dataset = "adult" if dataset in special_datasets else dataset
+    task_col = special_datasets.get(dataset)
 
-        data_train = _preprocess_adult_data(data_train, task_col)
-        data_test = _preprocess_adult_data(data_test, task_col)
+    base_path = os.path.join(os.path.dirname(__file__), "..", "Datasets", base_dataset)
 
-        target_train = read_csv_safely(
-            os.path.join(base_path, f"{dataset}_train_target.csv")
-        )
-        target_test = read_csv_safely(
-            os.path.join(base_path, f"{dataset}_test_target.csv")
-        )
+    def load_csv(name):
+        return pd.read_csv(os.path.join(base_path, f"{name}.csv"))
+
+    if dataset in [
+        "adult_gender",
+        "adult_race",
+        "sarcos",
+    ]:
+
+        data_train = load_csv(f"{base_dataset}_train_data")
+        data_test = load_csv(f"{base_dataset}_test_data")
+
+        if task_col:
+            data_train = _preprocess_adult_data(data_train, task_col)
+            data_test = _preprocess_adult_data(data_test, task_col)
+
+        target_train = load_csv(f"{base_dataset}_train_target")
+        target_test = load_csv(f"{base_dataset}_test_target")
+
     else:
-        base_path = os.path.join(os.path.dirname(__file__), "..", "Datasets", dataset)
-
-        data = read_csv_safely(os.path.join(base_path, f"{dataset}_data.csv"))
-        target = read_csv_safely(os.path.join(base_path, f"{dataset}_target.csv"))
+        data = load_csv(f"{dataset}_data")
+        target = load_csv(f"{dataset}_target")
         data_train, data_test, target_train, target_test = train_test_split(
             data, target, test_size=0.2, random_state=random_state
         )
