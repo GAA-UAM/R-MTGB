@@ -210,7 +210,7 @@ def run(dataset, seed):
     x_train, task_train = split_task(x_train)
     x_test, task_test = split_task(x_test)
 
-    if dataset in ["school", "computer", "parkinson"]:
+    if dataset in ["abalone", "sarcos", "school", "computer", "parkinson"]:
         problem = "regression"
     else:
         problem = "classification"
