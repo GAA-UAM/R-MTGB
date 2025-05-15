@@ -26,7 +26,7 @@ def read_csv(dataset, model):
 
 
 sigmoid_thetas = {"MTB": [], "POOLING": [], "RMTB": [], "STL": []}
-datasets = ["school", "computer", "parkinson", "landmine", "adult_gender", "adult_race"]
+datasets = ["school", "computer", "parkinson", "landmine", "adult_gender", "adult_race", "bank", "avila", "abalone", "sarcos"]
 sigmoid_thetas = {dataset: [] for dataset in datasets}
 
 for dataset in datasets:
@@ -35,10 +35,20 @@ for dataset in datasets:
         sigmoid_thetas[dataset].append({"dataset": dataset, "values": arr})
 
 
-fig, axs = plt.subplots(3, 2, figsize=(14, 10))
+fig, axs = plt.subplots(5, 2, figsize=(14, 10))
 axs = axs.flatten()
 
-# Plot each dataset
+all_y_values = []
+for i, dataset in enumerate(datasets):
+    ax = axs[i]
+    values = [entry["values"] for entry in sigmoid_thetas[dataset]]
+    if values:
+        y = values[0].flatten()
+        all_y_values.extend(y)
+
+y_min = min(all_y_values)
+y_max = max(all_y_values)
+
 for i, dataset in enumerate(datasets):
     ax = axs[i]
     values = [entry["values"] for entry in sigmoid_thetas[dataset]]
@@ -50,6 +60,8 @@ for i, dataset in enumerate(datasets):
         ax.set_title(f"{dataset}", fontsize=12, fontweight="bold")
         ax.set_xlabel("Task ID", fontsize=10)
         ax.set_ylabel("Value", fontsize=10)
+        
+        ax.set_ylim(y_min, y_max)
 
         # Reduce number of x-ticks
         ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))

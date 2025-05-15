@@ -41,7 +41,6 @@ def read_csv(dataset, model):
     for root, _, files in os.walk(script_dir):
         for file in files:
             file_path = os.path.join(root, file)
-
             if file.endswith(".csv") and dataset in file:
                 if "y_test" in file:
                     y_test = pd.read_csv(file_path, header=None).values
@@ -57,6 +56,8 @@ def read_csv(dataset, model):
         "school",
         "computer",
         "parkinson",
+        "abalone",
+        "sarcos",
     ]:
         rmse_test = root_mean_squared_error(y_test[:, 0], pred_test[:, 0])
         rmse_train = root_mean_squared_error(y_train[:, 0], pred_train[:, 0])
@@ -89,6 +90,8 @@ def read_csv(dataset, model):
         "adult_gender",
         "adult_race",
         "landmine",
+        "bank",
+        "avila",
     ]:
         acc_test = accuracy_score(y_test[:, 0], pred_test[:, 0])
         acc_train = accuracy_score(y_train[:, 0], pred_train[:, 0])
@@ -133,6 +136,10 @@ for model in ["MTB", "POOLING", "RMTB", "STL"]:
         "landmine",
         "adult_gender",
         "adult_race",
+        "bank",
+        "avila",
+        "abalone",
+        "sarcos",
     ]:
         result, df_test_per_task = read_csv(dataset, model)
         if result is not None:
@@ -152,7 +159,7 @@ df_task_scores = pd.concat(
     ],
     ignore_index=True,
 )
-
+# %%
 # Task ranking
 df_task_scores["rmse_rank"] = df_task_scores.groupby(["dataset", "task_id"])[
     "rmse"

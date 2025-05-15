@@ -7,7 +7,7 @@ data<-read.csv(f)
 head(data)
 
 source("demsar.r")
-CD(3,403,0.05)
+CD(3,850,0.05)
 fr.test(data)
 ranks(data)
 plotDemsar(data, c("MTB", "RMTB",  "STL"))
