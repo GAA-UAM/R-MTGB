@@ -15,9 +15,9 @@ if str(project_root) not in sys.path:
 from DataUtils.read_data import *
 
 
-x_train, y_train, x_test, y_test = ReadData(dataset="parkinson", random_state=int(1))
+x_train, y_train, x_test, y_test = ReadData(dataset="avila", random_state=int(1))
 
 # %%
 x_train.shape[0] + x_test.shape[0]
-len(list(set(x_train[:, -1])))
-# x_train.shape
+# len(list(set(x_train[:, -1])))
+x_train.shape

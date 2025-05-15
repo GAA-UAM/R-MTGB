@@ -34,6 +34,7 @@ def ReadData(dataset, random_state):
         "adult_gender",
         "adult_race",
         "sarcos",
+        "avila",
     ]:
 
         data_train = load_csv(f"{base_dataset}_train_data")

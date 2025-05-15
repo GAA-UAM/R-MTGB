@@ -63,7 +63,9 @@ class RunExperiments:
         grid_search = grid_search.fit(np.column_stack((X_train, task_train)), Y_train)
 
         best_params = grid_search.best_params_
-        with open(os.path.join(os.getcwd(), f"{dataset}_best_params_{title}.json"), "w") as f:
+        with open(
+            os.path.join(os.getcwd(), f"{dataset}_best_params_{title}.json"), "w"
+        ) as f:
             json.dump(best_params, f)
         optimized_model = grid_search.best_estimator_
         optimized_model.fit(
@@ -120,10 +122,6 @@ class RunExperiments:
                 random_state=self.seed,
                 criterion="squared_error",
             )
-        # TODO: Repeat the experiments.
-        # TODO: Start writing the scripts, strating from results and methodology.
-        # TODO: Add two more datasets per problem (by benchmarking from other state-of-the-art papers).
-        # TODO: Plot the thetas using same scale on the y-axis and categorical on x-axis.
         configs = {
             "RMTB": {
                 "n_iter_1st": [0, 20, 30, 50],
