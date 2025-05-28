@@ -75,15 +75,14 @@ def read_csv(dataset, model):
             "mae_test": mae_test,
         }
 
-        if not model == "POOLING":
-
+        if not model in ["POOLING", "TaF"]:
             df_test_per_task = calculate_per_task_metrics(
                 y_test, pred_test, task_type="regression"
             )
 
             df_test_per_task["dataset"] = dataset
             df_test_per_task["model"] = model
-        elif model == "POOLING":
+        elif model in ["POOLING", "TaF"]:
             df_test_per_task = 0.0
 
     elif all(v is not None for v in [y_test, pred_test, pred_train]) and dataset in [
@@ -109,14 +108,14 @@ def read_csv(dataset, model):
             "recall_test": recall_test,
         }
 
-        if not model == "POOLING":
+        if not model in ["POOLING", "TaF"]:
             df_test_per_task = calculate_per_task_metrics(
                 y_test, pred_test, task_type="classification"
             )
 
             df_test_per_task["dataset"] = dataset
             df_test_per_task["model"] = model
-        elif model == "POOLING":
+        elif model in ["POOLING", "TaF"]:
             df_test_per_task = 0.0
     else:
         results = None
@@ -128,7 +127,7 @@ def read_csv(dataset, model):
 all_scores = []
 all_task_scores = []
 
-for model in ["MTB", "POOLING", "RMTB", "STL"]:
+for model in ["MTB", "POOLING", "RMTB", "STL", "TaF"]:
     for dataset in [
         "school",
         "computer",
@@ -141,6 +140,7 @@ for model in ["MTB", "POOLING", "RMTB", "STL"]:
         "abalone",
         "sarcos",
     ]:
+
         result, df_test_per_task = read_csv(dataset, model)
         if result is not None:
             all_scores.append(result)

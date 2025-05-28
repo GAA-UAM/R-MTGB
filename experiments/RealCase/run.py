@@ -143,7 +143,7 @@ class RunExperiments:
                 "n_iter_2nd": [0],
                 "n_iter_3rd": [20, 30, 50, 100],
             },
-            "POOLING_TASK_AS_FEATURE": {
+            "TaF": {
                 "n_iter_1st": [0],
                 "n_iter_2nd": [0],
                 "n_iter_3rd": [20, 30, 50, 100],
@@ -166,16 +166,38 @@ class RunExperiments:
                 X_train_used = X_train
                 X_test_used = X_test
 
-            elif config_name == "POOLING_TASK_AS_FEATURE":
-                X_train_used = np.column_stack(
-                    (X_train, np.eye(int(task_train.max()) + 1)[task_train.astype(int)])
-                )
-                X_test_used = np.column_stack(
-                    (X_test, np.eye(int(task_test.max()) + 1)[task_test.astype(int)])
-                )
+            elif config_name == "TaF":
+                if len(set(task_train)) != len(set(task_test)):
+                    from sklearn.preprocessing import OneHotEncoder
+
+                    all_tasks = np.concatenate([task_train, task_test]).reshape(-1, 1)
+
+                    encoder = OneHotEncoder(
+                        sparse_output=False, handle_unknown="ignore"
+                    )
+                    encoder.fit(all_tasks)
+
+                    task_train_encoded = encoder.transform(task_train.reshape(-1, 1))
+                    task_test_encoded = encoder.transform(task_test.reshape(-1, 1))
+
+                    X_train_used = np.column_stack((X_train, task_train_encoded))
+                    X_test_used = np.column_stack((X_test, task_test_encoded))
+                else:
+                    X_train_used = np.column_stack(
+                        (
+                            X_train,
+                            np.eye(int(task_train.max()) + 1)[task_train.astype(int)],
+                        )
+                    )
+                    X_test_used = np.column_stack(
+                        (
+                            X_test,
+                            np.eye(int(task_test.max()) + 1)[task_test.astype(int)],
+                        )
+                    )
+
                 task_train_used = task_train * 0.0
                 task_test_used = task_test * 0.0
-
             else:
                 X_train_used = X_train
                 X_test_used = X_test

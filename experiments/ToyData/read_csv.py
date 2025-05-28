@@ -54,7 +54,7 @@ def report(training_set, regression=True):
             if not os.path.exists(y_test_path):
                 continue
             y_test = pd.read_csv(y_test_path, header=None)
-            y_test = y_test.dropna(how="all")
+            y_test = y_test.fillna(0)
             y_test_std.append(np.std(y_test))
             score_per_task_dict = {
                 model: dict(zip(tasks, range(8))) for model in models
@@ -75,7 +75,7 @@ def report(training_set, regression=True):
                             pred_path = os.path.join(root, file_)
                             pred = pd.read_csv(pred_path, header=None)
 
-                            pred = pred.dropna(how="all")
+                            pred = pred.fillna(0)
 
                             pred_t, _ = split_task(pred.values)
                             y_t, t = split_task(y_test.values)
@@ -86,7 +86,12 @@ def report(training_set, regression=True):
                             T = unique_values.size
                             task_dic = dict(zip(unique_values, range(T)))
 
-                            score_all_tasks_value = scoring_func(y_t, pred_t)
+                            try:
+                                score_all_tasks_value = scoring_func(y_t, pred_t)
+                            except:
+                                pred_t = pred_t[:-1]
+                                score_all_tasks_value = scoring_func(y_t, pred_t)
+
 
                             score_all_tasks_dict[model_name] = score_all_tasks_value
                             if model_name == "RMTB":
@@ -108,7 +113,6 @@ def report(training_set, regression=True):
                             processed_models.add(model_name)
             score_per_task_list.append(score_per_task_dict)
             score_all_tasks_list.append(score_all_tasks_dict)
-
     df_list_per_task = [
         pd.DataFrame.from_dict(rmses, orient="index") for rmses in score_per_task_list
     ]
@@ -152,12 +156,12 @@ except:
 
 # %%
 
-(
-    train_df_per_task,
-    train_df_all_tasks,
-    sigmoid_theta,
-    y_train_std,
-) = report(training_set=True, regression=False)
+# (
+#     train_df_per_task,
+#     train_df_all_tasks,
+#     sigmoid_theta,
+#     y_train_std,
+# ) = report(training_set=True, regression=False)
 
 (
     test_df_per_task,
@@ -174,8 +178,8 @@ def result_2_show(df):
     return df_filtered
 
 
-train_df_all_tasks
-result_2_show(train_df_per_task  )
+test_df_all_tasks
+# result_2_show(train_df_per_task  )
 # %%
 print(r"\sigma(\theta)")
 

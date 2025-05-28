@@ -6,6 +6,7 @@ import fnmatch
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import seaborn as sns
 
 plt.style.use("seaborn-v0_8-whitegrid")
 
@@ -25,8 +26,20 @@ def read_csv(dataset, model):
     return None
 
 
-sigmoid_thetas = {"MTB": [], "POOLING": [], "RMTB": [], "STL": []}
-datasets = ["school", "computer", "parkinson", "landmine", "adult_gender", "adult_race", "bank", "avila", "abalone", "sarcos"]
+dataset_display_names = {
+    "school": "School",
+    "computer": "Computer",
+    "parkinson": "Parkinsons",
+    "landmine": "Landmine",
+    "adult_gender": "Adult (Gender)",
+    "adult_race": "Adult (Race)",
+    "bank": "Bank Marketing",
+    "avila": "Avila",
+    "abalone": "Abalone",
+    "sarcos": "SARCOS",
+}
+
+datasets = list(dataset_display_names.keys())
 sigmoid_thetas = {dataset: [] for dataset in datasets}
 
 for dataset in datasets:
@@ -35,7 +48,7 @@ for dataset in datasets:
         sigmoid_thetas[dataset].append({"dataset": dataset, "values": arr})
 
 
-fig, axs = plt.subplots(5, 2, figsize=(14, 10))
+fig, axs = plt.subplots(5, 2, figsize=(12, 12))
 axs = axs.flatten()
 
 all_y_values = []
@@ -55,17 +68,25 @@ for i, dataset in enumerate(datasets):
     if values:
         y = values[0].flatten()
         x = np.arange(len(y))
-        ax.plot(x, y, marker="o", markersize=3, linewidth=1.5, color="#007ACC")
+        ax.plot(
+            x,
+            y,
+            marker="o",
+            markersize=4,
+            linewidth=2,
+            # color="#007ACC",
+            color=sns.color_palette("deep")[0],
+        )
 
-        ax.set_title(f"{dataset}", fontsize=12, fontweight="bold")
-        ax.set_xlabel("Task ID", fontsize=10)
-        ax.set_ylabel("Value", fontsize=10)
-        
+        ax.set_title(dataset_display_names[dataset], fontsize=13, fontweight="semibold")
+        ax.set_xlabel("Task ID", fontsize=11)
+        ax.set_ylabel(r"$\sigma(\theta)$", fontsize=11)
+
         ax.set_ylim(y_min, y_max)
+        # ax.set_xlim(left=1, right=len(y))
 
-        # Reduce number of x-ticks
-        ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
-        ax.tick_params(axis="x", rotation=45)
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=10))
+        ax.tick_params(axis="x", rotation=0)
     else:
         ax.set_title(f"{dataset} (No data)")
         ax.axis("off")
@@ -74,9 +95,11 @@ for i, dataset in enumerate(datasets):
 for j in range(i + 1, len(axs)):
     axs[j].axis("off")
 
-plt.suptitle("Sigmoid Thetas Across Datasets", fontsize=14, fontweight="bold")
+# plt.suptitle(r"$\sigma(\theta)$ Values Across Datasets", fontsize=14, fontweight="bold")
 plt.tight_layout(rect=[0, 0, 1, 0.96])
-plt.savefig("sigmoid_thetas.png", dpi=300, bbox_inches="tight")
+# plt.savefig("sigmoid_thetas.png", dpi=300, bbox_inches="tight")
+plt.tight_layout(pad=0.2)
+plt.savefig("sigmoid_thetas_real.eps", bbox_inches="tight")
 plt.show()
 
 # %%

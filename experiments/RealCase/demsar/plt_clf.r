@@ -10,7 +10,7 @@ source("demsar.r")
 CD(3,472,0.05)
 fr.test(data)
 ranks(data)
-plotDemsar(data, c("MTB", "RMTB",  "STL"))
+plotDemsar(data, c("MTGB", "R-MTGB",  "ST-GB"))
 
 								
 
