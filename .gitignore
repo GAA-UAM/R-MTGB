@@ -163,3 +163,7 @@ Results
 *.png
 *debug*
 10tasks_2outliers_5features_300training
+Toy_Dataset
+Calcs
+Real_Case
+RScripts
