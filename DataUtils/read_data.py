@@ -33,26 +33,16 @@ def ReadData(dataset, random_state):
     if dataset in [
         "adult_gender",
         "adult_race",
-        "sarcos",
-        "avila",
     ]:
-
-        data_train = load_csv(f"{base_dataset}_train_data")
-        data_test = load_csv(f"{base_dataset}_test_data")
-
-        if task_col:
-            data_train = _preprocess_adult_data(data_train, task_col)
-            data_test = _preprocess_adult_data(data_test, task_col)
-
-        target_train = load_csv(f"{base_dataset}_train_target")
-        target_test = load_csv(f"{base_dataset}_test_target")
-
+        data = load_csv(f"{base_dataset}_data")
+        target = load_csv(f"{base_dataset}_target")
+        data = _preprocess_adult_data(data, task_col)
     else:
         data = load_csv(f"{dataset}_data")
         target = load_csv(f"{dataset}_target")
-        data_train, data_test, target_train, target_test = train_test_split(
-            data, target, test_size=0.2, random_state=random_state
-        )
+    data_train, data_test, target_train, target_test = train_test_split(
+        data, target, test_size=0.2, random_state=random_state
+    )
 
     if target_train.ndim > 1:
         target_train = target_train.values.ravel()
