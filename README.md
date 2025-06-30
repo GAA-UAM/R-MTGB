@@ -61,7 +61,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 0.0.1
 
 ### Updated
-30 June 2025
+05 June 2025
 
 ### Date-released
-30 June 2025
+26 Jan 2024
