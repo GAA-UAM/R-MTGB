@@ -28,7 +28,7 @@ A robust and scalable multi-task learning (MTL) framework that integrates outlie
 
 ## 💻 Installation
 
-Clone the repository and install dependencies:
+Clone the repository and install dependencies using [requirements](/requirements.txt)
 
 ```bash
 git clone https://github.com/GAA-UAM/R-MTGB.git
@@ -36,7 +36,7 @@ cd R-MTGB
 pip install -r requirements.txt
 ```
 # License
-The package is licensed under the GNU Lesser General Public [License v2.1](#LICENSE).
+The package is licensed under the GNU Lesser General Public [License v2.1](LICENSE).
 
 # 📚 Citations & References
 If you use R-MTGB in your research or work, please consider citing this project using the corresponding citation format:
