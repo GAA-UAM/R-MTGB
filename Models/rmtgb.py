@@ -1,5 +1,5 @@
 import numpy as np
-from Ensemble._base import BaseMTGB
+from Ensembles._base import BaseMTGB
 from sklearn.tree._tree import DOUBLE
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
