@@ -1,4 +1,4 @@
-# 🧠 Robust Multi-Task Gradient Boosting (R-MTGB)
+#  Robust Multi-Task Gradient Boosting (R-MTGB)
 
 A robust and scalable multi-task learning (MTL) framework that integrates outlier task detection into a structured gradient boosting process. Built with Python and [scikit-learn](https://scikit-learn.org/), R-MTGB is designed to generalize well across heterogeneous task sets and is resilient to task-level noise.
 
