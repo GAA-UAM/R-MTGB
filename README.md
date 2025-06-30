@@ -35,6 +35,9 @@ git clone https://github.com/GAA-UAM/R-MTGB.git
 cd R-MTGB
 pip install -r requirements.txt
 ```
+
+---
+
 ## License
 The package is licensed under the GNU Lesser General Public [License v2.1](LICENSE).
 
@@ -49,11 +52,15 @@ If you use R-MTGB in your research or work, please consider citing this project 
 - [Gonzalo Martínez-Muñoz](https://github.com/gmarmu)
 - [Daniel Hernández-Lobato](https://github.com/danielhernandezlobato)
 
+---
+
 ## Documentation 
 To get started with this project, please refer to the [Wiki](https://github.com/GAA-UAM/R-MTGB/wiki)."
 
 ## 🤝 Contributing
 Contributions are welcome! Please open an issue or submit a pull request.
+
+---
 
 ## 💾 Release Information
 
