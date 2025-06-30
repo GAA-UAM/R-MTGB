@@ -62,28 +62,6 @@ class CE(LossFunction):
     ):
         if X.dtype != np.float32:
             X = X.astype(np.float32)
-#        terminal_regions = tree.apply(X)
-#
-#        masked_terminal_regions = terminal_regions.copy()
-#        masked_terminal_regions[~sample_mask] = -1
-#
-#        for leaf in np.where(tree.children_left == TREE_LEAF)[0]:
-#            self._update_terminal_region(
-#                tree,
-#                masked_terminal_regions,
-#                leaf,
-#                X,
-#                y,
-#                residual,
-#                raw_predictions,
-#                sample_weight,
-#            )
-#
-#        raw_predictions[:, :] += (learning_rate * tree.value[:, :, 0]).take(
-#            terminal_regions, axis=0
-#        )
-#
-#        return raw_predictions
 
         for i in range(y.shape[1]):
             raw_predictions[:, i] += learning_rate * tree.predict(X)[:, i, 0]

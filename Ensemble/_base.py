@@ -23,7 +23,7 @@ from sklearn.utils.validation import (
 )
 
 
-class BaseMTGB(BaseGradientBoosting):
+class BaseRMTGB(BaseGradientBoosting):
     def __init__(
         self,
         *,
