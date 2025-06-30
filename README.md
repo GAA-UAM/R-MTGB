@@ -38,7 +38,7 @@ pip install -r requirements.txt
 
 ---
 
-## License
+## 🔑 License
 The package is licensed under the GNU Lesser General Public [License v2.1](LICENSE).
 
 ## 📚 Citations & References
