@@ -31,7 +31,7 @@ A robust and scalable multi-task learning (MTL) framework that integrates outlie
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/yourusername/R-MTGB.git
+git clone https://github.com/GAA-UAM/R-MTGB.git
 cd R-MTGB
 pip install -r requirements.txt
 ```
