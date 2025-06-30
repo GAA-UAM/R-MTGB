@@ -1,3 +1,3 @@
-from .rmtgb import MTGBClassifier, MTGBRegressor
+from .rmtgb import RMTGBClassifier, RMTGBRegressor
 
-__all__ = ["MTGBClassifier", "MTGBRegressor"]
+__all__ = ["RMTGBClassifier", "RMTGBRegressor"]

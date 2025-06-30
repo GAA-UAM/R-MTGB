@@ -1,11 +1,11 @@
 import numpy as np
-from Ensembles._base import BaseMTGB
+from Ensemble._base import BaseMTGB
 from sklearn.tree._tree import DOUBLE
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
 
 
-class MTGBClassifier(BaseMTGB):
+class RMTGBClassifier(BaseMTGB):
     def __init__(
         self,
         *,
@@ -95,7 +95,7 @@ class MTGBClassifier(BaseMTGB):
         return np.log(proba)
 
 
-class MTGBRegressor(BaseMTGB):
+class RMTGBRegressor(BaseMTGB):
     def __init__(
         self,
         *,
