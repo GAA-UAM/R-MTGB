@@ -10,7 +10,6 @@ from scipy.special import expit as sigmoid
 from sklearn.utils import check_random_state
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.utils.validation import check_is_fitted, validate_data
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble._gb import BaseGradientBoosting
 from sklearn.dummy import DummyClassifier, DummyRegressor
@@ -20,6 +19,7 @@ from sklearn.ensemble._gradient_boosting import (
 from sklearn.utils.validation import (
     check_random_state,
     _check_sample_weight,
+    check_is_fitted, validate_data
 )
 
 
@@ -150,7 +150,6 @@ class BaseMTGB(BaseGradientBoosting):
             self.init_ = self.init
         if self.init_ is None:
             if self.is_classifier:
-                #                self.init_ = DummyClassifier(strategy="prior") DHL better set everyting equal to zero, as in regression
                 self.init_ = DummyClassifier(strategy="constant", constant=0)
             else:
                 self.init_ = DummyRegressor(strategy="constant", constant=0)
@@ -354,44 +353,6 @@ class BaseMTGB(BaseGradientBoosting):
                 return True
         return False
 
-    def _track_loss(self, i, X, y, sample_weight, raw_predictions, key=0):
-
-        if self.subsample < 1.0:
-            if self.tasks_dic is None:
-                sample_mask = self._subsampling(X)
-                self.train_score_[i, 0, 0] = self._loss(
-                    y=y[sample_mask],
-                    raw_predictions=raw_predictions[sample_mask],
-                    sample_weight=sample_weight[sample_mask],
-                )
-
-            elif self.tasks_dic != None:
-
-                for r_label, r in self.tasks_dic.items():
-                    idx_r = self.t == r_label
-                    sample_mask = self._subsampling(X[idx_r])
-                    self.train_score_[i, r + 1, key] = self._loss(
-                        y=y[idx_r][sample_mask],
-                        raw_predictions=raw_predictions[idx_r][sample_mask],
-                        sample_weight=sample_weight[idx_r][sample_mask],
-                    )
-
-        else:
-            if self.tasks_dic is None:
-                self.train_score_[i, 0, 0] = self._loss(
-                    y=y,
-                    raw_predictions=raw_predictions,
-                    sample_weight=sample_weight,
-                )
-            elif self.tasks_dic != None:
-                for r_label, r in self.tasks_dic.items():
-                    idx_r = self.t == r_label
-                    self.train_score_[i, r + 1, key] = self._loss(
-                        y=y[idx_r],
-                        raw_predictions=raw_predictions[idx_r],
-                        sample_weight=sample_weight[idx_r],
-                    )
-
     def _update_prediction(
         self,
         meta_prediction,
@@ -430,8 +391,6 @@ class BaseMTGB(BaseGradientBoosting):
         theta,
     ):
 
-        # theta = np.atleast_1d(theta)
-
         grad_theta = self._loss.gradient_theta(
             p_meta,
             p_out,
@@ -440,32 +399,6 @@ class BaseMTGB(BaseGradientBoosting):
             y,
             theta,
         )
-
-        # if not self.is_classifier:
-        #     # Finite difference approximation
-        #     epsilon = 1e-5
-        #     theta_plus, theta_minus = theta + epsilon, theta - epsilon
-        #     w_pred_plus = _ensemble_pred(
-        #         sigmoid(theta_plus),
-        #         p_meta,
-        #         p_out,
-        #         p_non_out,
-        #         p_task,
-        #     )
-        #     w_pred_minus = _ensemble_pred(
-        #         sigmoid(theta_minus),
-        #         p_meta,
-        #         p_out,
-        #         p_non_out,
-        #         p_task,
-        #     )
-        #     loss_plus, loss_minus = map(
-        #         lambda w: self._loss(y, w, None), [w_pred_plus, w_pred_minus]
-        #     )
-        #     grad_approx = (loss_plus - loss_minus) / (2 * epsilon)
-        #     assert np.allclose(
-        #         grad_theta, grad_approx, rtol=1e-3, atol=1e-3
-        #     ), f"Gradient (w.r.t theta) mismatch detected. Analytic: {(grad_theta)}, Approx: {grad_approx}"
 
         return theta - (self.learning_rate * grad_theta)
 
@@ -550,19 +483,6 @@ class BaseMTGB(BaseGradientBoosting):
 
         y = self._label_y(y)
 
-        # self.theta = np.array(
-        #     [
-        #         0.060385127,
-        #         -0.096597032,
-        #         -0.016628529,
-        #         0.036170050,
-        #         -0.139193041,
-        #         -0.020166009,
-        #         -0.072877763,
-        #         0.006896677,
-        #     ]
-        # )
-
         self.theta = np.random.randn(self.T) * 0.1
 
         p_meta = init_prediction
@@ -617,7 +537,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             out_tree_cont = (
                 new_ensemble_prediction - ensemble_prediction
-            )  # DHL total hack to separate ensemble_output from outlier task output
+            )  # Total hack to separate ensemble_output from outlier task output
             p_out_old = p_out.copy()
             p_out += out_tree_cont
 
@@ -634,7 +554,7 @@ class BaseMTGB(BaseGradientBoosting):
 
             non_out_tree_cont = (
                 new_ensemble_prediction - ensemble_prediction
-            )  # DHL total hack to separate ensemble_output from non outlier task output
+            )  # Total hack to separate ensemble_output from non outlier task output
             p_non_out_old = p_non_out.copy()
             p_non_out += non_out_tree_cont
 
@@ -648,8 +568,6 @@ class BaseMTGB(BaseGradientBoosting):
                 self.theta,
             )
 
-            # self._track_loss(j, X, y, sample_weight, p_out, 1)
-            # self._track_loss(j, X, y, sample_weight, p_non_out, 2)
         for cont in range(self.n_iter_3rd):
             k = cont + self.n_iter_1st + self.n_iter_2nd
             x_subsample = self._subsampling(X)
@@ -693,13 +611,6 @@ class BaseMTGB(BaseGradientBoosting):
                 del sample_weight_r
                 del x_subsample_r
 
-            # self._track_loss(
-            #     k,
-            #     X,
-            #     y,
-            #     sample_weight,
-            #     p_task,
-            # )
 
         return self.n_iter_1st + self.n_iter_2nd + self.n_iter_3rd
 
@@ -726,7 +637,6 @@ class BaseMTGB(BaseGradientBoosting):
         p_meta = self._loss.get_init_raw_predictions(self.X_test_meta, self.init_)
 
         # Make sure everything is zero except the initial prediction
-
         p_out = p_meta.copy() * 0.0
         p_non_out = p_meta.copy() * 0.0
         p_task = p_meta.copy() * 0.0

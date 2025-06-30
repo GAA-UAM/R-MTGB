@@ -25,14 +25,12 @@ if __name__ == "__main__":
         for i, subdir in enumerate(range(1, 100 + 1)):
             np.random.seed(i)
             scenario_name = "scenario_" + str(scenario)
-            # dir_path = os.path.join(base_dir, scenario_name, str(subdir))
             dir_path = os.path.join(base_dir, str(subdir))
             os.makedirs(dir_path, exist_ok=True)
             os.chdir(dir_path)
             os.mkdir("clf")
             os.mkdir("reg")
-            # for regression in [True, False]:
-            for regression in [False]:
+            for regression in [True, False]:
                 gen_data = GenerateDataset(scenario)
                 df = gen_data(
                     regression=regression,
@@ -66,6 +64,3 @@ if __name__ == "__main__":
                 test_df.to_csv(f"test_{'reg' if regression else 'clf'}_{scenario}.csv")
             os.chdir(original_dir)
         os.chdir(original_dir)
-
-
-# %%
