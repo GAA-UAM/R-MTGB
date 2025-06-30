@@ -45,7 +45,7 @@ If you use R-MTGB in your research or work, please consider citing this project 
 ```
 
 # 👨‍💻 Authors
-- [Seyedsaman Emami](https://github.com/samanemami/)
+- [Seyedsaman (Saman) Emami](https://github.com/samanemami/)
 - [Gonzalo Martínez-Muñoz](https://github.com/gmarmu)
 - [Daniel Hernández-Lobato](https://github.com/danielhernandezlobato)
 
