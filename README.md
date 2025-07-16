@@ -42,8 +42,18 @@ pip install -r requirements.txt
 The package is licensed under the GNU Lesser General Public [License v2.1](LICENSE).
 
 ## 📚 Citations
-If you use R-MTGB in your research or work, please consider citing this project using the corresponding citation format:
+If you use R-MTGB in your research or work, please consider citing this project using the following citation format. This citation refers to the arXiv preprint, and its manuscript is currently under review at Neurocomputing journal:
 ```yml
+
+@misc{emami2025robustmultitaskgradientboosting,
+      title={Robust-Multi-Task Gradient Boosting}, 
+      author={Seyedsaman Emami and Gonzalo Martínez-Muñoz and Daniel Hernández-Lobato},
+      year={2025},
+      eprint={2507.11411},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2507.11411}, 
+}
 
 ```
 
