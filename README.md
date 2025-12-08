@@ -42,7 +42,7 @@ pip install -r requirements.txt
 The package is licensed under the GNU Lesser General Public [License v2.1](LICENSE).
 
 ## 📚 Citations
-If you use R-MTGB in your research or work, please consider citing this project using the following citation format. This citation refers to the arXiv preprint, and its manuscript is currently under review at Neurocomputing journal:
+If you use R-MTGB in your research or work, please consider citing this project using the following citation format.
 ```yml
 
 @article{EMAMI2025130696,
