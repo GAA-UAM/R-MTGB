@@ -53,7 +53,7 @@ If you use R-MTGB in your research or work, please consider citing this project 
     issn          = {0957-4174},
     doi           = {https://doi.org/10.1016/j.eswa.2025.130696},
     url           = {https://www.sciencedirect.com/science/article/pii/S0957417425043118},
-    author        = {Seyedsaman Emami and Gonzalo {Mart\'{\i}nez-Mu Noz} and Daniel Hern\'{a}ndez-Lobato}
+    author        = {Seyedsaman Emami and Gonzalo {Mart\'{\i}nez-Mu\~noz} and Daniel Hern\'{a}ndez-Lobato}
 }
 
 ```
