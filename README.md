@@ -45,14 +45,15 @@ The package is licensed under the GNU Lesser General Public [License v2.1](LICEN
 If you use R-MTGB in your research or work, please consider citing this project using the following citation format. This citation refers to the arXiv preprint, and its manuscript is currently under review at Neurocomputing journal:
 ```yml
 
-@misc{emami2025robustmultitaskgradientboosting,
-      title={Robust-Multi-Task Gradient Boosting}, 
-      author={Seyedsaman Emami and Gonzalo Martínez-Muñoz and Daniel Hernández-Lobato},
-      year={2025},
-      eprint={2507.11411},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2507.11411}, 
+@article{EMAMI2025130696,
+    title         = {Robust-Multi-Task Gradient Boosting},
+    journal       = {Expert Systems with Applications},
+    pages         = {130696},
+    year          = {2025},
+    issn          = {0957-4174},
+    doi           = {https://doi.org/10.1016/j.eswa.2025.130696},
+    url           = {https://www.sciencedirect.com/science/article/pii/S0957417425043118},
+    author        = {Seyedsaman Emami and Gonzalo {Mart\'{\i}nez-Mu Noz} and Daniel Hern\'{a}ndez-Lobato}
 }
 
 ```
