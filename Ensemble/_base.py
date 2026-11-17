@@ -4,7 +4,6 @@ from ._losses import CE, MSE
 from numbers import Integral
 from abc import abstractmethod
 from ._utils import _ensemble_pred
-from sklearn.tree._tree import DTYPE
 from sklearn.base import _fit_context
 from scipy.special import expit as sigmoid
 from sklearn.utils import check_random_state
@@ -22,6 +21,7 @@ from sklearn.utils.validation import (
     check_is_fitted, validate_data
 )
 
+DTYPE = np.float32
 
 class BaseRMTGB(BaseGradientBoosting):
     def __init__(
