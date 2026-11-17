@@ -1,9 +1,9 @@
 import numpy as np
 from Ensemble._base import BaseRMTGB
-from sklearn.tree._tree import DOUBLE
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.multiclass import check_classification_targets
 
+DOUBLE = np.float64
 
 class RMTGBClassifier(BaseRMTGB):
     def __init__(
@@ -80,7 +80,7 @@ class RMTGBClassifier(BaseRMTGB):
 
     def predict(self, X):
         raw_predictions = self.decision_function(X)
-        if raw_predictions.ndim == 1:  # decision_function already squeezed it
+        if raw_predictions.ndim == 1:  
             encoded_classes = (raw_predictions >= 0).astype(int)
         else:
             encoded_classes = np.argmax(raw_predictions, axis=1)
